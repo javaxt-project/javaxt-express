@@ -13,7 +13,7 @@ public class Content {
     private javaxt.io.File file;
     private javaxt.io.Directory share;
     private javax.servlet.http.HttpServletRequest request;
-    private boolean isIndex = false;
+    //private boolean isIndex = false;
     private String title;
     private String description;
     private String keywords;
@@ -43,7 +43,6 @@ public class Content {
         if (request.getServletPath().startsWith("/wiki/")){
             if (request.getQueryString()==null){
                 path += "index.txt";
-                isIndex = true;
             }
             else{
                 java.util.Enumeration params = request.getParameterNames();
@@ -224,6 +223,50 @@ public class Content {
         return keywords;
     }
 
+
+  //**************************************************************************
+  //** getIndex
+  //**************************************************************************
+  /** Returns a table of contents
+   */
+    public String getIndex(){
+
+        StringBuffer toc = null;
+
+        javaxt.io.Directory dir = new javaxt.io.Directory(share + "wiki/");
+        javaxt.io.File[] files = dir.getFiles("*.txt", true);
+        java.util.HashSet<String> dirs = new java.util.HashSet<String>();
+
+        toc = new StringBuffer();
+        toc.append("<ul>");
+        for (int i=0; i<files.length; i++){
+            if (!files[i].equals(file)){
+                String relPath = files[i].getPath().replace(dir.toString(),"") + files[i].getName(false);
+                relPath = relPath.replace("\\","/");
+                if (relPath.contains("/")){
+
+                    String currDir = relPath.substring(0, relPath.lastIndexOf("/"));
+                    if (!dirs.contains(currDir)){
+
+                        if (!dirs.isEmpty()) toc.append("</ul>");
+                        toc.append("<li>" + currDir +"</li>");
+                        toc.append("<ul>");
+
+                        dirs.add(currDir);
+                    }
+
+
+                    toc.append("<li><a href=\"" + Path + relPath + "\">" + relPath +"</a></li>");
+                }
+            }
+        }
+        toc.append("</ul>");
+
+        return toc.toString();
+    }
+
+
+
   //**************************************************************************
   //** toString
   //**************************************************************************
@@ -236,39 +279,7 @@ public class Content {
         User user = (User) request.getSession().getAttribute("PortalUser");
 
 
-      //If this is the wiki index, generate a table of contents
-        StringBuffer toc = null;
-        if (isIndex){
-            
-            javaxt.io.Directory dir = new javaxt.io.Directory(share + "wiki/");
-            javaxt.io.File[] files = dir.getFiles("*.txt", true);
-            java.util.HashSet<String> dirs = new java.util.HashSet<String>();
-            
-            toc = new StringBuffer();
-            toc.append("<ul>");
-            for (int i=0; i<files.length; i++){
-                if (!files[i].equals(file)){
-                    String relPath = files[i].getPath().replace(dir.toString(),"") + files[i].getName(false);
-                    relPath = relPath.replace("\\","/");
-                    if (relPath.contains("/")){
 
-                        String currDir = relPath.substring(0, relPath.lastIndexOf("/"));
-                        if (!dirs.contains(currDir)){
-                            
-                            if (!dirs.isEmpty()) toc.append("</ul>");
-                            toc.append("<li>" + currDir +"</li>");
-                            toc.append("<ul>");
-
-                            dirs.add(currDir);
-                        }
-
-
-                        toc.append("<li><a href=\"" + Path + "wiki/?/" + relPath + "\">" + relPath +"</a></li>");
-                    }
-                }
-            }
-            toc.append("</ul>");
-        }
 
 
       //Set Default Content
@@ -348,9 +359,6 @@ public class Content {
 
 
 
-        if (toc!=null){
-            text.append("<div id=\"wiki-index\">" + toc.toString() + "</div>");
-        }
 
         text.append("</td>");
         text.append("</tr>");

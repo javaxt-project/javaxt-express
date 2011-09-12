@@ -78,6 +78,7 @@ public class Documentation {
         }
         if (showIndex){
 
+            String path = new javaxt.utils.URL(request.getRequestURL().toString()).getPath();
 
             if (title==null) str.append("<h1>JavaDocs</h1>");
             else str.append("<h1>" + title + "</h1>");
@@ -99,7 +100,7 @@ public class Documentation {
 
 
                         str.append("<td valign=\"top\">");
-                        str.append("<a href=\"" + request.getContextPath() + request.getServletPath() + "?jar=" + jar + "&package=" + packageName + "&class=" + className + "\">"+className+"</a>");
+                        str.append("<a href=\"" + path + "?jar=" + jar + "&package=" + packageName + "&class=" + className + "\">"+className+"</a>");
                         str.append("</td>");
                         str.append("<td>");
 
