@@ -37,6 +37,12 @@ public class Content {
         Path = Utils.getPath(request);
 
 
+      //Assemble url
+        javaxt.utils.URL url = new javaxt.utils.URL(request.getRequestURL().toString());
+        url.setQueryString(request.getQueryString());
+        //System.out.println(url);
+
+
 
       //Get path to wiki file
         String path = share + "wiki/";
@@ -65,7 +71,7 @@ public class Content {
             else{
 
               //Special case where the entire site is hosted from a servlet with a pattern of "/*"
-                String service = new javaxt.utils.URL(request.getRequestURL().toString()).getPath();
+                String service = url.getPath();
                 if (service.length()<Path.length()) service = Path;
                 service = service.substring(service.indexOf(Path)).substring(Path.length());
                 if (service.length()>1 && service.startsWith("/")) service = service.substring(1);
@@ -235,32 +241,33 @@ public class Content {
 
         javaxt.io.Directory dir = new javaxt.io.Directory(share + "wiki/");
         javaxt.io.File[] files = dir.getFiles("*.txt", true);
-        java.util.HashSet<String> dirs = new java.util.HashSet<String>();
 
         toc = new StringBuffer();
-        toc.append("<ul>");
+        toc.append("<ul>\r\n");
         for (int i=0; i<files.length; i++){
             if (!files[i].equals(file)){
                 String relPath = files[i].getPath().replace(dir.toString(),"") + files[i].getName(false);
                 relPath = relPath.replace("\\","/");
-                if (relPath.contains("/")){
-
-                    String currDir = relPath.substring(0, relPath.lastIndexOf("/"));
-                    if (!dirs.contains(currDir)){
-
-                        if (!dirs.isEmpty()) toc.append("</ul>");
-                        toc.append("<li>" + currDir +"</li>");
-                        toc.append("<ul>");
-
-                        dirs.add(currDir);
-                    }
 
 
-                    toc.append("<li><a href=\"" + Path + relPath + "\">" + relPath +"</a></li>");
+                javaxt.io.Directory currDir = files[i].getParentDirectory();
+                if (i==0 || !files[i-1].getParentDirectory().equals(currDir)){
+
+                    String dirName = files[i].getPath().replace(dir.toString(),"").replace("\\", "/");
+                    if (dirName.endsWith("/")) dirName = dirName.substring(0, dirName.length()-1);
+
+                    if (i>0) toc.append("</ul>\r\n");
+                    toc.append("<li>" + dirName + "</li>\r\n");
+                    toc.append("<ul>\r\n");
                 }
+
+                if (!currDir.equals(dir)){
+                    toc.append("<li><a href=\"" + Path + relPath + "\">" + files[i].getName(false).replace("_", " ") + "</a></li>\r\n");
+                }
+
             }
         }
-        toc.append("</ul>");
+        toc.append("</ul>\r\n");
 
         return toc.toString();
     }
@@ -280,12 +287,11 @@ public class Content {
 
 
 
-
-
       //Set Default Content
         if (file==null || !file.exists()){
             if (user==null){
-                content = "<h1>Page Not Found</h1>";
+                title = "Page Not Found";
+                content = "<h1>" + title + "</h1>";
             }
         }
 
