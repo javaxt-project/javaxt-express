@@ -52,9 +52,7 @@ public class Redirects {
     }
 
     public String getRedirect(javax.servlet.http.HttpServletRequest request){
-        javaxt.utils.URL url = new javaxt.utils.URL(request.getRequestURL().toString());
-        url.setQueryString(request.getQueryString());
-        return getRedirect(url.toString());
+        return getRedirect(Utils.getURL(request));
     }
 
     public String getRedirect(javaxt.utils.URL url){

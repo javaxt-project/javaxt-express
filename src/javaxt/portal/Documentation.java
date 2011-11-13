@@ -64,7 +64,7 @@ public class Documentation {
   /** Used to construct an html fragment with a index of all the classes found
    *  in the jar file.
    */
-    public String getIndex(String title){
+    public String getIndex(String title) throws Exception {
 
         StringBuffer str = new StringBuffer();
         boolean showIndex = true;
@@ -135,7 +135,7 @@ public class Documentation {
    *   <li> package: The name of the package (e.g. javaxt.io) </li>
    *   <ul>
    */
-    public String getClassInfo(){
+    public String getClassInfo() throws Exception {
 
       //Parse QueryString Parameters
         String jarFile = request.getParameter("jar");
@@ -154,9 +154,10 @@ public class Documentation {
    *  @param className The name of the class (e.g. File)
    *  @param packageName The name of the package (e.g. javaxt.io)
    */
-    public String getClassInfo(String className, String packageName){
+    public String getClassInfo(String className, String packageName) throws Exception{
 
       //Get class info
+
         com.jeldoclet.Class theClass = parser.getPackage(packageName).getClass(className);
         com.jeldoclet.Method[] methods = theClass.getMethods();
         com.jeldoclet.Method[] constructors = theClass.getConstructors();
