@@ -1,4 +1,5 @@
 package javaxt.portal;
+import javaxt.http.servlet.HttpServletRequest;
 
 //******************************************************************************
 //**  Redirects Class
@@ -12,6 +13,7 @@ package javaxt.portal;
 public class Redirects {
 
     private java.util.HashMap<String, String> redirects = new java.util.HashMap<String, String>();
+    private java.util.List<String> sortedKeys;
     private javaxt.io.File file;
     private long lastUpdate;
 
@@ -49,16 +51,22 @@ public class Redirects {
                 }
             }
         }
+
+        sortedKeys = new java.util.ArrayList<String>(redirects.keySet());
+        java.util.Collections.sort(sortedKeys, new StringComparator());
     }
 
-    public String getRedirect(javax.servlet.http.HttpServletRequest request){
-        return getRedirect(Utils.getURL(request));
+    public String getRedirect(HttpServletRequest request){
+        return getRedirect(request.getURL());
     }
 
     public String getRedirect(javaxt.utils.URL url){
         return getRedirect(url.toString());
     }
 
+    public String getRedirect(java.net.URL url){
+        return getRedirect(url.toString());
+    }
 
   //**************************************************************************
   //** getRedirect
@@ -72,9 +80,10 @@ public class Redirects {
 
 
       //Loop through all the redirects and find a suitable match
-        java.util.Iterator<String> it = redirects.keySet().iterator();
+        java.util.Iterator<String> it = sortedKeys.iterator();
         while (it.hasNext()){
             String key = it.next();
+
             if (url.toUpperCase().contains(key.toUpperCase())){
                 String replacement = redirects.get(key);
                 int x = url.toUpperCase().indexOf(key.toUpperCase());
@@ -89,6 +98,17 @@ public class Redirects {
 
       //If not match is found, return a null
         return null;
+    }
+
+
+
+  /** Used to compare to strings based on their length. Longer strings will
+   *  appear first.
+   */
+    private class StringComparator implements java.util.Comparator<String> {
+        public int compare(String t1, String t2) {
+            return new Integer(t2.length()).compareTo(new Integer(t1.length()));
+        }
     }
 
 }

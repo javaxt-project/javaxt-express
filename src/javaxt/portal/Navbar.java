@@ -1,4 +1,5 @@
 package javaxt.portal;
+import javaxt.http.servlet.HttpServletRequest;
 
 //******************************************************************************
 //**  Navbar Class
@@ -17,25 +18,19 @@ public class Navbar {
   //**************************************************************************
   //** Constructor
   //**************************************************************************
-  /** Creates a new instance of Navbar. */
+  /** Creates a new instance of Navbar. 
+   *  @param service First directory represented in the request url.
+   */
 
-    public Navbar(javax.servlet.http.HttpServletRequest request, javaxt.io.Directory share) {
+    public Navbar(HttpServletRequest request, String service, javaxt.io.Directory share, String Path) {
 
         
       //Set Path variable
-        Path = Utils.getPath(request);
+        this.Path = Path;
 
-        
-        String relPath = request.getServletPath();
-        if (relPath.length()>1){
-            relPath = relPath.substring(1);
-            if (relPath.contains("/")) relPath = relPath.substring(0, relPath.indexOf("/"));
-            this.file = new javaxt.io.File(share.toString() + "wiki/" + relPath + "/navbar.txt");
-        }
-        else{
-            this.file = new javaxt.io.File(share.toString() + "wiki/navbar.txt");
-        }
-        
+        file = new javaxt.io.File(share.toString() + service + "/navbar.txt");
+        if (!file.exists()) file = new javaxt.io.File(share.toString() + "navbar.txt");
+
     }
 
 

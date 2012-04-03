@@ -1,4 +1,5 @@
 package javaxt.portal;
+import javaxt.http.servlet.HttpServletRequest;
 
 //******************************************************************************
 //**  Portal Content
@@ -12,195 +13,116 @@ public class Content {
 
     private javaxt.io.File file;
     private javaxt.io.Directory share;
-    private javax.servlet.http.HttpServletRequest request;
-    //private boolean isIndex = false;
     private String title;
     private String description;
     private String keywords;
     private String content = "";
     private String Path;
+    private final static String[] DefaultFileNames =
+        new String[]{"home.txt", "index.txt", "Overview.txt"};
+    private boolean parseFile = true;
 
   //**************************************************************************
   //** Constructor
   //**************************************************************************
   /** Creates a new instance of this class.
-   *  @param share Path to the javaxt share directory
+   *  @param share Path to the web share (root directory)
    *  @param request HttpServletRequest
    */
-    public Content(javax.servlet.http.HttpServletRequest request, javaxt.io.Directory share){
+    public Content(HttpServletRequest request, javaxt.io.Directory share, String Path){
 
 
-        this.request = request;
         this.share = share;
-
-      //Set Path variable
-        Path = Utils.getPath(request);
+        this.Path = Path;
 
 
-      //Assemble url
-        javaxt.utils.URL url = new javaxt.utils.URL(request.getRequestURL().toString());
-        url.setQueryString(request.getQueryString());
-        //System.out.println(url);
-
-
-
-      //Get path to wiki file
-        String path = share + "wiki/";
-        if (request.getServletPath().startsWith("/wiki/")){
-            if (request.getQueryString()==null){
-                path += "index.txt";
-            }
-            else{
-                java.util.Enumeration params = request.getParameterNames();
-                String relPath = (String) params.nextElement();
-                if (relPath.startsWith("/") || relPath.startsWith("\\")){
-                    relPath = relPath.substring(1);
-                }
-                if (relPath.endsWith("/") || relPath.endsWith("\\")){
-                    relPath = relPath.substring(0, relPath.length()-1);
-                }
-                if (!relPath.endsWith(".txt")) relPath+=".txt";
-                path += relPath;
-            }
-        }
-        else{
-            
-            //String relPath = request.getServletPath().substring(1);
-            String relPath = request.getServletPath();
-            if (relPath.length()>1) relPath = relPath.substring(1);
-            else{
-
-              //Special case where the entire site is hosted from a servlet with a pattern of "/*"
-                String service = url.getPath();
-                if (service.length()<Path.length()) service = Path;
-                service = service.substring(service.indexOf(Path)).substring(Path.length());
-                if (service.length()>1 && service.startsWith("/")) service = service.substring(1);
-                if (service.length()>1 && service.endsWith("/")) service = service.substring(0, service.length()-1);
-
-
-              //Special case when app is deployed as root
-                String contextPath = request.getContextPath();
-                if (contextPath.length()>1){
-                    contextPath = contextPath.substring(1);
-                    if (Path.equals("/") && service.startsWith(contextPath)){
-                        if (service.contains("/")){
-                            service = service.substring(service.indexOf("/"));
-                            if (service.startsWith("/")){
-                                if (service.length()>1) service = service.substring(1);
-                                else service = "";
-                            }
-                        }
-                        else service = "";
-                    }
-                }
-
-                relPath = service;
-                
-            }
-
-            //System.out.println("relPath: " + relPath);
-            if (relPath.toLowerCase().endsWith("index.jsp")){
-
-                if (relPath.equalsIgnoreCase("index.jsp")){
-                    path+="home.txt";
-                }
-                else{
-                    relPath = relPath.substring(0, relPath.length()-10);
-                    path+=relPath + ".txt";
-                }
-            }
-            else{
-
-              //Special case for servlets where there is no index.jsp in the file path
-                if (relPath.equals("") || relPath.equals("/")){
-                    path+="home.txt";
-                }
-                else{
-                    path+=relPath + ".txt";
-                    //path=null;
-                }
-            }
-        }
         
-        //System.out.println("path: " + path);
+      //Get path to wiki file
+        String path = share.toString();
+        String relPath = request.getURL().getPath();
+        if (relPath.startsWith("/")) relPath = relPath.substring(1);
+        if (relPath.endsWith("/")) relPath = relPath.substring(0, relPath.length()-1);
 
-      //Parse file and extract content
-        if (path!=null) {
-            file = new javaxt.io.File(path);
-            if (file.exists()){
 
-                content = file.getText().replace("<%=Path%>", Path);
-                javaxt.html.Parser html = new javaxt.html.Parser(content);
 
-              //Extract Title
-                try{
-                    javaxt.html.Parser.Element title = html.getElementByTagName("title");
-                    content = content.replace(title.outerHTML, "");
-                    this.title = title.innerHTML;
+        if (relPath.equals("")){
+            for (String fileName : DefaultFileNames){
+                javaxt.io.File f = new javaxt.io.File(path + fileName) ;
+                if (f.exists()){
+                    file = f;
+                    break;
                 }
-                catch(Exception e){}
-                
-                if (title==null){
-                    try{
-                        this.title = html.getElementByTagName("h1").innerHTML;
-                    }
-                    catch(Exception e){}
-                }
-
-              //Extract Description
-                try{
-                    javaxt.html.Parser.Element description = html.getElementByTagName("description");
-                    content = content.replace(description.outerHTML, "");
-                    this.description = description.innerHTML;
-                }
-                catch(Exception e){}
-
-
-              //Extract Keywords
-                try{
-                    javaxt.html.Parser.Element keywords = html.getElementByTagName("keywords");
-                    content = content.replace(keywords.outerHTML, "");
-                    this.keywords = keywords.innerHTML;
-                }
-                catch(Exception e){}
-                
-            }
-
-            if (file.getName().equalsIgnoreCase("img.txt")){
-                System.out.println("path: " + path);
-                System.out.println("query: " + request.getQueryString());
-                return;
             }
         }
         else{
-            return;
+            file = new javaxt.io.File(path+relPath+".txt");
         }
 
-
-      //Create/Update wiki content
-        /*
-        try{
-            String newContent = request.getParameterValues("content")[0];
-            if (newContent!=null){
-                
-                javaxt.utils.URL currURL = new javaxt.utils.URL(request.getRequestURL().toString());
-                javaxt.utils.URL prevURL = new javaxt.utils.URL(request.getHeader("Referer"));
-                
-                if (currURL.getHost().equalsIgnoreCase(prevURL.getHost())){
-                    if (prevURL.getPath().endsWith("edit.jsp")){
-                        javaxt.portal.User user = (javaxt.portal.User) request.getSession().getAttribute("PortalUser");
-                        if (user!=null){ 
-                            write(newContent);
-                        }
-                    }
-                }
-            }
-        }
-        catch(Exception e){
-        }
-        */
     }
 
+
+  //**************************************************************************
+  //** parseFile
+  //**************************************************************************
+  /** Used to parse the file contents. Note that the file is parsed only once.
+   *  Parsing the file should be delayed until the contents are actually
+   *  needed. For example, we don't want to parse the file if all we want is
+   *  the date/time stamp of the file to return a 304 response.
+   */
+    private void parseFile(){
+
+        if (!parseFile) return;
+
+      //Parse file and extract content
+        if (file.exists()) {
+
+            content = file.getText().replace("<%=Path%>", Path);
+            javaxt.html.Parser html = new javaxt.html.Parser(content);
+
+          //Extract Title
+            try{
+                javaxt.html.Parser.Element title = html.getElementByTagName("title");
+                content = content.replace(title.outerHTML, "");
+                this.title = title.innerHTML;
+            }
+            catch(Exception e){}
+
+            if (title==null){
+                try{
+                    this.title = html.getElementByTagName("h1").innerHTML;
+                }
+                catch(Exception e){}
+            }
+
+          //Extract Description
+            try{
+                javaxt.html.Parser.Element description = html.getElementByTagName("description");
+                content = content.replace(description.outerHTML, "");
+                this.description = description.innerHTML;
+            }
+            catch(Exception e){}
+
+
+          //Extract Keywords
+            try{
+                javaxt.html.Parser.Element keywords = html.getElementByTagName("keywords");
+                content = content.replace(keywords.outerHTML, "");
+                this.keywords = keywords.innerHTML;
+            }
+            catch(Exception e){}
+
+        }
+
+        parseFile = false;
+
+    }
+
+
+  //**************************************************************************
+  //** write
+  //**************************************************************************
+  /** Used to write new content to the file.
+   */
     public void write(String text){
         if (file!=null)  file.write(text);
     }
@@ -216,16 +138,35 @@ public class Content {
     }
 
 
-
-
+  //**************************************************************************
+  //** getTitle
+  //**************************************************************************
+  /** Returns the content of the html "title" tag.
+   */
     public String getTitle(){
+        parseFile();
         return title;
     }
-    
+
+
+  //**************************************************************************
+  //** getDescription
+  //**************************************************************************
+  /** Returns the content of the html "description" tag.
+   */
     public String getDescription(){
+        parseFile();
         return description;
     }
+
+
+  //**************************************************************************
+  //** getKeywords
+  //**************************************************************************
+  /** Returns the content of the html "keywords" tag.
+   */
     public String getKeywords(){
+        parseFile();
         return keywords;
     }
 
@@ -233,35 +174,65 @@ public class Content {
   //**************************************************************************
   //** getIndex
   //**************************************************************************
-  /** Returns a table of contents
+  /**  Returns a table of contents
    */
-    public String getIndex(){
+    public String getIndex(javaxt.io.Directory share, String Path){
 
-        StringBuffer toc = null;
+        java.util.ArrayList<java.util.Date> dates = new java.util.ArrayList<java.util.Date>();
+        dates.add(file.getDate());
 
-        javaxt.io.Directory dir = new javaxt.io.Directory(share + "wiki/");
-        javaxt.io.File[] files = dir.getFiles("*.txt", true);
 
-        toc = new StringBuffer();
+        java.util.ArrayList<String> dirNames = new java.util.ArrayList<String>();
+
+        StringBuffer toc = new StringBuffer();
         toc.append("<ul>\r\n");
+
+        javaxt.io.File[] files = share.getFiles("*.txt", true);
         for (int i=0; i<files.length; i++){
             if (!files[i].equals(file)){
-                String relPath = files[i].getPath().replace(dir.toString(),"") + files[i].getName(false);
+
+                dates.add(files[i].getDate());
+
+                String relPath = files[i].getPath().replace(share.toString(),"") + files[i].getName(false);
                 relPath = relPath.replace("\\","/");
 
 
                 javaxt.io.Directory currDir = files[i].getParentDirectory();
                 if (i==0 || !files[i-1].getParentDirectory().equals(currDir)){
 
-                    String dirName = files[i].getPath().replace(dir.toString(),"").replace("\\", "/");
+                    dates.add(currDir.getDate());
+
+                    String dirName = files[i].getPath().replace(share.toString(),"").replace("\\", "/").replace("_", " ");
                     if (dirName.endsWith("/")) dirName = dirName.substring(0, dirName.length()-1);
+                    if (!dirNames.contains(dirName)) dirNames.add(dirName);
+
+
+                  //Stylize the dirName
+                    if (!dirName.contains("/")) dirName = "<h2>" + dirName + "</h2>";
+                    else{
+
+                        String h2 = "";
+                        if (dirNames.size()>1){
+                            String str = dirName.substring(0, dirName.indexOf("/"));
+                            String prevDir = dirNames.get(dirNames.size()-2);
+                            if (!prevDir.startsWith(str)){
+                                h2 = "<h2>" + str + "</h2>";
+                            }
+                            
+                        }
+
+                        if (dirName.contains("/")) dirName = dirName.substring(dirName.indexOf("/")+1);
+
+
+                        dirName = h2 + "<li>" + dirName + "</li>";
+                    }
 
                     if (i>0) toc.append("</ul>\r\n");
-                    toc.append("<li>" + dirName + "</li>\r\n");
+                    toc.append(dirName + "\r\n");
                     toc.append("<ul>\r\n");
                 }
 
-                if (!currDir.equals(dir)){
+                if (!currDir.equals(share)){
                     toc.append("<li><a href=\"" + Path + relPath + "\">" + files[i].getName(false).replace("_", " ") + "</a></li>\r\n");
                 }
 
@@ -269,9 +240,21 @@ public class Content {
         }
         toc.append("</ul>\r\n");
 
+
+      //Update the date of the file to match the
+        javaxt.utils.Date.sortDates(dates);
+        java.util.Date mostRecentFile = dates.get(dates.size()-1);
+        if (!mostRecentFile.equals(file.getDate())) System.out.println("Update file date: " + mostRecentFile);
+        file.setDate(mostRecentFile);
+
+
         return toc.toString();
     }
 
+
+    public String getIndex(){
+        return this.getIndex(share, Path);
+    }
 
 
   //**************************************************************************
@@ -282,21 +265,15 @@ public class Content {
     public String toString(){
 
 
-      //Get User
-        User user = (User) request.getSession().getAttribute("PortalUser");
-
-
-
       //Set Default Content
         if (file==null || !file.exists()){
-            if (user==null){
-                title = "Page Not Found";
-                content = "<h1>" + title + "</h1>";
-            }
+            title = "Page Not Found";
+            content = "<h1>" + title + "</h1>";
         }
 
 
       //Parse Content
+        parseFile();
         javaxt.html.Parser html = new javaxt.html.Parser(content);
         javaxt.html.Parser.Element h1 = html.getElementByTagName("h1");
         if (h1!=null) content = content.replace(h1.outerHTML, "");
@@ -311,55 +288,6 @@ public class Content {
 
         if (h1!=null) text.append(h1.outerHTML);
         
-        /*
-        text.append("    <div class=\"sidebar\">");
-
-        javaxt.html.Parser.Element[] h2 = html.getElementsByTagName("h2");
-        javaxt.html.Parser.Element[] link = html.getElementsByTagName("a");
-        if (h2.length>0){
-            text.append("      <div class=\"block block-one\">");
-            text.append("        <div class=\"wrap1\">");
-            text.append("         <div class=\"wrap2\">");
-            text.append("          <div class=\"wrap3\">");
-            text.append("            <div class=\"title\"><h3>Quick Nav</h3></div>");
-            text.append("                <div class=\"inner\">");
-            text.append("                  <ul class=\"sidebar-list\">");
-            for (int i=0; i<h2.length; i++){
-                text.append("                 <li><a href=\"#\">" + h2[i].innerHTML + "</a></li>");
-            }
-            text.append("                  </ul>");
-            text.append("            </div>");
-            text.append("          </div>");
-            text.append("         </div>");
-            text.append("        </div>");
-            text.append("      </div>");
-        }
-        */
-
-
-        /*
-        if (link.length>0){
-            text.append("      <div class=\"block block-one\">");
-            text.append("        <div class=\"wrap1\">");
-            text.append("         <div class=\"wrap2\">");
-            text.append("          <div class=\"wrap3\">");
-            text.append("            <div class=\"title\"><h3>Related Links</h3></div>");
-            text.append("                <div class=\"inner\">");
-            text.append("                  <ul class=\"sidebar-list\">");
-            for (int i=0; i<link.length; i++){
-                text.append("                    <li><a href=\"#\">" + link[i].innerHTML + "</a></li>");
-            }
-            text.append("                  </ul>");
-            text.append("            </div>");
-            text.append("          </div>");
-            text.append("         </div>");
-            text.append("        </div>");
-            text.append("      </div>");
-        }
-        
-
-        text.append("    </div>");
-        */
 
         text.append(content);
 
@@ -370,22 +298,6 @@ public class Content {
         text.append("</tr>");
 
 
-        
-        if (user!=null){
-
-            String relPath = this.getFile().toString().substring(share.toString().length());
-            relPath = relPath.replace("\\", "/");
-
-            text.append("<tr>");
-            text.append("<td style=\"height:1px;\">");
-            text.append("<table align=\"right\">");
-            text.append("<tr>");
-            text.append("<td class=\"smgrytxt\"><a href=\"" + Path + "wiki/edit.jsp?file=" + relPath + "\">Edit Page</a></td>");
-            text.append("</tr>");
-            text.append("</table>");
-            text.append("</td>");
-            text.append("</tr>");
-        }
 
         text.append("</table>");
         text.append("</div>");

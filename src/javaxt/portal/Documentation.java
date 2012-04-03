@@ -1,5 +1,6 @@
 package javaxt.portal;
 import java.util.zip.*;
+import javaxt.http.servlet.*;
 
 //******************************************************************************
 //**  Documentation Class
@@ -11,7 +12,7 @@ import java.util.zip.*;
 
 public class Documentation {
 
-    private javax.servlet.http.HttpServletRequest request;
+    private HttpServletRequest request;
     private String jar;
     private com.jeldoclet.Parser parser;
 
@@ -46,7 +47,7 @@ public class Documentation {
    *  @param dir Path to the jar directory
    *  @param request HttpServletRequest
    */
-    public Documentation(String jar, javaxt.io.Directory dir, javax.servlet.http.HttpServletRequest request) {
+    public Documentation(String jar, javaxt.io.Directory dir, HttpServletRequest request) {
 
         if (jar.toLowerCase().endsWith(".jar") || jar.toLowerCase().endsWith(".zip")){
             jar = jar.substring(0, jar.lastIndexOf("."));
@@ -78,7 +79,7 @@ public class Documentation {
         }
         if (showIndex){
 
-            String path = new javaxt.utils.URL(request.getRequestURL().toString()).getPath();
+            String path = request.getURL().getPath();
 
             if (title==null) str.append("<h1>JavaDocs</h1>");
             else str.append("<h1>" + title + "</h1>");
@@ -359,7 +360,7 @@ public class Documentation {
    */
     private com.jeldoclet.Parser getJELParser(javaxt.io.File javadoc){
 
-        javax.servlet.ServletContext application = request.getSession().getServletContext();
+        ServletContext application = request.getSession().getServletContext();
         com.jeldoclet.Parser parser = (com.jeldoclet.Parser) application.getAttribute(jar);
         java.util.Date lastUpdate = (java.util.Date) application.getAttribute(jar + "-timestamp");
         if (parser==null || lastUpdate==null || javadoc.getDate().after(lastUpdate)){
