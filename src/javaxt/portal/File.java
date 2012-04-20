@@ -51,20 +51,23 @@ public class File {
             if (filename.startsWith("/")||filename.startsWith("\\")){
                 filename = filename.substring(1);
             }
+            filename = filename.trim().replace("\\", "/");
         }
 
 
 
       //Validate the filename/path
-        if (filename==null || filename.equals("") || filename.contains("..") ||
-            filename.toLowerCase().contains("keystore")){
-            throw new ServletException(400);
+        if (filename==null || filename.equals("") || filename.contains("..")
+            || filename.toLowerCase().startsWith("bin/")
+        ){
+            throw new ServletException(404);
         }
         else{
-          //Make sure none of the directories/files in the path are "hidden"
-            for (String path : filename.replace("\\", "/").split("/")){
+          //Make sure none of the directories/files in the path are "hidden".
+          //Any directory that statrs with a "." is considered hidden.
+            for (String path : filename.split("/")){
                 if (path.trim().startsWith(".")){
-                    throw new ServletException(400);
+                    throw new ServletException(404);
                 }
             }
         }
