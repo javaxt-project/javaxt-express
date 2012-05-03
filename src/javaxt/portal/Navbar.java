@@ -11,9 +11,9 @@ import javaxt.http.servlet.HttpServletRequest;
 
 public class Navbar {
 
-
     private javaxt.io.File file;
     private String Path;
+
 
   //**************************************************************************
   //** Constructor
@@ -21,21 +21,15 @@ public class Navbar {
   /** Creates a new instance of Navbar. 
    *  @param service First directory represented in the request url.
    */
-
     public Navbar(HttpServletRequest request, String service, javaxt.io.Directory share, String Path) {
 
-        
       //Set Path variable
         this.Path = Path;
 
         file = new javaxt.io.File(share.toString() + service + "/navbar.txt");
         if (!file.exists()) file = new javaxt.io.File(share.toString() + "navbar.txt");
-
     }
 
-
-
-    
 
     public javaxt.io.File getFile(){
         return file;
@@ -46,7 +40,8 @@ public class Navbar {
         for (String row : file.getText().split("\n")){
             row = row.trim();
             if (row.length()>0 && row.contains("\t") &&
-                    !(row.startsWith("<!--") || row.startsWith("#") || row.startsWith("//"))){
+               !(row.startsWith("<!--") || row.startsWith("#") || row.startsWith("//")))
+            {
                 String text = row.substring(0, row.indexOf("\t")).trim();
                 String link = row.substring(row.indexOf("\t")).trim().replace("<%=Path%>", Path);
                 list.add(new String[]{text, link});
