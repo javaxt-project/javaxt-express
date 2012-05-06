@@ -96,7 +96,7 @@ public class Logger implements Runnable {
                 request = (String) pool.remove(0);
             }
 
-
+if (request.contains("User-Agent: EMR Bootstrap Service")) continue;
 
             try{                
                 byte[] b = request.getBytes();
