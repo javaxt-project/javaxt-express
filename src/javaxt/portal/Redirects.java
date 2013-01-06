@@ -13,7 +13,7 @@ import javaxt.http.servlet.HttpServletRequest;
 public class Redirects {
 
     private java.util.HashMap<String, String> redirects = new java.util.HashMap<String, String>();
-    private java.util.List<String> sortedKeys;
+    private java.util.List<String> sortedKeys = new java.util.ArrayList<String>();
     private javaxt.io.File file;
     private long lastUpdate;
 
@@ -37,23 +37,26 @@ public class Redirects {
    */
     private void parseRedirects(){
         redirects.clear();
-        lastUpdate = file.getDate().getTime();
-        for (String entry : file.getText().split("\r\n")){
-            entry = entry.trim();
-            if (entry.length()==0 || entry.startsWith("#") || entry.startsWith("//")){
-                //skip line
-            }
-            else{
-                while(entry.contains("\t\t")) entry = entry.replace("\t\t", "\t");
-                String[] arr = entry.split("\t");
-                if (arr.length>1){
-                    redirects.put(arr[0], arr[1]);
+        sortedKeys.clear();
+        if (file.exists()){
+            lastUpdate = file.getDate().getTime();
+            for (String entry : file.getText().split("\r\n")){
+                entry = entry.trim();
+                if (entry.length()==0 || entry.startsWith("#") || entry.startsWith("//")){
+                    //skip line
+                }
+                else{
+                    while(entry.contains("\t\t")) entry = entry.replace("\t\t", "\t");
+                    String[] arr = entry.split("\t");
+                    if (arr.length>1){
+                        redirects.put(arr[0], arr[1]);
+                    }
                 }
             }
-        }
 
-        sortedKeys = new java.util.ArrayList<String>(redirects.keySet());
-        java.util.Collections.sort(sortedKeys, new StringComparator());
+            sortedKeys = new java.util.ArrayList<String>(redirects.keySet());
+            java.util.Collections.sort(sortedKeys, new StringComparator());
+        }
     }
 
     public String getRedirect(HttpServletRequest request){
