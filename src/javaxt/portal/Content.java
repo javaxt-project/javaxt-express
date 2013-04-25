@@ -81,33 +81,33 @@ public class Content {
 
           //Extract Title
             try{
-                javaxt.html.Parser.Element title = html.getElementByTagName("title");
-                content = content.replace(title.outerHTML, "");
-                this.title = title.innerHTML;
+                javaxt.html.Element title = html.getElementByTagName("title");
+                content = content.replace(title.getOuterHTML(), "");
+                this.title = title.getInnerHTML();
             }
             catch(Exception e){}
 
             if (title==null){
                 try{
-                    this.title = html.getElementByTagName("h1").innerHTML;
+                    this.title = html.getElementByTagName("h1").getInnerHTML();
                 }
                 catch(Exception e){}
             }
 
           //Extract Description
             try{
-                javaxt.html.Parser.Element description = html.getElementByTagName("description");
-                content = content.replace(description.outerHTML, "");
-                this.description = description.innerHTML;
+                javaxt.html.Element description = html.getElementByTagName("description");
+                content = content.replace(description.getOuterHTML(), "");
+                this.description = description.getInnerHTML();
             }
             catch(Exception e){}
 
 
           //Extract Keywords
             try{
-                javaxt.html.Parser.Element keywords = html.getElementByTagName("keywords");
-                content = content.replace(keywords.outerHTML, "");
-                this.keywords = keywords.innerHTML;
+                javaxt.html.Element keywords = html.getElementByTagName("keywords");
+                content = content.replace(keywords.getOuterHTML(), "");
+                this.keywords = keywords.getInnerHTML();
             }
             catch(Exception e){}
 
@@ -275,8 +275,8 @@ public class Content {
       //Parse Content
         parseFile();
         javaxt.html.Parser html = new javaxt.html.Parser(content);
-        javaxt.html.Parser.Element h1 = html.getElementByTagName("h1");
-        if (h1!=null) content = content.replace(h1.outerHTML, "");
+        javaxt.html.Element h1 = html.getElementByTagName("h1");
+        if (h1!=null) content = content.replace(h1.getOuterHTML(), "");
 
 
         StringBuffer text = new StringBuffer();
@@ -286,7 +286,7 @@ public class Content {
         text.append("<tr>");
         text.append("<td valign=\"top\">");        
 
-        if (h1!=null) text.append(h1.outerHTML);
+        if (h1!=null) text.append(h1.getOuterHTML());
         
 
         text.append(content);
