@@ -101,4 +101,69 @@ public class File {
         response.write(file.toFile(), contentType, true);
     }
 
+
+  //**************************************************************************
+  //** getLastFile
+  //**************************************************************************
+  /** Find the latest version of the jar file. Assumes version number is
+   *  included in the file name (e.g. "javaxt-core_v1.3.0.zip")
+   *  @param jar Name of the jar file (e.g. "javaxt-core.jar")
+   */
+    public static javaxt.io.File getLastFile(String jar, javaxt.io.Directory dir){
+
+
+        if (jar.toLowerCase().endsWith(".jar") || jar.toLowerCase().endsWith(".zip")){
+            jar = jar.substring(0, jar.lastIndexOf("."));
+        }
+
+
+        int major = 0;
+        int minor = 0;
+        int patch = 0;
+        javaxt.io.File lastFile = null;
+        for (javaxt.io.File file : dir.getFiles("*.zip")){
+            String fileName = file.getName(false);
+            if (fileName.startsWith(jar.toLowerCase())){
+                String version = fileName.substring(fileName.indexOf("_v")+2);
+                String[] arr = version.split("\\.");
+                int a, b, c;
+                a=b=c=0;
+                for (int i=0; i<arr.length; i++){
+                    int x = 0;
+                    try{ x=Integer.parseInt(arr[i]); } catch(Exception e){}
+                    if (i==0) a = x;
+                    else if(i == 1) b = x;
+                    else if(i == 2) c = x;
+                }
+                if (a>major){
+                    major = a;
+                    minor = b;
+                    patch = c;
+                    lastFile = file;
+                }
+                else{
+                    if (b>minor){
+                        major = a;
+                        minor = b;
+                        patch = c;
+                        lastFile = file;
+                    }
+                    else{
+                        if (c>patch){
+                            major = a;
+                            minor = b;
+                            patch = c;
+                            lastFile = file;
+                        }
+                        else{
+
+                        }
+                    }
+                }
+                //System.out.println(version + " vs " + major + "." + minor + "." + patch + " " + lastFile.getName(false));
+            }
+        }
+        
+        return lastFile;
+    }
 }

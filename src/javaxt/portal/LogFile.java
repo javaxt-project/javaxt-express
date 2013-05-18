@@ -12,6 +12,7 @@ public class LogFile {
 
 
     private javaxt.io.File log;
+    private Integer id;
 
   //**************************************************************************
   //** Constructor
@@ -20,13 +21,22 @@ public class LogFile {
 
     public LogFile(javaxt.io.File log) {
         this.log = log;
+        try{
+            id = Integer.parseInt(log.getName(false));
+        }
+        catch(Exception e){
+        }
     }
     
 
     public Integer getID(){
-        return javaxt.utils.string.toInt(log.getName(false));
+        return id;
     }
 
+    public String toString(){
+        return log.toString();
+    }
+    
 
   //**************************************************************************
   //** getDownloads
@@ -40,17 +50,17 @@ public class LogFile {
    */
     public java.util.HashMap<String, Integer> getDownloads(String[] urls){
 
-        String[] requests = log.getText().split("\r\n\r\n");
+        java.util.HashMap<String, javaxt.utils.Date> map =
+        new java.util.HashMap<String, javaxt.utils.Date>();
 
         int x = 0;
         int mac = 0;
         int win = 0;
         int linux = 0;
         int bot = 0;
-        int spadac = 0;
-
 
         
+        String[] requests = log.getText().split("\r\n\r\n");
         for (int i=0; i<requests.length; i++){
             if (requests[i].startsWith("New Request From")){
 
@@ -58,49 +68,91 @@ public class LogFile {
 
                     if (requests[i].toLowerCase().contains(url)){
 
-                        x++;
 
-                        try{
-                            //javaxt.utils.Date date = new javaxt.utils.Date(requests[i].substring(requests[i].indexOf("TimeStamp:")+11).trim());
-                            //int month = date.getMonth();
-                            //Integer count = months.get(month);
-                            //if (count==null) count = 1;
-                            //else count++;
-                            //months.put(month, count);
+                        boolean skip = false;
+
+
+                      //Parse request metadata
+                        String ip = null;
+                        String request = null;
+                        javaxt.utils.Date date = null;
+                        for (String row : requests[i].split("\r\n")){
+
+                            if (row.contains(":")){
+                                String key = row.substring(0, row.indexOf(":")).trim();
+                                String value = row.substring(row.indexOf(":")+1).trim();
+
+                              
+                                if (key.equals("New Request From")){
+                                    ip = value;
+                                }
+                                else if (key.equalsIgnoreCase("Timestamp")){
+                                    try{
+                                        date = new javaxt.utils.Date(value);
+                                    }
+                                    catch(Exception e){
+                                        e.printStackTrace();
+                                    }
+                                }
+                                else{
+                                    request = value;
+                                }
+                            }
+                        }
+
+
+                      //Check the last time the client requested this url. If
+                      //it was less then 5 minutes ago, do not update the count.
+                        try {
+                            String key = ip + "-" + request.toLowerCase();
+                            if (map.containsKey(key)){
+                                javaxt.utils.Date d = map.get(key);
+                                long seconds = date.compareTo(d, "seconds");
+                                if (seconds<(60*5)) skip = true;
+                                else map.put(key, date);
+                            }
+                            else{
+                                map.put(key, date);
+                            }
                         }
                         catch(Exception e){
-                            e.printStackTrace();
                         }
 
 
 
 
-                        String HTTP_USER_AGENT = null;
 
+                      //Parse request header
+                        String HTTP_USER_AGENT = null;
                         for (String row : requests[i+1].split("\r\n")){
 
                             if (row.contains(":")){
                                 String key = row.substring(0, row.indexOf(":")).trim();
                                 String value = row.substring(row.indexOf(":")+1).trim();
 
-
+                              //Get user agent
                                 if (key.equalsIgnoreCase("User-Agent")){
                                     HTTP_USER_AGENT = value;
-                                    if (value.contains("spider") || value.contains("slurp")){
-                                        //printHeader = false;
-                                    }
                                 }
-                                else if(key.equalsIgnoreCase("VIA") && value.contains("SPAT")){
-                                    spadac++;
+
+                              //Get Range header. Note that the JavaXT Server
+                              //did not support range requests before 5/18/2013
+                                else if (key.equalsIgnoreCase("Range")){
+                                    if (value.contains("bytes=")){ //Range: bytes=658282-
+                                        if (id!=null && id<20130518) skip = true;
+                                    }
                                 }
 
                                 //System.out.println(key + " " + value);
                             }
                         }
 
-                        //if (printHeader){
+                        if (!skip){
 
-                            //System.out.println(requests[i+1]);
+                            x++;
+
+
+                            //System.out.println("\r\n"+ip + "\r\n" + requests[i+1]);
 
                             if (HTTP_USER_AGENT!=null){
                                 nl.bitwalker.useragentutils.UserAgent client = new nl.bitwalker.useragentutils.UserAgent(HTTP_USER_AGENT);
@@ -130,7 +182,7 @@ public class LogFile {
                                 //System.out.println(requests[i+1]);
                             }
 
-                        //}
+                        }
 
 
 
@@ -151,7 +203,6 @@ public class LogFile {
         downloads.put("mac", mac);
         downloads.put("linux", linux);
         downloads.put("bot", bot);
-        downloads.put("spadac", spadac);
 
         return downloads;
 

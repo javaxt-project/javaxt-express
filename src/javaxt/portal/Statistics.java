@@ -58,7 +58,7 @@ public class Statistics {
 
 
 
-            if (!stats.containsKey(id) || id==currID){
+            if (!stats.containsKey(id) || id.equals(currID)){
                 stats.put(id, parseLogFile(logFile));
             }
 
@@ -86,7 +86,7 @@ public class Statistics {
   //** getTotalDownloads
   //**************************************************************************
   /** Returns the total number of downloads for a given key.
-   *  @param key Keys include "total", "win", "mac", "linux", "bot", "spadac"
+   *  @param key Keys include "total", "win", "mac", "linux", "bot"
    */
     public int getTotalDownloads(String key){
 
@@ -166,13 +166,11 @@ public class Statistics {
         int mac = 0;
         int win = 0;
         int linux = 0;
-        int bot = 0;
-        int spadac = 0;
         int other = 0;
 
         StringBuffer str = new StringBuffer();
         str.append("-----------------------------------------------------------------------\r\n");
-        str.append("Date    \tWin\tLinux\tMac\tOther\t|\tBot\tSpadac\r\n");
+        str.append("Date    \tWin\tLinux\tMac\tOther\r\n");
         str.append("-----------------------------------------------------------------------\r\n");
 
 
@@ -201,18 +199,12 @@ public class Statistics {
                 if (dailyStats.get("mac")>0) str.append(dailyStats.get("mac"));
                 str.append("\t");
                 if (o>0) str.append(o);
-                str.append("\t|\t");
-                if (dailyStats.get("bot")>0) str.append(dailyStats.get("bot"));
-                str.append("\t");
-                if (dailyStats.get("spadac")>0) str.append(dailyStats.get("spadac"));
                 str.append("\r\n");
 
                 //x+=total;
                 mac += dailyStats.get("mac");
                 win += dailyStats.get("win");
-                bot += dailyStats.get("bot");
                 linux += dailyStats.get("linux");
-                spadac += dailyStats.get("spadac");
                 other += o;
             }
         }
@@ -227,10 +219,6 @@ public class Statistics {
         str.append(mac);
         str.append("\t");
         str.append(other);
-        str.append("\t|\t");
-        str.append(bot);
-        str.append("\t");
-        str.append(spadac);
         str.append("\r\n");
         return str.toString();
     }
@@ -248,7 +236,6 @@ public class Statistics {
         int mac = getTotalDownloads("mac");
         int linux = getTotalDownloads("linux");
         int bot = getTotalDownloads("bot");
-        int spadac = getTotalDownloads("spadac");
 
 
         StringBuffer str = new StringBuffer();
@@ -257,7 +244,6 @@ public class Statistics {
         str.append("Linux: " + linux + "\r\n");
         str.append("Mac: " + mac + "\r\n");
         str.append("Other: " + (x-(win+linux+mac+bot)) + "\r\n");
-        str.append("SPADAC: " + spadac);
 
         return str.toString();
     }

@@ -381,58 +381,9 @@ public class Documentation {
    */
     private javaxt.io.File getJavaDoc(javaxt.io.Directory dir){
 
-      //Find the latest version of the jar file. Assumes version number is
-      //included in the file name (e.g. "javaxt-core_v1.3.0.zip");
-        int major = 0;
-        int minor = 0;
-        int patch = 0;
-        javaxt.io.File lastFile = null;
-        for (javaxt.io.File file : dir.getFiles("*.zip")){
-            String fileName = file.getName(false);
-            if (fileName.startsWith(jar.toLowerCase())){
-                String version = fileName.substring(fileName.indexOf("_v")+2);
-                String[] arr = version.split("\\.");
-                int a, b, c;
-                a=b=c=0;
-                for (int i=0; i<arr.length; i++){
-                    int x = 0;
-                    try{ x=Integer.parseInt(arr[i]); } catch(Exception e){}
-                    if (i==0) a = x;
-                    else if(i == 1) b = x;
-                    else if(i == 2) c = x;
-                }
-                if (a>major){
-                    major = a;
-                    minor = b;
-                    patch = c;
-                    lastFile = file;
-                }
-                else{
-                    if (b>minor){
-                        major = a;
-                        minor = b;
-                        patch = c;
-                        lastFile = file;
-                    }
-                    else{
-                        if (c>patch){
-                            major = a;
-                            minor = b;
-                            patch = c;
-                            lastFile = file;
-                        }
-                        else{
-                            
-                        }
-                    }
-                }
-                //System.out.println(version + " vs " + major + "." + minor + "." + patch + " " + lastFile.getName(false));
-            }
-        }
-        if (lastFile==null) return null;
-
-
       //Find the javadoc associated with the jar file
+        javaxt.io.File lastFile = File.getLastFile(jar, dir);
+        if (lastFile==null) return null;
         javaxt.io.File javadoc = new javaxt.io.File(dir, lastFile.getName(false) + ".xml");
         //System.out.println(javadoc);
 
