@@ -47,7 +47,7 @@ public class Content {
 
         if (relPath.equals("")){
             for (String fileName : DefaultFileNames){
-                javaxt.io.File f = new javaxt.io.File(path + fileName) ;
+                javaxt.io.File f = new javaxt.io.File(path + fileName);
                 if (f.exists()){
                     file = f;
                     break;
@@ -56,6 +56,18 @@ public class Content {
         }
         else{
             file = new javaxt.io.File(path+relPath+".txt");
+            if (!file.exists()){
+                javaxt.io.Directory dir = new javaxt.io.Directory(path+relPath);
+                if (dir.exists()){
+                    for (String fileName : DefaultFileNames){
+                        javaxt.io.File f = new javaxt.io.File(dir, fileName);
+                        if (f.exists()){
+                            file = f;
+                            break;
+                        }
+                    }
+                }
+            }
         }
 
     }

@@ -79,7 +79,7 @@ public class Redirects {
     public String getRedirect(String url){
 
       //Check timestamp of the redirect file. Reparse as needed.
-        if (file.getDate().getTime()!=lastUpdate) parseRedirects();
+        if (file.exists() && file.getDate().getTime()!=lastUpdate) parseRedirects();
 
 
       //Loop through all the redirects and find a suitable match
