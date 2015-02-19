@@ -123,7 +123,7 @@ public class File {
         javaxt.io.File lastFile = null;
         for (javaxt.io.File file : dir.getFiles("*.zip")){
             String fileName = file.getName(false);
-            if (fileName.startsWith(jar.toLowerCase())){
+            if (fileName.toLowerCase().startsWith(jar.toLowerCase())){
                 String version = fileName.substring(fileName.indexOf("_v")+2);
                 String[] arr = version.split("\\.");
                 int a, b, c;
