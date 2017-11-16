@@ -1,0 +1,14 @@
+General TODOs
+
+(1) Document tree should open automatically to the class specified in the url.
+    Need to add a method to the Documentation class to return the corresponding
+    node and update the session variable.
+
+(2) Tree.js bug: Join icons are not showing up in FF and Safari
+
+(3) Implement subnavbar
+
+(4) Add support for html extension for wiki files. This will provide a better
+    html editing via the IDE. As a workaround, in Netbeans, you can change the
+    file association for text files from plain/text to text/html. Example:
+    Tools -> Options -> Files - > File Associations

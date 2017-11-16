@@ -36,6 +36,148 @@ public class LogFile {
     public String toString(){
         return log.toString();
     }
+
+    public class Entry {
+        private String ip = null;
+        private String url = null;
+        private javaxt.utils.Date date = null;
+        private String[] header;
+        protected boolean skip = false;
+
+        public Entry(String ip, String url, javaxt.utils.Date date, String header){
+            this.ip = ip;
+            this.url = url;
+            this.date = date;
+            this.header = header.split("\r\n");
+        }
+
+        public String[] getValues(String name){
+            java.util.ArrayList<String> values = new java.util.ArrayList<String>();
+            for (String row : header){
+
+                if (row.contains(":")){
+                    String key = row.substring(0, row.indexOf(":")).trim();
+                    String value = row.substring(row.indexOf(":")+1).trim();
+
+                    if (key.equalsIgnoreCase(name)){
+                        values.add(value);
+                    }
+                }
+            }
+            return values.toArray(new String[values.size()]);
+        }
+        public String getValue(String name){
+            String[] values = this.getValues(name);
+            return (values.length>0) ? values[0] : "";
+        }
+
+      /** Flag used to indicate whether the entry can be skipped. For example,
+       *  duplicate requests made within 5 minutes of each other or range
+       *  requests made before 5/18/2013 should be ignored.
+       */
+        public boolean ignore(){
+            return skip;
+        }
+        public String getURL(){
+            return url;
+        }
+        public javaxt.utils.Date getDate(){
+            return date.clone();
+        }
+    }
+
+    public javaxt.utils.Generator<Entry> getEntries(){
+
+        javaxt.utils.Generator<Entry> iterator = new javaxt.utils.Generator<Entry>() {
+
+            @Override
+            public void run() {
+
+
+                java.util.HashMap<String, javaxt.utils.Date> map =
+                new java.util.HashMap<String, javaxt.utils.Date>();
+
+
+                String[] requests = log.getText().split("\r\n\r\n");
+                for (int i=0; i<requests.length; i++){
+                    if (requests[i].startsWith("New Request From")){
+
+
+                        boolean skip = false;
+
+
+                      //Parse request metadata
+                        String ip = null;
+                        String request = null;
+                        javaxt.utils.Date date = null;
+                        for (String row : requests[i].split("\r\n")){
+
+                            if (row.contains(":")){
+                                String key = row.substring(0, row.indexOf(":")).trim();
+                                String value = row.substring(row.indexOf(":")+1).trim();
+
+
+                                if (key.equals("New Request From")){
+                                    ip = value;
+                                }
+                                else if (key.equalsIgnoreCase("Timestamp")){
+                                    try{
+                                        date = new javaxt.utils.Date(value);
+                                    }
+                                    catch(Exception e){
+                                        e.printStackTrace();
+                                    }
+                                }
+                                else{
+                                    request = value;
+                                }
+                            }
+                        }
+
+
+                      //Check the last time the client requested this url. If
+                      //it was less then 5 minutes ago, do not update the count.
+                        try {
+                            String key = ip + "-" + request.toLowerCase();
+                            if (map.containsKey(key)){
+                                javaxt.utils.Date d = map.get(key);
+                                long seconds = date.compareTo(d, "seconds");
+                                if (seconds<(60*5)) skip = true;
+                                else map.put(key, date);
+                            }
+                            else{
+                                map.put(key, date);
+                            }
+                        }
+                        catch(Exception e){
+                        }
+
+
+                        Entry entry = new Entry(ip, request, date, requests[i+1]);
+
+
+                      //Parse request header
+                        String HTTP_USER_AGENT = entry.getValue("User-Agent");
+                        String range = entry.getValue("Range");
+                        if (range.contains("bytes=")){ //Range: bytes=658282-
+
+                            //Skip range requests before 5/18/2013. The JavaXT
+                            //Server did not support range requests before 5/18/2013
+                            if (id!=null && id<20130518) skip = true;
+                        }
+
+                        entry.skip = skip;
+                        yield(entry);
+
+
+                    }
+                }
+            }
+        };
+
+        return iterator;
+
+    }
     
 
   //**************************************************************************
