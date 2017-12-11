@@ -84,14 +84,17 @@ public class Documentation {
             if (title==null) str.append("<h1>JavaDocs</h1>");
             else str.append("<h1>" + title + "</h1>");
 
-            com.jeldoclet.Package[] packages = parser.getPackages();
-            for (int i=0; i<packages.length; i++){
-                com.jeldoclet.Package Package = packages[i];
-                String packageName = Package.getName();
+
+            for (com.jeldoclet.Package p : parser.getPackages()){
+                
+                String packageName = p.getName();
+                if (!packageName.startsWith("javaxt.")) continue;
+                
+                
                 str.append("<div class=\"packageName\">" + packageName + "</div>");
 
                 str.append("<table>");
-                com.jeldoclet.Class[] classes = Package.getClasses();
+                com.jeldoclet.Class[] classes = p.getClasses();
                 for (int j=0; j<classes.length; j++){
                     com.jeldoclet.Class Class = classes[j];
                     String className = Class.getName();
@@ -278,11 +281,13 @@ public class Documentation {
         str.append("[");
         str.append("['" + jar + ".jar', '#',");
 
-        com.jeldoclet.Package[] packages = parser.getPackages();
-        for (int i=0; i<packages.length; i++){
 
-            com.jeldoclet.Package p = packages[i];
-            str.append("['" + p.getName() + "', '#', ");
+        for (com.jeldoclet.Package p : parser.getPackages()){
+
+            String packageName = p.getName();
+            if (!packageName.startsWith("javaxt.")) continue;
+            
+            str.append("['" + packageName + "', '#', ");
 
             com.jeldoclet.Class[] classes = p.getClasses();
             for (int j=0; j<classes.length; j++){
