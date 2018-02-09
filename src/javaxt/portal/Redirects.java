@@ -1,12 +1,10 @@
 package javaxt.portal;
-import javaxt.http.servlet.HttpServletRequest;
 
 //******************************************************************************
 //**  Redirects Class
 //******************************************************************************
 /**
- *   Used to parse the "redirects.txt" file found in the wiki directory and
- *   updates requested URLs.
+ *   Used to parse a plain text file with URL redirects.
  *
  ******************************************************************************/
 
@@ -23,8 +21,8 @@ public class Redirects {
   //**************************************************************************
   /** Creates a new instance of this class. */
 
-    public Redirects(javaxt.io.Directory share) {
-        file = new javaxt.io.File(share.toString() + "wiki/redirects.txt");
+    public Redirects(javaxt.io.File file) {
+        this.file = file;
         parseRedirects();
     }
 
@@ -59,13 +57,7 @@ public class Redirects {
         }
     }
 
-    public String getRedirect(HttpServletRequest request){
-        return getRedirect(request.getURL());
-    }
 
-    public String getRedirect(javaxt.utils.URL url){
-        return getRedirect(url.toString());
-    }
 
     public String getRedirect(java.net.URL url){
         return getRedirect(url.toString());
@@ -76,7 +68,7 @@ public class Redirects {
   //**************************************************************************
   /** Returns a redirected/updated url. Returns null if there is no redirect.
    */
-    public String getRedirect(String url){
+    private String getRedirect(String url){
 
       //Check timestamp of the redirect file. Reparse as needed.
         if (file.exists() && file.getDate().getTime()!=lastUpdate) parseRedirects();
