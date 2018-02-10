@@ -121,7 +121,7 @@ public abstract class WebSite extends HttpServlet {
 
         
       //Send static file if we can
-        javaxt.io.File file = getFile(request);
+        javaxt.io.File file = getFile(url);
         if (file!=null){
 
           //Check whether the file ends in a ".html" or ".txt" extension. If so, 
@@ -143,7 +143,7 @@ public abstract class WebSite extends HttpServlet {
             }
             
             if (sendFile){ 
-                sendFile(file, response);
+                sendFile(file, request, response);
                 return;
             }
         }      
@@ -165,19 +165,40 @@ public abstract class WebSite extends HttpServlet {
   /** Used to send a static file to the client (e.g. css, javascript, images,
    *  zip files, etc).
    */
-    private void sendFile(javaxt.io.File file, HttpServletResponse response)
+    protected void sendFile(javaxt.io.File file, HttpServletRequest request, HttpServletResponse response)
     throws ServletException, IOException {
         
+
+        String contentType = file.getContentType();
+        String ext = file.getExtension().toLowerCase();
         
         
-        if (file==null){
-            response.sendError(404);
-            return;
+        if (ext.equals("js") || ext.equals("css")){
+            javaxt.utils.URL url = new javaxt.utils.URL(request.getURL());
+
+          //Add version number to javascript and css files to ensure  
+          //proper caching. Otherwise, browsers like Chrome may not 
+          //return the correct file to the client.
+            long currVersion = new javaxt.utils.Date(file.getLastModifiedTime()).toLong();
+            long requestedVersion = 0;
+            try{ requestedVersion = Long.parseLong(url.getParameter("v")); }
+            catch(Exception e){}
+
+            if (requestedVersion<currVersion){
+                url.setParameter("v", currVersion+"");
+                response.sendRedirect(url.toString(), true);
+                return;
+            }
+        }
+        else if (ext.equals("xml")){
+            
+          //Update contentType. javaxt.io.File returns "application/xml"  
+          //which is not ideal for web applications.
+            contentType = "text/xml";
         }
         
-        
-        String contentType = file.getContentType(); //returns incorrect MIME type for xml
-        if (file.getExtension().equalsIgnoreCase("xml")) contentType = "text/xml";
+         
+
         response.write(file.toFile(), contentType, true);
         
     }
@@ -188,62 +209,36 @@ public abstract class WebSite extends HttpServlet {
   //**************************************************************************
   /** Returns a path to a static file (e.g. css, javascript, images, zip, etc)
    */
-    private javaxt.io.File getFile(HttpServletRequest request){
+    private javaxt.io.File getFile(java.net.URL url){
         
-      //Get requested file from the querystring (Legacy)
-        String filename = null;
-        java.util.Enumeration<String> it = request.getParameterNames();
-        while (it.hasMoreElements()){
-            String key = it.nextElement();
-            if (key.equalsIgnoreCase("img") || key.equalsIgnoreCase("image") ||
-                key.equalsIgnoreCase("file") || key.equalsIgnoreCase("filename")){
-                filename = request.getParameter(key);
-                if (filename!=null){
-                    break;
-                }
-            }
-        }
-        if (filename==null) filename = request.getQueryString();
+      //Get path from URL
+        String path = url.getPath();
+        path = path.substring(path.indexOf(Path)).substring(Path.length());
+        if (path.startsWith("/")) path = path.substring(1);
         
-
-      //If no file found in the querystring, use the path from the url
-        if (filename==null){
-            String path = request.getURL().getPath();
-            path = path.substring(path.indexOf(Path)).substring(Path.length());
-            if (!path.endsWith("/")) filename = path;
-        }
-
-
-      //Remove any leading path separators
-        if (filename!=null){
-            if (filename.startsWith("/")||filename.startsWith("\\")){
-                filename = filename.substring(1);
-            }
-            filename = filename.trim().replace("\\", "/");
-        }
-
+        
 
 
       //Validate the filename/path
-        if (filename==null || filename.equals("") || filename.contains("..") ||
-            filename.toLowerCase().startsWith("bin/")
-        ){
+        if (path.length()==0 || path.endsWith("/") || path.toLowerCase().startsWith("bin/")){
             return null;
         }
-        else{
-          //Make sure none of the directories/files in the path are "hidden".
-          //Any directory that statrs with a "." is considered hidden.
-            for (String path : filename.split("/")){
-                if (path.trim().startsWith(".")){
-                    return null;
-                }
+        
+        
+        
+      //Make sure none of the directories/files in the path are "hidden".
+      //Any directory that statrs with a "." is considered hidden.
+        for (String p : path.split("/")){
+            if (p.startsWith(".")){
+                return null;
             }
         }
+        
 
 
 
-        javaxt.io.File file = new javaxt.io.File(web + filename);
-        if (!file.exists()) file = new javaxt.io.File(web + "downloads/" + filename);        
+        javaxt.io.File file = new javaxt.io.File(web + path);
+        if (!file.exists()) file = new javaxt.io.File(web + "downloads/" + path);
         if (!file.exists()) return null;
         return file;
     }
@@ -260,7 +255,8 @@ public abstract class WebSite extends HttpServlet {
 
         
       //Get the html snippet
-        javaxt.io.File file = getHtmlFile(request.getURL());
+        java.net.URL url = request.getURL();
+        javaxt.io.File file = getHtmlFile(url);
         if (file==null){
             response.sendError(404);
             return;
@@ -403,9 +399,9 @@ public abstract class WebSite extends HttpServlet {
             catch(Exception e){}
             if (keywords==null) keywords = this.keywords;
             if (keywords==null) keywords = "";
-            
-            
-            
+
+
+
             html = template.getText("UTF-8");
             html = html.replace("<%=content%>", content);
             html = html.replace("<%=title%>", title);
@@ -422,8 +418,34 @@ public abstract class WebSite extends HttpServlet {
             html = content;
         }
 
+            
+      //Update links to scripts
+        javaxt.html.Parser document = new javaxt.html.Parser(html);
+        for (javaxt.html.Element script : document.getElementsByTagName("script")){
+            String src = script.getAttribute("src");
+            if (src.length()>0){
+                String newSrc = getPath(src, "js", url);
+                if (!src.equals(newSrc)){
+                    String newScript = script.getOuterHTML().replace(src, newSrc);
+                    html = html.replace(script.getOuterHTML(), newScript);
+                }
+            }
+        }
+
+      //Update links to stylesheets
+        for (javaxt.html.Element link : document.getElementsByTagName("link")){
+            String href = link.getAttribute("href");
+            if (href.length()>0){
+                String newHref = getPath(href, "css", url);
+                if (!href.equals(newHref)){
+                    String newScript = link.getOuterHTML().replace(href, newHref);
+                    html = html.replace(link.getOuterHTML(), newScript);
+                }
+            }
+        }
 
 
+        
       //Convert the html to a byte array
         byte[] rsp = html.trim().getBytes("UTF-8");
 
@@ -439,6 +461,36 @@ public abstract class WebSite extends HttpServlet {
 
       //Send response
         response.write(rsp);
+    }
+
+
+  //**************************************************************************
+  //** getPath
+  //**************************************************************************
+  /** Updates the given path with a querystring representing the last modified
+   *  date of the file.
+   */
+    private String getPath(String src, String ext, java.net.URL url){
+        int idx = src.toLowerCase().indexOf("." + ext.toLowerCase());
+        if (idx>0){
+
+            String a = src.substring(0, idx);
+            String b = src.substring(idx, idx+ext.length()+1);
+            String p = javaxt.html.Parser.MapPath(src, url);
+            
+            try{
+                javaxt.io.File f = getFile(new java.net.URL(p));
+                long v = new javaxt.utils.Date(f.getLastModifiedTime()).toLong();
+            
+                javaxt.utils.URL u = new javaxt.utils.URL(p);
+                u.setParameter("v", v+"");
+                src = a + b + "?" + u.getQueryString();
+
+            }
+            catch(Exception e){
+            }
+        }
+        return src;
     }
 
     
