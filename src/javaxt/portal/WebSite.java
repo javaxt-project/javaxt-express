@@ -254,7 +254,7 @@ public abstract class WebSite extends HttpServlet {
 
 
         
-      //Get the html snippet
+      //Get the html file
         java.net.URL url = request.getURL();
         javaxt.io.File file = getHtmlFile(url);
         if (file==null){
@@ -263,22 +263,157 @@ public abstract class WebSite extends HttpServlet {
         }
 
 
-
-
-      //Calculate last modified date
-        java.util.TreeSet<Long> dates = new java.util.TreeSet<Long>();
-        dates.add(file.getDate().getTime());
-        dates.add(template.getDate().getTime());
-        dates.add(tabs.getLastModified());
-        long lastModified = dates.last();
-        String date = getDate(lastModified); //"EEE, dd MMM yyyy HH:mm:ss zzz"
-
+      //Check whether the client wants the raw file content or if we should
+      //wrap the content in a template (default).
+        boolean useTemplate = true;
+        String templateParam = request.getParameter("template");
+        if (templateParam!=null){
+            if (templateParam.equals("false")){
+                useTemplate = false;
+            }
+        }
         
 
 
+        
+      //Calculate last modified date and estimated file fize
+        java.util.TreeSet<Long> dates = new java.util.TreeSet<Long>();
+        dates.add(file.getDate().getTime());
+        if (useTemplate){
+            dates.add(template.getDate().getTime());
+            dates.add(tabs.getLastModified());
+        }
 
-      //Create eTag using the combined, uncompressed size of the file and template
-        String eTag = "W/\"" + (file.getSize()+template.getSize()) + "-" + lastModified + "\"";
+        
+        
+        
+      //Get file content
+        Content content = getContent(request, file);
+        dates.add(content.getDate().getTime());
+        String html = content.getHTML();
+        html = html.replace("<%=Path%>", Path);
+
+
+        
+
+      //Wrap content in a template
+        if (useTemplate){
+            
+            
+          //Instantiate html parser
+            javaxt.html.Parser document = new javaxt.html.Parser(html);
+
+        
+          //Extract Title
+            String title = null;
+            try{
+                javaxt.html.Element el = document.getElementByTagName("title");
+                html = html.replace(el.getOuterHTML(), "");
+                title = el.getInnerText().trim();
+            }
+            catch(Exception e){}
+
+
+            if (title==null){
+                try{
+                    title = document.getElementByTagName("h1").getInnerHTML();
+                }
+                catch(Exception e){}
+            }
+            if (title==null){
+                if (companyName!=null && companyAcronym!=null){
+                    title = companyAcronym + " - " + companyName;
+                }
+                else{
+                    title = file.getName(false);
+                    for (String fileName : DefaultFileNames){
+                        if (title.equalsIgnoreCase(fileName)){
+                            title = file.getDirectory().getName();
+                            break;
+                        }
+                    }
+                }
+            }
+        
+        
+
+          //Extract Description
+            String description = null;
+            try{
+                javaxt.html.Element el = document.getElementByTagName("description");
+                html = html.replace(el.getOuterHTML(), "");
+                description = el.getInnerHTML();
+            }
+            catch(Exception e){}
+            if (description==null) description = "";
+
+
+        
+          //Extract Keywords
+            String keywords = null;
+            try{
+                javaxt.html.Element el = document.getElementByTagName("keywords");
+                html = html.replace(el.getOuterHTML(), "");
+                keywords = el.getInnerHTML();
+            }
+            catch(Exception e){}
+            if (keywords==null) keywords = this.keywords;
+            if (keywords==null) keywords = "";
+
+
+
+            html = template.getText().replace("<%=content%>", html);
+            html = html.replace("<%=title%>", title);
+            html = html.replace("<%=description%>", description);
+            html = html.replace("<%=keywords%>", keywords);
+            html = html.replace("<%=author%>", author==null ? "" : author);
+            html = html.replace("<%=Path%>", Path);
+            html = html.replace("<%=companyName%>", companyName==null ? "": companyName);
+            html = html.replace("<%=copyright%>", getCopyright());
+            html = html.replace("<%=navbar%>", getNavBar(request, file));
+            html = html.replace("<%=tabs%>", getTabs(request, file, tabs));
+        }
+
+
+            
+      //Update links to scripts
+        javaxt.html.Parser document = new javaxt.html.Parser(html);
+        for (javaxt.html.Element script : document.getElementsByTagName("script")){
+            String src = script.getAttribute("src");
+            if (src.length()>0){
+                String newSrc = getPath(src, "js", url, dates);
+                if (!src.equals(newSrc)){
+                    String newScript = script.getOuterHTML().replace(src, newSrc);
+                    html = html.replace(script.getOuterHTML(), newScript);
+                }
+            }
+        }
+
+      //Update links to stylesheets
+        for (javaxt.html.Element link : document.getElementsByTagName("link")){
+            String href = link.getAttribute("href");
+            if (href.length()>0){
+                String newHref = getPath(href, "css", url, dates);
+                if (!href.equals(newHref)){
+                    String newScript = link.getOuterHTML().replace(href, newHref);
+                    html = html.replace(link.getOuterHTML(), newScript);
+                }
+            }
+        }
+
+
+      //Trim the html
+        html = html.trim();
+
+
+
+      //Get last modified date
+        long lastModified = dates.last();
+        String date = getDate(lastModified); //"EEE, dd MMM yyyy HH:mm:ss zzz"
+
+
+      //Create eTag using the combined, uncompressed size of the html
+        String eTag = "W/\"" + html.length() + "-" + lastModified + "\"";
 
 
       //Return 304/Not Modified response if we can...
@@ -312,142 +447,12 @@ public abstract class WebSite extends HttpServlet {
         }
 
         
-
         
         
         
-      //Get file content
-        String content = getContent(request, file);
-        content = content.replace("<%=Path%>", Path);
-        
-        
-        
-      //Check whether the client wants the raw file content or if we should
-      //wrap the content in a template (default).
-        boolean useTemplate = true;
-        String templateParam = request.getParameter("template");
-        if (templateParam!=null){
-            if (templateParam.equals("false")){
-                useTemplate = false;
-            }
-        }
-
-
-        
-
-      //Generate html response
-        String html;
-        if (useTemplate){
-            
-            
-          //Instantiate html parser
-            javaxt.html.Parser document = new javaxt.html.Parser(content);
-
-        
-          //Extract Title
-            String title = null;
-            try{
-                javaxt.html.Element el = document.getElementByTagName("title");
-                content = content.replace(el.getOuterHTML(), "");
-                title = el.getInnerText().trim();
-            }
-            catch(Exception e){}
-
-
-            if (title==null){
-                try{
-                    title = document.getElementByTagName("h1").getInnerHTML();
-                }
-                catch(Exception e){}
-            }
-            if (title==null){
-                if (companyName!=null && companyAcronym!=null){
-                    title = companyAcronym + " - " + companyName;
-                }
-                else{
-                    title = file.getName(false);
-                    for (String fileName : DefaultFileNames){
-                        if (title.equalsIgnoreCase(fileName)){
-                            title = file.getDirectory().getName();
-                            break;
-                        }
-                    }
-                }
-            }
-        
-        
-
-          //Extract Description
-            String description = null;
-            try{
-                javaxt.html.Element el = document.getElementByTagName("description");
-                content = content.replace(el.getOuterHTML(), "");
-                description = el.getInnerHTML();
-            }
-            catch(Exception e){}
-            if (description==null) description = "";
-
-
-        
-          //Extract Keywords
-            String keywords = null;
-            try{
-                javaxt.html.Element el = document.getElementByTagName("keywords");
-                content = content.replace(el.getOuterHTML(), "");
-                keywords = el.getInnerHTML();
-            }
-            catch(Exception e){}
-            if (keywords==null) keywords = this.keywords;
-            if (keywords==null) keywords = "";
-
-
-
-            html = template.getText("UTF-8");
-            html = html.replace("<%=content%>", content);
-            html = html.replace("<%=title%>", title);
-            html = html.replace("<%=description%>", description);
-            html = html.replace("<%=keywords%>", keywords);
-            html = html.replace("<%=author%>", author==null ? "" : author);
-            html = html.replace("<%=Path%>", Path);
-            html = html.replace("<%=companyName%>", companyName==null ? "": companyName);
-            html = html.replace("<%=copyright%>", getCopyright());
-            html = html.replace("<%=navbar%>", getNavBar(request, file));
-            html = html.replace("<%=tabs%>", getTabs(request, file, tabs));
-        }
-        else{
-            html = content;
-        }
-
-            
-      //Update links to scripts
-        javaxt.html.Parser document = new javaxt.html.Parser(html);
-        for (javaxt.html.Element script : document.getElementsByTagName("script")){
-            String src = script.getAttribute("src");
-            if (src.length()>0){
-                String newSrc = getPath(src, "js", url);
-                if (!src.equals(newSrc)){
-                    String newScript = script.getOuterHTML().replace(src, newSrc);
-                    html = html.replace(script.getOuterHTML(), newScript);
-                }
-            }
-        }
-
-      //Update links to stylesheets
-        for (javaxt.html.Element link : document.getElementsByTagName("link")){
-            String href = link.getAttribute("href");
-            if (href.length()>0){
-                String newHref = getPath(href, "css", url);
-                if (!href.equals(newHref)){
-                    String newScript = link.getOuterHTML().replace(href, newHref);
-                    html = html.replace(link.getOuterHTML(), newScript);
-                }
-            }
-        }
-
-
         
       //Convert the html to a byte array
-        byte[] rsp = html.trim().getBytes("UTF-8");
+        byte[] rsp = html.getBytes("UTF-8");
 
 
 
@@ -470,7 +475,7 @@ public abstract class WebSite extends HttpServlet {
   /** Updates the given path with a querystring representing the last modified
    *  date of the file.
    */
-    private String getPath(String src, String ext, java.net.URL url){
+    private String getPath(String src, String ext, java.net.URL url, java.util.TreeSet<Long> dates){
         int idx = src.toLowerCase().indexOf("." + ext.toLowerCase());
         if (idx>0){
 
@@ -480,7 +485,9 @@ public abstract class WebSite extends HttpServlet {
             
             try{
                 javaxt.io.File f = getFile(new java.net.URL(p));
-                long v = new javaxt.utils.Date(f.getLastModifiedTime()).toLong();
+                java.util.Date d = f.getDate();
+                dates.add(d.getTime());
+                long v = new javaxt.utils.Date(d).toLong();
             
                 javaxt.utils.URL u = new javaxt.utils.URL(p);
                 u.setParameter("v", v+"");
@@ -500,8 +507,8 @@ public abstract class WebSite extends HttpServlet {
   /** Returns an html snippet found in the given file. This method can be 
    *  overridden to generate dynamic content or to support custom tags.
    */
-    protected String getContent(HttpServletRequest request, javaxt.io.File file){
-        return file.getText("UTF-8");
+    protected Content getContent(HttpServletRequest request, javaxt.io.File file){
+        return new Content(file.getText("UTF-8"), file.getDate());
     }
     
         
@@ -596,7 +603,7 @@ public abstract class WebSite extends HttpServlet {
    *  the given file path. Note that the file date is updated to reflect the
    *  most current file.
    */
-    protected String getIndex(javaxt.io.File file){
+    protected Content getIndex(javaxt.io.File file){
 
       //Get file path
         javaxt.io.Directory dir = file.getDirectory();
@@ -742,11 +749,11 @@ public abstract class WebSite extends HttpServlet {
 
       //Update the date of the file to the most recent file in the directory
         java.util.Date lastModified = new java.util.Date(dates.last());
-        if (!lastModified.equals(file.getDate())) System.out.println("Update file date: " + lastModified);
-        file.setDate(lastModified);
+        //if (!lastModified.equals(file.getDate())) System.out.println("Update file date: " + lastModified);
+        //file.setDate(lastModified);
 
 
-        return toc.toString();
+        return new Content(toc.toString(), lastModified);
     }
     
 
