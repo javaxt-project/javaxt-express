@@ -371,7 +371,7 @@ public abstract class WebSite extends HttpServlet {
             html = html.replace("<%=companyName%>", companyName==null ? "": companyName);
             html = html.replace("<%=copyright%>", getCopyright());
             html = html.replace("<%=navbar%>", getNavBar(request, file));
-            html = html.replace("<%=tabs%>", getTabs(request, file, tabs));
+            html = html.replace("<%=tabs%>", getTabs(file, tabs));
         }
 
 
@@ -762,7 +762,7 @@ public abstract class WebSite extends HttpServlet {
   //**************************************************************************
   /** Returns an html fragment used to render tabs.
    */
-    private String getTabs(HttpServletRequest request, javaxt.io.File file, Tabs tabs){
+    private String getTabs(javaxt.io.File file, Tabs tabs){
 
         
       //Get relative path to the file
@@ -782,7 +782,7 @@ public abstract class WebSite extends HttpServlet {
         while (it.hasNext()){
             String text = it.next();
             String link = items.get(text).replace("<%=Path%>", Path);
-            boolean isActive = isActiveTab(text, link, path);
+            boolean isActive = isActiveTab(text, link, path, file.getName());
             //System.out.println("|" + path + "| vs |" + link + "|" + (isActive? " <--" : ""));
 
             
@@ -804,16 +804,16 @@ public abstract class WebSite extends HttpServlet {
   //** isActiveTab
   //**************************************************************************
   /** Returns true if a given tab should be marked as active.
-   *  @param text Tab label as defined in tabs.txt
-   *  @param link Tab URL as defined in tabs.txt
-   *  @param path Relative path to the file on the server (relative to the web
+   *  @param tabLabel Tab label as defined in tabs.txt
+   *  @param tabLink Tab URL as defined in tabs.txt
+   *  @param filePath Relative path to the file on the server (relative to the web
    *  directory).
    */
-    protected boolean isActiveTab(String text, String link, String path){
+    protected boolean isActiveTab(String tabLabel, String tabLink, String filePath, String fileName){
         boolean isActive = false;
-        if (path.startsWith(link)){ 
-            if (link.equals("/")){
-                isActive = path.equals("/");
+        if (filePath.startsWith(tabLink)){ 
+            if (tabLink.equals("/")){
+                isActive = filePath.equals("/");
             }
             else{
                 isActive = true; 
@@ -841,7 +841,7 @@ public abstract class WebSite extends HttpServlet {
     private boolean redirect(java.net.URL url, HttpServletResponse response)
     throws ServletException, IOException {
         
-        String redirect = redirects.getRedirect(url);        
+        String redirect = redirects.getRedirect(url);
         if (redirect!=null){
             response.sendRedirect(redirect, true);
             return true;
