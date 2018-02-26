@@ -1,4 +1,4 @@
-package javaxt.portal;
+package javaxt.express;
 import javaxt.http.servlet.*;
 import java.io.IOException;
 import java.util.Calendar;
