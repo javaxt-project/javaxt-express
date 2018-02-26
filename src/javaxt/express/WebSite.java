@@ -634,7 +634,13 @@ public abstract class WebSite extends HttpServlet {
             String fileName = f.getName(false);
             String relPath = f.getDirectory().getPath().substring(len).replace("\\", "/");
             if (relPath.endsWith("/")) relPath = relPath.substring(0, relPath.length()-1);
-            String link = "/" + relPath + "/" + fileName;
+            
+            String link = "";
+            if (relPath.length()>0){
+                link += "/" + relPath;
+            }
+            link += "/" + fileName;
+            
 
             String li = "<li><a href=\"" + link + "\">" + fileName.replace("_", " ") + "</a></li>\r\n";
             
