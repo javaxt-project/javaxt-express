@@ -1,0 +1,55 @@
+<h1>Known Tags</h1>
+<p>The following tags are replaced by the server with keywords set in your Java code.</p>
+
+<ul>
+   <li>&lt;%=content%&gt;
+   <li>&lt;%=title%&gt;
+   <li>&lt;%=description%&gt;
+   <li>&lt;%=keywords%&gt;
+   <li>&lt;%=author%&gt;
+   <li>&lt;%=Path%&gt;
+   <li>&lt;%=companyName%&gt;
+   <li>&lt;%=copyright%&gt;
+   <li>&lt;%=navbar%&gt;
+   <li>&lt;%=tabs%&gt;
+</ul>
+
+
+<h2>Custom Tags</h2>
+<p>
+You can define your own custom tags by overriding the getContent() method on the
+server. For example, in the Server.java class, you can see how this wiki is generated
+using an &lt;%=index%&gt; tag.
+</p>
+<pre>
+public Content getContent(HttpServletRequest request, javaxt.io.File file){
+
+  //Get path from url
+    String path = request.getURL().getPath().toLowerCase();
+
+
+  //Remove leading and trailing "/" characters
+    if (path.startsWith("/")) path = path.substring(1);
+    if (path.endsWith("/")) path = path.substring(0, path.length()-1);
+
+
+  //Return content
+    if (path.equals("wiki")){
+        String html = file.getText();
+        java.util.Date date = file.getDate();
+        if (file.getName(false).equals("index")){
+            Content content = getIndex(file);
+            javaxt.utils.Date d = new javaxt.utils.Date(content.getDate());
+            if (d.isAfter(new javaxt.utils.Date(date))){
+                date = d.getDate();
+            }
+            html = html.replace("<%=index%>", content.getHTML());
+        }
+
+        return new Content(html, date);
+    }
+    else{
+        return super.getContent(request, file);
+    }
+}
+</pre>

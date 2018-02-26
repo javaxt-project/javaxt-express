@@ -1,0 +1,322 @@
+/**************************************************************************/
+/** General
+/**************************************************************************/
+
+html, body {
+    width:100%;
+    height:100%;
+    margin:0;
+}
+
+
+body, td, th, p, span {
+    color: #333333;
+    font: 14px/20px helvetica,arial,hirakakupro-w3,osaka,"ms pgothic",sans-serif;
+    
+    -ms-text-size-adjust: 100%;
+    -webkit-text-size-adjust: 100%; 
+}
+
+body { 
+    background: #ffffff;
+}
+
+
+p {
+    margin-top:0px;
+    margin-bottom:10px;
+}
+
+a, a:visited {color:#3366CC;}
+a:hover {color:#FF3300;text-decoration:none;}
+
+
+h1, h2, h3,
+h2 a, h2 a:visited
+{
+    font-family: arial,helvetica,sans-serif; font-weight: bold;
+    margin-left: 0px; margin-right: 0px;
+    color: #003366; 
+}
+
+h1 { 
+    font-size: 18pt; margin-top: 12px; margin-bottom: 5px; padding-bottom: 10px; padding-left:0px; border-bottom: 1px solid #003366; 
+}
+h2, h2 a, h2 a:visited, h2 a:hover { 
+    font-size: 12pt; margin-top: 35px; margin-bottom: 3px; padding-bottom: 3px; text-decoration:none;
+}
+h3 { 
+    font-size: 11pt; margin-top: 15px; margin-bottom: 3px; padding-bottom: 3px;
+}
+
+table { border-collapse: collapse; }
+
+img, td{
+    padding:0px;
+}
+
+
+
+/**************************************************************************/
+/** Container
+/**************************************************************************/
+
+.outerDiv {
+    width:100%;  
+    text-align:center;
+    height: 100%;
+}
+
+
+.mainDiv {
+    width: 100%;
+    height:100%;
+    background-color: #ffffff;
+}
+
+
+/**************************************************************************/
+/** Header
+/**************************************************************************/
+
+.header {
+    height: 75px;
+    background-color: #377ECE;
+    text-align: left;
+    padding-left: 15px;
+    line-height: 65px;
+    color: white;
+    font-size: 22pt;
+    text-shadow: 5px 5px 5px rgba(0, 0, 0, 0.45);
+    
+}
+
+
+/**************************************************************************/
+/** Tabs
+/**************************************************************************/
+
+.tabbar {
+    background-color: #585954; 
+    height: 30px;
+    position: relative;
+}
+
+.tabs {
+    position: absolute;
+    left: 16px;
+    bottom: 0;
+    text-align: left;
+    width:450px;
+}
+
+.tabs div {
+    position: relative;
+    display: inline-block;
+    
+    height: 29px;
+    line-height: 29px;  
+    padding: 0 16px;
+    margin-left: -1px;
+    z-index: 0;
+    
+    border: 1px solid #9C9E9C;
+    border-bottom: 0 none;
+    
+    background: #585954;
+    background: -moz-linear-gradient(#949A94, #585954);
+    background: -webkit-linear-gradient(#949A94, #585954);
+    background: linear-gradient(#949A94, #585954);
+    filter: progid:DXImageTransform.Microsoft.gradient(enabled='true',
+                startColorstr=#949A94, endColorstr=#585954);
+}
+
+.tabs div:hover, 
+.tabs div:focus{
+    background: #000000;
+    background: -moz-linear-gradient(#949A94, #000000);
+    background: -webkit-linear-gradient(#949A94, #000000);
+    background: linear-gradient(#949A94, #000000);
+    filter: progid:DXImageTransform.Microsoft.gradient(enabled='true',
+                startColorstr=#949A94, endColorstr=#000000);
+}
+
+
+.tabs div.active {
+    padding-top: 3px;
+    -moz-border-radius: 5px 5px 0 0;
+    -webkit-border-radius: 5px 5px 0 0;
+    border-radius: 5px 5px 0 0;
+    border-color: #ffffff;
+    
+    background: #E0E0E0;
+    background: -moz-linear-gradient(#FFFFFF, #E0E0E0);
+    background: -webkit-linear-gradient(#FFFFFF, #E0E0E0);
+    background: linear-gradient(#FFFFFF, #E0E0E0);
+    filter: progid:DXImageTransform.Microsoft.gradient(enabled='true',
+                startColorstr=#FFFFFF, endColorstr=#E0E0E0);
+    
+    z-index: 1;
+}
+
+
+.tabs a,
+.tabs a:hover,
+.tabs a:focus {
+    font-size: 11px;
+    font-weight: bold;
+    color: #ffffff;
+    text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.25);
+    text-decoration: none;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
+.tabs a .active {
+    color: #454545;
+    text-shadow: 1px 1px 1px rgba(255, 255, 255, 0.75);  
+}
+
+
+/**************************************************************************/
+/** Navbar
+/**************************************************************************/
+
+.navbar {
+    background-color: #E0E0E0;
+    height: 5px;
+}
+
+
+/**************************************************************************/
+/** Content
+/**************************************************************************/
+
+.content {
+    padding: 10px 20px 45px 20px;
+    text-align: left;
+    height:100%;
+    vertical-align: top;
+}
+
+.overflowDiv {
+    height:100%;
+    
+    /* when screen is small. Must equal height of copyright div */
+    padding-bottom:35px;
+}
+
+
+/**************************************************************************/
+/** Footer
+/**************************************************************************/
+
+.footer{
+    position:relative;
+    
+    /* when screen is small... */
+    height: 0px;
+}
+
+.copyright {
+    color:#808080;
+    font-family:arial;font-size:8pt;
+    text-align: center;
+    padding: 10px 0 5px 0;
+    width: 100%;
+    
+    /* when screen is small... */
+    position: absolute;
+    bottom: 0;
+    background-color: #dbdbdb;
+}
+
+
+
+/**************************************************************************/
+/** Resize Elements
+/**************************************************************************/
+/** The following logic is applied once the client screen increases to a 
+ *  minimum width.
+ */
+
+@media (min-width:1281px) { 
+    
+.outerDiv {
+    height: auto;
+}
+    
+.mainDiv {
+    width: 1280px;
+    display: inline-block;
+    background-color: #ffffff;
+    -webkit-box-shadow: 0px 2px 5px 0px rgba(0,0,0,0.75);
+    -moz-box-shadow: 0px 2px 5px 0px rgba(0,0,0,0.75);
+    box-shadow: 0px 2px 5px 0px rgba(0,0,0,0.75);
+    min-height: 800px;
+}
+
+.content{
+    padding: 15px 35px 30px 35px;
+}
+
+.footer{
+    height: 32px;
+}
+.copyright{
+    background-color: transparent;
+}
+
+.overflowDiv {
+    padding-bottom:0;
+}
+
+body { 
+    background-color: #dddddd;
+}
+
+}
+
+
+/**************************************************************************/
+/** Content Elements
+/**************************************************************************/
+
+.content b, .content strong,
+.content b a, .content b a:visited{
+    color: #003366;
+}
+
+.content b a:hover{
+   color:#FF3300;text-decoration:none;
+}
+
+
+/**************************************************************************/
+/** Code Blocks
+/**************************************************************************/
+
+pre, .code-block{
+    
+
+    font-family: "Consolas", "Bitstream Vera Sans Mono", "Courier New", Courier, monospace;
+    line-height: 19.4px;
+
+
+    color:#676767;
+    text-decoration: none;
+    
+    
+    border: 1px solid #E8E8E8;
+    background-color:#F7F7F7; 
+    clear:both;
+    
+    margin: 10px 0 10px 0;
+    padding:7px 0 7px 0;
+    
+    overflow-x: auto;
+    overflow-y: hidden;
+
+
+    width:100% !important;
+}
