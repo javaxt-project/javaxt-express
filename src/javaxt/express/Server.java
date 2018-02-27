@@ -108,7 +108,7 @@ public class Server {
   //**************************************************************************
   /** Converts command line inputs into key/value pairs. 
    */
-    private static java.util.HashMap<String, String> parseArgs(String[] args){
+    public static java.util.HashMap<String, String> parseArgs(String[] args){
         java.util.HashMap<String, String> map = new java.util.HashMap<String, String>();
         for (int i=0; i<args.length; i++){
             String key = args[i];
