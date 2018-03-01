@@ -27,7 +27,7 @@ p {
     margin-bottom:10px;
 }
 
-a, a:visited {color:#3366CC;}
+a, a:visited {color:#3366CC; text-decoration:none;}
 a:hover {color:#FF3300;text-decoration:none;}
 
 
@@ -84,7 +84,7 @@ img, td{
     background-color: #377ECE;
     text-align: left;
     padding-left: 15px;
-    line-height: 65px;
+    line-height: 72px;
     color: white;
     font-size: 22pt;
     text-shadow: 5px 5px 5px rgba(0, 0, 0, 0.45);
