@@ -76,7 +76,7 @@
   <tr>            
     <td> 
       <div class="footer">
-        <div class="copyright"><%=copyright%>, <%=companyName%></div>
+        <div class="copyright"><%=copyright%>, <%=author%></div>
       </div>
     </td>
   </tr>
@@ -98,11 +98,11 @@
         for (var i=0; i<nodes.length; i++){
             var node = nodes[i];
             if (node.className=="content"){
-              //Found the content node! However, the hieght of the "content" 
+              //Found the content node! However, the height of the "content" 
               //node will be updated by the carousel which may conflict with 
-              //the CSS rules for the "content" node. As a workaround, we  
-              //wrapped the content in a div and passing the wrapper div to 
-              //the constructor.
+              //the CSS rules for the "content" node. As a workaround, we'll
+              //wrap the content in a div and passing the wrapper div to the 
+              //constructor.
                 for (var j=0; j<node.childNodes.length; j++){
                     if (node.childNodes[j].nodeType==1){
                         content = node.childNodes[j];
@@ -131,30 +131,8 @@
 
 
       //Instantiate website component
-        var website = new javaxt.dhtml.WebSite(content, tabs, navbar);
-        document.website = website;
-        
-        
-      //Override the getTab method
-        tabs = website.getTabs();
-        var docTab, wikiTab, homeTab;
-        for (var i=0; i<tabs.length; i++){
-            if (tabs[i].dir=="documentation") docTab = tabs[i];
-            if (tabs[i].dir=="wiki") wikiTab = tabs[i];
-            if (tabs[i].dir=="") homeTab = tabs[i];
-        }
-        
-        website.getTab = function(dir){
-            for (var i=0; i<tabs.length; i++){
-                if (tabs[i].dir==dir) return tabs[i];
-            }
-            if (dir.indexOf("javaxt-")==0){
-                return homeTab;
-            }
-            else{
-                return wikiTab;
-            }            
-        };
+        document.website = new javaxt.dhtml.WebSite(content, tabs, navbar);
+
 
 
       //Delete this script after its beeen loaded
