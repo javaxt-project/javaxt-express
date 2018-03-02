@@ -64,7 +64,7 @@ public class Server {
     private static class Demo extends WebSite {
         private Demo(javaxt.io.Directory dir){
             super(dir);
-            super.setCompanyName("ACME Inc");
+            super.setAuthor("ACME Inc");
         }
         
       /** Returns an html snippet found in the given file. Overrides the native 
