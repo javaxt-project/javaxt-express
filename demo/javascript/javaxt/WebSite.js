@@ -9,24 +9,28 @@ if(!javaxt.dhtml) javaxt.dhtml={};
  *
  ******************************************************************************/
 
-javaxt.dhtml.WebSite = function (content, tabs, navbar) {
+javaxt.dhtml.WebSite = function (content, config) {
     this.className = "javaxt.dhtml.WebSite";
     
     var me = this;
+    var tabs;
     var carousel;
     var slideIndex;
     
-    var panelPadding=20; //Padding between panels in the carousel. This should 
-                         //not exceed the content padding defined in the CSS.
-                          
-    var panelBackground="#ffffff"; //Background for individual panels in the 
-                                   //carousel. This should match the content 
-                                   //background defined in the CSS.
+    var defaultConfig = {
+        
+        padding: 20, //Padding between panels in the carousel. This should 
+                     //not exceed the content padding defined in the CSS.
+                     
+        background: "#ffffff", //Background for individual panels in the 
+                               //carousel. This should match the content 
+                               //background defined in the CSS.
+                               
+        animationSteps: 500
+    };
 
 
-    var includes;
-    
-    var head = document.getElementsByTagName('head')[0];
+    var pageLoader = new javaxt.dhtml.PageLoader();
     var body = document.getElementsByTagName('body')[0];
     var debug = false;
     
@@ -37,7 +41,21 @@ javaxt.dhtml.WebSite = function (content, tabs, navbar) {
     var init = function(){
 
 
+        
+      //Clone the config so we don't modify the original config object
+        var clone = {};
+        merge(clone, config);
+
+
+      //Merge clone with default config
+        merge(clone, defaultConfig);
+        config = clone;
+        
+        
+
+
       //Parse tabs
+        tabs = config.tabs;
         var arr = [];
         for (var i=0; i<tabs.length; i++){
             var path = getPath(tabs[i].pathname);
@@ -67,7 +85,7 @@ javaxt.dhtml.WebSite = function (content, tabs, navbar) {
 
 
         
-      //Explicitely set the content height. Do this before removing 
+      //Explicitly set the content height. Do this before removing 
       //elements or inserting the carousel control.
         content.style.height = content.offsetHeight + "px";
         
@@ -87,10 +105,10 @@ javaxt.dhtml.WebSite = function (content, tabs, navbar) {
         var nextPage = document.createElement("div");
         carousel = new javaxt.dhtml.Carousel(content, {
             items: [currPage, nextPage],
-            animationSteps: 500,
+            animationSteps: config.animationSteps,
             drag: false,
             loop: true,
-            padding: panelPadding
+            padding: config.padding
         });
         
         
@@ -129,23 +147,25 @@ javaxt.dhtml.WebSite = function (content, tabs, navbar) {
                 
                 
               //Update content height and scroll after the carousel changes
+                var resizeSteps = 0;
+                if (config.animationSteps>0) resizeSteps = 100;
                 if (body.scrollTop>50){
                     setTimeout(function(){
                         var animationSteps = 1000;
                         scrollTop(new Date().getTime(), animationSteps, animationSteps, function(){
-                            resize(currPanel, 100);
+                            resize(currPanel, resizeSteps);
                         });
                     }, 250);
                 }
                 else{
                     body.scrollTop = 0;
-                    resize(currPanel, 100);
+                    resize(currPanel, resizeSteps);
                 }
                 
 
                 
                 
-              //Remove conent from previous panel. Content will be loaded 
+              //Remove content from previous panel. Content will be loaded 
               //dynamically on 'popstate' events
                 prevPanel.innerHTML = "";
 
@@ -244,7 +264,6 @@ javaxt.dhtml.WebSite = function (content, tabs, navbar) {
 
         });
 
-
     };
     
     
@@ -255,7 +274,8 @@ javaxt.dhtml.WebSite = function (content, tabs, navbar) {
         me.disablePopstateListener(); //Just in case...
         window.addEventListener('popstate', popstateListener);
     };
-    
+
+
   //**************************************************************************
   //** disablePopstateListener
   //**************************************************************************
@@ -546,7 +566,7 @@ javaxt.dhtml.WebSite = function (content, tabs, navbar) {
   //** loadInlineScripts
   //**************************************************************************
     var loadInlineScripts = function(inlineScripts){
-        
+
       //Execute inline scripts
         for (var i=0; i<inlineScripts.length; i++){
             var script = inlineScripts[i].firstChild.nodeValue;
@@ -570,7 +590,19 @@ javaxt.dhtml.WebSite = function (content, tabs, navbar) {
             evt = document.createEvent('Event');  
             evt.initEvent(name, false, false);  
         }
-        window.dispatchEvent(evt);
+        
+        if (config.animationSteps>0){
+            window.dispatchEvent(evt);
+        }
+        else{ 
+            
+          //Found a bug where the documentation tab wouldn't load correctly
+          //if the animation was disabled. I wasn't able to track down the 
+          //root cause but adding a slight delay seems to do the trick
+            setTimeout(function(){
+                window.dispatchEvent(evt);
+            },50);
+        }
     };
     
 
@@ -634,18 +666,6 @@ javaxt.dhtml.WebSite = function (content, tabs, navbar) {
     
     
   //**************************************************************************
-  //** removeNodes
-  //**************************************************************************
-    var removeNodes = function(nodes){
-        while (nodes.length>0){
-            var node = nodes[0];
-            var parent = node.parentNode;
-            parent.removeChild(node);
-        }
-    };
-    
-    
-  //**************************************************************************
   //** getPath
   //**************************************************************************
   /** Updates a given path by removing the leading "/" character.
@@ -663,7 +683,8 @@ javaxt.dhtml.WebSite = function (content, tabs, navbar) {
   //**************************************************************************
   //** getDir
   //**************************************************************************
-  /** Assumes the leading "/" character has been removed from the path */
+  /** Assumes the leading "/" character has been removed from the path 
+   */
     var getDir = function(path){
         var dir = path.toLowerCase();
         var idx = dir.indexOf("/");
@@ -684,219 +705,32 @@ javaxt.dhtml.WebSite = function (content, tabs, navbar) {
         url += "template=false";
         
         
-      //Download html fragment and parse response
-        get(url, function(html){
+      //Load page and call callback
+        pageLoader.load(url, function(html, title, inlineScripts){
             
           //Create div
             var div = document.createElement("div");
             //div.style.height = "100%";
-            div.style.background = panelBackground;
+            div.style.background = config.background;
             div.innerHTML = html;
+            html = div.outerHTML;
 
-
-          //Get title
-            var title;
-            var titles = div.getElementsByTagName("title");
-            if (titles.length>0){
-                title = titles[0].innerHTML;
-            }
-            else{
+          //Get title as needed
+            if (title==null || title.length==0){
                 var h1 = div.getElementsByTagName("h1");
                 if (h1.length>0) title = h1[0].innerHTML;
             }
-
-
-          //Get scripts
-            var inlineScripts = [];
-            var externalScripts = []; //urls
-            var scripts = div.getElementsByTagName("script");
-            for (var i=0; i<scripts.length; i++){
-                if (scripts[i].src.length>0){
-                    externalScripts.push(scripts[i].src);
-                }
-                else{
-                    inlineScripts.push(scripts[i]);
-                }
-            }
             
-            
-          //Get external style sheets
-            var css = []; //urls
-            var cssNodes = [];
-            var links = div.getElementsByTagName("link");
-            for (var i=0; i<links.length; i++){
-                if (links[i].rel=="stylesheet"){
-                    if (links[i].href.length>0){
-                        css.push(links[i].href);
-                        cssNodes.push(links[i]);
-                    }
-                }
-            }
-            
-            
-          //Remove unused/unwanted nodes
-            removeNodes(titles);
-            removeNodes(div.getElementsByTagName("description"));
-            removeNodes(div.getElementsByTagName("keywords")); 
-            removeNodes(scripts);
-            removeNodes(cssNodes);
-            
-
-          //Get html and delete div
-            html = div.outerHTML;
+          //Delete div
             div = null;
-
-
-          //Load includes and call the callback
-            loadIncludes(css, externalScripts, function(){
-                if (callback) callback.apply(me, [html, title, inlineScripts]);
-            });
             
+          //Callback
+            if (callback) callback.apply(me, [html, title, inlineScripts]);
+
         });
     };
 
 
-  //**************************************************************************
-  //** get
-  //**************************************************************************
-    var get = function(url, success){
-        
-        var request = null;
-        if (window.XMLHttpRequest) {
-            request = new XMLHttpRequest();
-        }
-        else {
-            request = new ActiveXObject("Microsoft.XMLHTTP");
-        }
-
-        request.open("GET", url, true);
-        request.onreadystatechange = function(){
-            if (request.readyState === 4) {
-                if (request.status===200){
-                    
-                    if (success) success.apply(me, [request.responseText]);   
-                }
-            }
-        };
-        
-        request.send(); 
-    };
-    
-    
-  //**************************************************************************
-  //** loadIncludes
-  //**************************************************************************
-  /** Dynamically loads javascript and stylesheets.
-   */
-    var loadIncludes = function(css, scripts, callback){
-
-        parseIncludes();
-
-        var addInclude = function(category, key){
-            var obj = includes[category];
-            for (var k in obj){
-                if (obj.hasOwnProperty(k)){
-                    if (k==key) return false;
-                }
-            }
-            return true;
-        };
-
-        var arr = [];
-        
-        
-      //Generate list of stylesheets to include
-        for (var i=0; i<css.length; i++){
-            if (addInclude("css", css[i])){
-                var link = document.createElement("link");
-                link.setAttribute("rel", "stylesheet");
-                link.setAttribute("type", "text/css");
-                link.setAttribute("href", css[i]);
-                arr.push(link);                
-                
-                includes.css[css[i]] = true;
-            }
-            else{
-                log("Skipping " + css[i] + "...");
-            }
-        }
-        
-        
-      //Generate list of javascripts to include
-        for (var i=0; i<scripts.length; i++){
-            if (addInclude("scripts", scripts[i])){
-                var script = document.createElement("script");
-                script.setAttribute("type", "text/javascript");
-                script.setAttribute("src", scripts[i]);
-                arr.push(script);
-                                
-                includes.scripts[scripts[i]] = true;
-            }
-            else{
-                log("Skipping " + scripts[i] + "...");
-            }
-        }
-
-
-      //Load includes
-        if (arr.length>0){
-
-            var t = arr.length;
-            var loadResource = function(obj){
-                obj.onload = function() {
-                    log( 
-                        Math.round((1-(arr.length/t))*100) + "%"
-                    );
-                    
-                    if (arr.length>0) loadResource(arr.shift());
-                    else {
-                        if (callback!=null) callback.apply(me, []);
-                    }
-                };
-                head.appendChild(obj);
-            };
-            
-            loadResource(arr.shift());
-        }
-        else{
-            if (callback!=null) callback.apply(me, []);
-        }
-        
-    };
-    
-    
-  //**************************************************************************
-  //** parseIncludes
-  //**************************************************************************
-    var parseIncludes = function(){
-        if (includes) return;
-        
-        includes = {
-            css: {},
-            scripts: {}
-        };
-        
-        
-        var scripts = document.getElementsByTagName("script");
-        for (var i=0; i<scripts.length; i++){
-            if (scripts[i].src.length>0){
-                includes.scripts[scripts[i].src] = true;
-            }
-        }
-        
-        
-        var css = document.getElementsByTagName("link");
-        for (var i=0; i<css.length; i++){
-            if (css[i].rel=="stylesheet"){
-                if (css[i].href.length>0){
-                    includes.css[css[i].href] = true;
-                }
-            }
-        }
-    };
-    
-    
-    
   //**************************************************************************
   //** log
   //**************************************************************************
@@ -952,6 +786,23 @@ javaxt.dhtml.WebSite = function (content, tabs, navbar) {
     };
     
     
+  //**************************************************************************
+  //** merge
+  //**************************************************************************
+  /** Used to merge properties from one json object into another. Credit:
+   *  https://github.com/stevenleadbeater/JSONT/blob/master/JSONT.js
+   */
+    var merge = function(settings, defaults) {
+        for (var p in defaults) {
+            if ( defaults.hasOwnProperty(p) && typeof settings[p] !== "undefined" ) {
+                if (p!=0) //<--Added this as a bug fix
+                merge(settings[p], defaults[p]);
+            }
+            else {
+                settings[p] = defaults[p];
+            }
+        }
+    };
     
     
     init();

@@ -26,6 +26,7 @@
 
 <!-- Javascript Includes -->
 <script type="text/javascript" src="/javascript/javaxt/Carousel.js"></script>
+<script type="text/javascript" src="/javascript/javaxt/PageLoader.js"></script>
 <script type="text/javascript" src="/javascript/javaxt/WebSite.js"></script>
 
 </head>
@@ -131,7 +132,9 @@
 
 
       //Instantiate website component
-        document.website = new javaxt.dhtml.WebSite(content, tabs, navbar);
+        document.website = new javaxt.dhtml.WebSite(content, {
+            tabs: tabs
+        });
 
 
 
