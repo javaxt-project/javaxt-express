@@ -1,5 +1,6 @@
 package javaxt.express;
 import javaxt.http.servlet.*;
+import javaxt.utils.Console;
 import java.io.IOException;
 import java.util.Calendar;
 import java.util.TimeZone;
@@ -14,6 +15,7 @@ import java.util.TimeZone;
 
 public abstract class WebSite extends HttpServlet {
 
+    protected Console console = new Console();
     private static final String z = "GMT";
     private static final TimeZone tz = TimeZone.getTimeZone(z);
     
@@ -168,7 +170,7 @@ public abstract class WebSite extends HttpServlet {
                 sendFile = (idx==-1);
             }
             
-            if (sendFile){ 
+            if (sendFile){
                 sendFile(file, request, response);
                 return;
             }

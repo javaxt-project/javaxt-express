@@ -1,5 +1,6 @@
 package javaxt.express;
 import javaxt.http.servlet.HttpServletRequest;
+import javaxt.utils.Console;
 
 //******************************************************************************
 //**  Express Server
@@ -17,7 +18,7 @@ public class Server {
   /** Command line interface used to start the server.
    */
     public static void main(String[] arr) {
-        java.util.HashMap<String, String> args = parseArgs(arr);
+        java.util.HashMap<String, String> args = Console.parseArgs(arr);
         
       //Get port
         int port;
@@ -101,34 +102,4 @@ public class Server {
             }
         }
     }
-
-
-  //**************************************************************************
-  //** parseArgs
-  //**************************************************************************
-  /** Converts command line inputs into key/value pairs. 
-   */
-    public static java.util.HashMap<String, String> parseArgs(String[] args){
-        java.util.HashMap<String, String> map = new java.util.HashMap<String, String>();
-        for (int i=0; i<args.length; i++){
-            String key = args[i];
-            if (key.startsWith("-")){
-                if (i<args.length-1){
-                    String nextArg = args[i+1];
-                    if (nextArg.startsWith("-")){
-                        map.put(key, null);
-                    }
-                    else{
-                        i++;
-                        map.put(key, nextArg);
-                    }
-                }
-                else{
-                    map.put(key, null);
-                }
-            }
-        }
-        return map;
-    }
-    
 }
