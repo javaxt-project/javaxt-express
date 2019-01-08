@@ -1,4 +1,4 @@
-package javaxt.express;
+package javaxt.express.cms;
 import javaxt.http.servlet.*;
 import javaxt.utils.Console;
 import java.io.IOException;
@@ -109,7 +109,12 @@ public abstract class WebSite extends HttpServlet {
    *  extend this class can override this method.
    */
     protected String getCopyright(){
-       return "Copyright &copy; " + new javaxt.utils.Date().getYear();
+       return "Copyright &copy; " + getYear();
+    }
+    
+    
+    protected int getYear(){
+        return new javaxt.utils.Date().getYear();
     }
     
 
@@ -419,6 +424,7 @@ public abstract class WebSite extends HttpServlet {
             html = html.replace("<%=author%>", author==null ? "" : author);
             html = html.replace("<%=Path%>", servletPath);
             html = html.replace("<%=companyName%>", companyName==null ? "": companyName);
+            html = html.replace("<%=year%>", getYear()+"");
             html = html.replace("<%=copyright%>", getCopyright());
             html = html.replace("<%=navbar%>", getNavBar(request, file));
             html = html.replace("<%=tabs%>", getTabs(url.getPath(), tabs));
