@@ -1,6 +1,4 @@
 package javaxt.express;
-import javaxt.sql.Connection;
-import java.sql.SQLException;
 import javaxt.json.*;
 import java.util.*;
 
@@ -23,7 +21,7 @@ public class Config {
         config = new LinkedList<JSONObject>();
         config.add(new JSONObject());
     }
-    private Config(){}
+    protected Config(){}
     
     
   //**************************************************************************
@@ -121,6 +119,9 @@ public class Config {
             database.setName(json.get("name").toString());
             database.setUserName(json.get("username").toString());
             database.setPassword(json.get("password").toString());
+            if (json.has("maxConnections")){
+                database.setConnectionPoolSize(json.get("maxConnections").toInteger());
+            }
             setDatabase(database);
             return database;
         }
