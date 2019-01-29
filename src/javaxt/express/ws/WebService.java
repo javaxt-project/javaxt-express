@@ -3,10 +3,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import javaxt.json.JSONObject;
-import javaxt.sql.Connection;
 import javaxt.sql.Database;
 import javaxt.utils.Console;
 import java.io.IOException;
+import java.sql.SQLException;
 import javaxt.http.servlet.ServletException;
 
 
@@ -90,17 +90,17 @@ public abstract class WebService {
         if (method.startsWith("get")){
             String className = method.substring(3);
             Class c = getClass(className);
-            if (c!=null) return get(c, request, database);
+            if (c!=null) return get(c, request);
         }
         else if (method.startsWith("save")){
             String className = method.substring(4);
             Class c = getClass(className);
-            if (c!=null) return save(c, request, database);
+            if (c!=null) return save(c, request);
         }
         else if (method.startsWith("delete")){
             String className = method.substring(6);
             Class c = getClass(className);
-            if (c!=null) return delete(c, request, database);
+            if (c!=null) return delete(c, request);
         }
         
         return new ServiceResponse(501, "Not Implemented.");
@@ -115,20 +115,13 @@ public abstract class WebService {
   //**************************************************************************
   /** Used to retrieve an object from the database. Returns a JSON object.
    */
-    private ServiceResponse get(Class c, ServiceRequest request, Database database) {
-        Connection conn = null;
+    private ServiceResponse get(Class c, ServiceRequest request) {
         try{
-          //Create new instance
-            conn = database.getConnection();
-            Object obj = newInstance(c, request.getID(), conn);
-            conn.close();
-            
-          //Return json
+            Object obj = newInstance(c, request.getID());
             Method toJson = c.getDeclaredMethod("toJson");
             return new ServiceResponse((JSONObject) toJson.invoke(obj));
         }
         catch(Exception e){
-            if (conn!=null) conn.close();
             return new ServiceResponse(e);
         }
     }
@@ -140,22 +133,18 @@ public abstract class WebService {
   /** Used to create or update an object in the database. Returns the object 
    *  ID.
    */
-    private ServiceResponse save(Class c, ServiceRequest request, Database database) {
-        Connection conn = null;
+    private ServiceResponse save(Class c, ServiceRequest request) {
         try{
             JSONObject json = new JSONObject(new String(request.getPayload(), "UTF-8"));
             if (json.isEmpty()) throw new Exception("JSON is empty.");
             
             
-          //Open database connection
-            conn = database.getConnection();
-            
-            
+
           //Create new instance of the class
             Object obj;
             Long id = json.get("id").toLong();
             if (id!=null){
-                obj = newInstance(c, id, conn);
+                obj = newInstance(c, id);
                 Method update = c.getDeclaredMethod("update", JSONObject.class);
                 update.invoke(obj, new Object[]{json});
             }
@@ -165,12 +154,9 @@ public abstract class WebService {
             
             
           //Call the save method
-            Method save = c.getDeclaredMethod("save", Connection.class);
-            save.invoke(obj, new Object[]{conn});
+            Method save = c.getDeclaredMethod("save");
+            save.invoke(obj);
             
-            
-          //Close database connection
-            conn.close();
             
             
           //Return response
@@ -178,7 +164,6 @@ public abstract class WebService {
             return new ServiceResponse(((Long)getID.invoke(obj))+"");
         }
         catch(Exception e){
-            if (conn!=null) conn.close();
             return new ServiceResponse(e);
         }
     }
@@ -190,33 +175,23 @@ public abstract class WebService {
   /** Used to delete an object in the database. Returns a 200 status code if
    *  the object was successfully deleted.
    */
-    private ServiceResponse delete(Class c, ServiceRequest request, Database database) {
-        Connection conn = null;
+    private ServiceResponse delete(Class c, ServiceRequest request) {
         try{
-            
-          //Open database connection
-            conn = database.getConnection();
-            
+
           //Create new instance of the class
-            Object obj = newInstance(c, request.getID(), conn);
+            Object obj = newInstance(c, request.getID());
             
           //Delete object
-            Method delete = c.getDeclaredMethod("delete", Connection.class);
-            delete.invoke(obj, new Object[]{conn});
+            Method delete = c.getDeclaredMethod("delete");
+            delete.invoke(obj);
             
-          //Close connection
-            conn.close();
             
             return new ServiceResponse(200);
         }
         catch(Exception e){
-            if (conn!=null) conn.close();
             return new ServiceResponse(e);
         }
     }
-
-    
-
     
     
   //**************************************************************************
@@ -238,9 +213,21 @@ public abstract class WebService {
   /** Returns a new instance for a given class using an ID and a connection to
    *  the database.
    */
-    private Object newInstance(Class c, long id, Connection conn) throws Exception {
-        Constructor constructor = c.getDeclaredConstructor(new Class[]{Long.TYPE, Connection.class});
-        return constructor.newInstance(new Object[]{id, conn});
+    private Object newInstance(Class c, long id) throws Exception {
+        try{
+            Constructor constructor = c.getDeclaredConstructor(new Class[]{Long.TYPE});
+            return constructor.newInstance(new Object[]{id});
+        
+        }
+        catch(java.lang.reflect.InvocationTargetException e){
+            Throwable t = e.getCause();
+            if (t instanceof SQLException){
+                throw (SQLException) t;
+            }
+            else{
+                throw new Exception(t);
+            }
+        }
     }
     
     
