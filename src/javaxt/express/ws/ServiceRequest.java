@@ -33,12 +33,13 @@ public class ServiceRequest {
     private java.security.Principal user;
     private javaxt.utils.URL url;
     private byte[] payload;
+    private JSONObject json;
     private HashMap<String, List<String>> parameters;
     private Field[] fields;
     private Filter filter;
     private Sort sort;
-    private Integer limit;
-    private Integer offset;
+    private Long limit;
+    private Long offset;
     private Long id;
     private static String[] approvedFunctions = new String[]{
         "min", "max", "count", "avg", "sum"
@@ -68,18 +69,20 @@ public class ServiceRequest {
           //Generate a method name using the request method and first "directory" 
           //in the path. Example: "GET /config/users" would yield the "getUsers"
           //from the "config" service.
-            String name = arr[1];
-            name = name.substring(0, 1).toUpperCase() + name.substring(1);
-            
-            String method = request.getMethod();
-            if (method.equals("GET")){
-                this.method = "get" + name;
-            }
-            else if (method.equals("PUT") || method.equals("POST")){
-                this.method = "save" + name;
-            }
-            else if (method.equals("DELETE")){
-                this.method = "delete" + name;
+            if (arr.length>1){
+                String name = arr[1];
+                name = name.substring(0, 1).toUpperCase() + name.substring(1);
+
+                String method = request.getMethod();
+                if (method.equals("GET")){
+                    this.method = "get" + name;
+                }
+                else if (method.equals("PUT") || method.equals("POST")){
+                    this.method = "save" + name;
+                }
+                else if (method.equals("DELETE")){
+                    this.method = "delete" + name;
+                }
             }
             
             
@@ -101,11 +104,11 @@ public class ServiceRequest {
         
         
       //Get offset and limit
-        offset = getInt(getParameter("offset"));
-        limit = getInt(getParameter("limit"));
-        Integer page = getInt(getParameter("page"));
+        offset = getParameter("offset").toLong();
+        limit = getParameter("limit").toLong();
+        Long page = getParameter("page").toLong();
         if (offset==null && page!=null){
-            if (limit==null) limit = 25;
+            if (limit==null) limit = 25L;
             offset = (page*limit)-limit;        
         }
     }
@@ -202,16 +205,19 @@ public class ServiceRequest {
   //**************************************************************************
   /** Returns the value of a specific variable supplied in the query string.
    *  @param key Query string parameter name. Performs a case insensitive
-   *  search for the keyword. Returns null if the parameter is not found.
+   *  search for the keyword.
    */
-    public String getParameter(String key){
+    public javaxt.utils.Value getParameter(String key){
         if (key!=null){
             List<String> parameters = this.parameters.get(key.toLowerCase());
-            if (parameters!=null) return parameters.get(0).trim();
+            if (parameters!=null){ 
+                String val = parameters.get(0).trim();
+                if (val.length()>0) return new javaxt.utils.Value(val);
+            }
             //request.getBody()
         }
         
-        return null;
+        return new javaxt.utils.Value(null);
     }
     
     
@@ -224,6 +230,26 @@ public class ServiceRequest {
             if (parameters!=null) return true;
         }
         return false;
+    }
+    
+    
+  //**************************************************************************
+  //** getOffset
+  //**************************************************************************
+    public Long getOffset(){
+        return offset;
+    }
+    
+    
+  //**************************************************************************
+  //** getLimit
+  //**************************************************************************
+    public Long getLimit(){
+        return limit;
+    }
+    
+    public HttpServletRequest getRequest(){
+        return request;
     }
     
   //**************************************************************************
@@ -244,7 +270,10 @@ public class ServiceRequest {
   //** getJson
   //**************************************************************************
     public JSONObject getJson(){
-        return new JSONObject(new String(getPayload()));
+        if (json==null){
+            json = new JSONObject(new String(getPayload()));
+        }
+        return json;
     }
     
     
@@ -283,7 +312,7 @@ public class ServiceRequest {
    */
     public Field[] getFields(){
         if (fields!=null) return fields;
-        String fields = getParameter("fields");
+        String fields = getParameter("fields").toString();
         if (fields.isEmpty())  return null;
         
         
@@ -397,7 +426,7 @@ public class ServiceRequest {
   //**************************************************************************
     public Filter getFilter(){
         if (filter!=null) return filter;
-        filter = new Filter(new JSONObject(getParameter("filter")));
+        filter = new Filter(new JSONObject(getParameter("filter").toString()));
         return filter;
     }
     
@@ -406,7 +435,7 @@ public class ServiceRequest {
   //** getWhere
   //**************************************************************************
     public String getWhere(){
-        return getParameter("where");
+        return getParameter("where").toString();
     }
     
     
@@ -419,7 +448,7 @@ public class ServiceRequest {
         if (sort!=null) return sort;
         
         
-        String orderBy = getParameter("orderby");
+        String orderBy = getParameter("orderby").toString();
         //TODO: &sort=[{"property":"dob","direction":"ASC"}]
         if (orderBy==null) return null;
         
@@ -448,18 +477,5 @@ public class ServiceRequest {
         
         sort = new Sort(fields);
         return sort;
-    }
-    
-    
-  //**************************************************************************
-  //** getInt
-  //**************************************************************************
-    private Integer getInt(String str){
-        try{
-            return Integer.valueOf(str);
-        }
-        catch(Exception e){
-            return null;
-        }
     }
 }
