@@ -3,7 +3,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import javaxt.json.JSONObject;
-import javaxt.sql.Database;
+import javaxt.sql.*;
 import javaxt.utils.Console;
 import java.io.IOException;
 import java.sql.SQLException;
@@ -20,11 +20,24 @@ import javaxt.http.servlet.ServletException;
 
 public abstract class WebService {
 
-    private ConcurrentHashMap<String, Class<?>> classes = 
-        new ConcurrentHashMap<String, Class<?>>();
+    private ConcurrentHashMap<String, DomainClass> classes = 
+        new ConcurrentHashMap<String, DomainClass>();
 
+    
     public Console console = new Console();
     
+    private class DomainClass {
+        private Class c;
+        private boolean readOnly;
+        public DomainClass(Class c, boolean readOnly){
+            this.c = c;
+            this.readOnly = readOnly;
+        }
+        public boolean isReadOnly(){
+            return readOnly;
+        }
+    }
+
     
   //**************************************************************************
   //** addClass
@@ -32,16 +45,23 @@ public abstract class WebService {
   /** Adds a class to the list of classes that support CRUD operations.
    */
     public void addClass(Class c){
+        addClass(c, false);
+    }
+    
+    public void addClass(Class c, boolean readOnly){
+        if (!Model.class.isAssignableFrom(c)){
+            throw new IllegalArgumentException();
+        }
+        
+        String name = c.getSimpleName();         
+        String pkg = c.getPackage().getName();
+        if (name.startsWith(pkg)) name = name.substring(pkg.length()+1);
+        name = name.toLowerCase();
+        int idx = name.lastIndexOf(".");
+        if (idx>0) name = name.substring(idx+1);
+            
         synchronized(classes){
-            String name = c.getSimpleName();         
-            
-            
-            String pkg = c.getPackage().getName();
-            if (name.startsWith(pkg)) name = name.substring(pkg.length()+1);
-            name = name.toLowerCase();
-            int idx = name.lastIndexOf(".");
-            if (idx>0) name = name.substring(idx+1);
-            classes.put(name, c);
+            classes.put(name, new DomainClass(c, readOnly));
             classes.notify();
         }
     }
@@ -89,24 +109,36 @@ public abstract class WebService {
       //standard CRUD operation. 
         if (method.startsWith("get")){
             String className = method.substring(3);
-            Class c = getClass(className);
-            if (c!=null) return get(c, request);
+            DomainClass c = getClass(className);
+            if (c!=null) return get(c.c, request);
         }
         else if (method.startsWith("save")){
             String className = method.substring(4);
-            Class c = getClass(className);
-            if (c!=null) return save(c, request);
+            DomainClass c = getClass(className);
+            if (c!=null){
+                if (c.isReadOnly()){
+                    return new ServiceResponse(403, "Write access forbidden.");
+                }
+                else{
+                    return save(c.c, request);
+                }
+            }
         }
         else if (method.startsWith("delete")){
             String className = method.substring(6);
-            Class c = getClass(className);
-            if (c!=null) return delete(c, request);
+            DomainClass c = getClass(className);
+            if (c!=null){
+                if (c.isReadOnly()){
+                    return new ServiceResponse(403, "Delete access forbidden.");
+                }
+                else{
+                    return delete(c.c, request);
+                }
+            }
         }
         
         return new ServiceResponse(501, "Not Implemented.");
     }
-    
-    
 
     
     
@@ -200,7 +232,7 @@ public abstract class WebService {
   /** Returns a class from the list of know/supported classes for a given 
    *  class name.
    */
-    private Class getClass(String className){
+    private DomainClass getClass(String className){
         synchronized(classes){
             return classes.get(className);
         }

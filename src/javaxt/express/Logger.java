@@ -24,47 +24,71 @@ public class Logger implements Runnable {
     private FileChannel outChannel;
     private FileOutputStream outputFile;
     private int date;
-    private long maxFileSize;
+    private java.util.TimeZone tz;
+    private Long maxFileSize;
 
 
   //**************************************************************************
   //** Constructor
   //**************************************************************************
-  /** Creates a new instance of Logger. */
-
-    public Logger(File logDir, long maxFileSize) {
+    public Logger(File logDir) {
+        this(logDir, null, "UTC");
+    }
+    
+    
+  //**************************************************************************
+  //** Constructor
+  //**************************************************************************
+    public Logger(File logDir, Long maxFileSize, String timezone) {
+        if (!logDir.exists()) logDir.mkdirs();
         this.logDir = logDir;
         this.date = -1;
         this.maxFileSize = maxFileSize;
+        this.tz = javaxt.utils.Date.getTimeZone(timezone);
     }
 
 
   //**************************************************************************
   //** log
   //**************************************************************************
-  /** Writes to the pool */
-
-    public static void log(String client, HttpServletRequest request) {
+  /** Used to log web requests 
+   */
+    public void log(HttpServletRequest request) {
+        
+        String clientIP = request.getRemoteAddr();
+        if (clientIP.startsWith("/") && clientIP.length()>1) clientIP = clientIP.substring(1);
         
         StringBuffer str = new StringBuffer();
-        str.append("New Request From: " + client + "\r\n");
+        str.append("New Request From: " + clientIP + "\r\n");
         str.append(request.getMethod() + ": " + request.getURL() + "\r\n");
-        str.append("TimeStamp: " + new java.util.Date() + "\r\n");
+        str.append("TimeStamp: " + getDate().toString("yyyy-MM-dd HH:mm a") + "\r\n");
         str.append("\r\n");
         str.append(request.toString());
         log(str.toString());
     }
 
-    public static void log(Exception e){
-        String s = e.getClass().getName();
-        s = s.substring(s.lastIndexOf(".")+1);
-        String message = e.getLocalizedMessage();
-        String error = (message != null) ? (s + ": " + message) : s;
-        log(error);
-    }
+
+//  //**************************************************************************
+//  //** log
+//  //**************************************************************************
+//  /** Used to log exceptions
+//   */
+//    public void log(Exception e){
+//        String s = e.getClass().getName();
+//        s = s.substring(s.lastIndexOf(".")+1);
+//        String message = e.getLocalizedMessage();
+//        String error = (message != null) ? (s + ": " + message) : s;
+//        log(error);
+//    }
 
     
-    private static void log(String str){
+  //**************************************************************************
+  //** log
+  //**************************************************************************
+  /** Used to add a string to the log file. The string will be terminated with 
+   *  a line break.
+   */
+    public void log(String str){
         if (str!=null){
             if (!str.endsWith("\r\n")) str+= "\r\n";
             synchronized (pool) {
@@ -75,12 +99,10 @@ public class Logger implements Runnable {
     }
 
 
-
-
   //**************************************************************************
-  //** Run
+  //** run
   //**************************************************************************
-  /** Used to remove RequestHeader from the queue and write it to a file.
+  /** Used to remove an entry from the queue and write it to a file.
    */
     public void run() {
         while (true) {
@@ -98,7 +120,7 @@ public class Logger implements Runnable {
                 request = (String) pool.remove(0);
             }
 
-if (request.contains("User-Agent: EMR Bootstrap Service")) continue;
+
 
             try{                
                 byte[] b = request.getBytes();
@@ -135,13 +157,21 @@ if (request.contains("User-Agent: EMR Bootstrap Service")) continue;
         }
         else{
             File file = new File(logDir, this.date + ".log");
-            if (file.length()>maxFileSize){ 
-                if (outputFile!=null) outputFile.close();
-                if (outChannel!=null) outChannel.close();                
-                throw new Exception("Log file too big: " + file.length() + " vs " + maxFileSize);
+            if (maxFileSize!=null){
+                if (file.length()>maxFileSize){ 
+                    if (outputFile!=null) outputFile.close();
+                    if (outChannel!=null) outChannel.close();                
+                    throw new Exception("Log file too big: " + file.length() + " vs " + maxFileSize);
+                }
             }
         }
         return outChannel;
     }
 
+    
+    public javaxt.utils.Date getDate(){
+        javaxt.utils.Date d = new javaxt.utils.Date();
+        d.setTimeZone(tz);
+        return d;
+    }
 }
