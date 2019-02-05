@@ -6,7 +6,6 @@ import javaxt.json.JSONObject;
 import javaxt.sql.*;
 import javaxt.utils.Console;
 import java.io.IOException;
-import java.sql.SQLException;
 import javaxt.http.servlet.ServletException;
 
 
@@ -14,7 +13,8 @@ import javaxt.http.servlet.ServletException;
 //**  WebService
 //******************************************************************************
 /**
- *   Implementations of this class are used to respond to web service requests.
+ *   Implementations of this class are used to generate responses to web 
+ *   service requests.
  *
  ******************************************************************************/
 
@@ -96,7 +96,7 @@ public abstract class WebService {
                                 return (ServiceResponse) m.invoke(this, new Object[]{request, database});
                             }
                             catch(Exception e){
-                                return new ServiceResponse(e);
+                                return getServiceResponse(e);
                             }
                         }
                     }
@@ -154,7 +154,7 @@ public abstract class WebService {
             return new ServiceResponse((JSONObject) toJson.invoke(obj));
         }
         catch(Exception e){
-            return new ServiceResponse(e);
+            return getServiceResponse(e);
         }
     }
     
@@ -196,7 +196,7 @@ public abstract class WebService {
             return new ServiceResponse(((Long)getID.invoke(obj))+"");
         }
         catch(Exception e){
-            return new ServiceResponse(e);
+            return getServiceResponse(e);
         }
     }
 
@@ -221,7 +221,7 @@ public abstract class WebService {
             return new ServiceResponse(200);
         }
         catch(Exception e){
-            return new ServiceResponse(e);
+            return getServiceResponse(e);
         }
     }
     
@@ -246,20 +246,8 @@ public abstract class WebService {
    *  the database.
    */
     private Object newInstance(Class c, long id) throws Exception {
-        try{
-            Constructor constructor = c.getDeclaredConstructor(new Class[]{Long.TYPE});
-            return constructor.newInstance(new Object[]{id});
-        
-        }
-        catch(java.lang.reflect.InvocationTargetException e){
-            Throwable t = e.getCause();
-            if (t instanceof SQLException){
-                throw (SQLException) t;
-            }
-            else{
-                throw new Exception(t);
-            }
-        }
+        Constructor constructor = c.getDeclaredConstructor(new Class[]{Long.TYPE});
+        return constructor.newInstance(new Object[]{id});
     }
     
     
@@ -273,4 +261,18 @@ public abstract class WebService {
         return constructor.newInstance(new Object[]{json});
     }
 
+
+  //**************************************************************************
+  //** getServiceResponse
+  //**************************************************************************
+  /** Returns a ServiceResponse for a given Exception.
+   */
+    private ServiceResponse getServiceResponse(Exception e){
+        if (e instanceof java.lang.reflect.InvocationTargetException){
+            return new ServiceResponse(e.getCause());
+        }
+        else{
+            return new ServiceResponse(e);
+        }
+    }
 }
