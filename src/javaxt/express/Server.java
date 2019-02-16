@@ -22,41 +22,48 @@ public class Server {
     public static void main(String[] arr) {
         java.util.HashMap<String, String> args = Console.parseArgs(arr);
         
-      //Get port
-        int port;
-        try{ port = Integer.parseInt(args.get("-p")); }
-        catch(Exception e){ 
-            System.err.println("Port (\"-p\") is required.");
-            return;
+        
+        if (args.containsKey("-deploy")){
+            Deploy.main(arr);
         }
+        else{
+            
+          //Get port
+            int port;
+            try{ port = Integer.parseInt(args.get("-p")); }
+            catch(Exception e){ 
+                System.err.println("Port (\"-p\") is required.");
+                return;
+            }
         
         
-      //Get directory
-        javaxt.io.Directory dir;
-        try{
-            dir = new javaxt.io.Directory(args.get("-d"));
-            if (!dir.exists()) throw new Exception();
-        }
-        catch(Exception e){
-            System.err.println("Directory (\"-d\") is required.");
-            return;
-        }
+          //Get directory
+            javaxt.io.Directory dir;
+            try{
+                dir = new javaxt.io.Directory(args.get("-d"));
+                if (!dir.exists()) throw new Exception();
+            }
+            catch(Exception e){
+                System.err.println("Directory (\"-d\") is required.");
+                return;
+            }
         
         
-      //Get number of threads
-        int numThreads = 50;
-        try{ numThreads = Integer.parseInt(args.get("-t")); }
-        catch(Exception e){}
+          //Get number of threads
+            int numThreads = 50;
+            try{ numThreads = Integer.parseInt(args.get("-t")); }
+            catch(Exception e){}
         
         
-      //Start server
-        try {
-            javaxt.http.Server server = new javaxt.http.Server(port, numThreads, new Demo(dir));
-            server.start();
-        }
-        catch (Exception e) {
-            System.out.println("Server could not start because of an " + e.getClass());
-            System.exit(1);
+          //Start server
+            try {
+                javaxt.http.Server server = new javaxt.http.Server(port, numThreads, new Demo(dir));
+                server.start();
+            }
+            catch (Exception e) {
+                System.out.println("Server could not start because of an " + e.getClass());
+                System.exit(1);
+            }
         }
     }
 

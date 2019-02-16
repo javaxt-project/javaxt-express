@@ -58,6 +58,10 @@ public class ServiceResponse {
         this.status = status;
     }
 
+    public ServiceResponse(Exception e){
+        this((Throwable) e);
+    }
+    
     public ServiceResponse(Throwable e){
 
         this(500, (e.getMessage()==null || e.getMessage().trim().length()==0) ? "Unspecified Web Services Error" : e.getMessage());
