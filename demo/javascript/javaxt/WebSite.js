@@ -26,10 +26,11 @@ javaxt.dhtml.WebSite = function (content, config) {
                                //carousel. This should match the content 
                                //background defined in the CSS.
                                
-        animationSteps: 500
+        animationSteps: 600
     };
 
 
+    var fx = new javaxt.dhtml.Effects();
     var pageLoader = new javaxt.dhtml.PageLoader();
     var body = document.getElementsByTagName('body')[0];
     var debug = false;
@@ -90,33 +91,34 @@ javaxt.dhtml.WebSite = function (content, config) {
         content.style.height = content.offsetHeight + "px";
         
         
-      //Remove elements from the content div
+      //Create panel for the carousel using elements elements from the content node
         var currPage = document.createElement("div");
+        currPage.style.height = "100%";
         while (content.childNodes.length>0){
             var node = content.childNodes[0];
             content.removeChild(node);
             currPage.appendChild(node);
         }
-        content.appendChild(currPage);
 
-        
+
+      //Create a second empty panel for the carousel
+        var nextPage = document.createElement("div");
+        nextPage.style.height = "100%";
+
+
 
       //Insert carousel
-        var nextPage = document.createElement("div");
         carousel = new javaxt.dhtml.Carousel(content, {
             items: [currPage, nextPage],
-            animationSteps: config.animationSteps,
             drag: false,
             loop: true,
-            padding: config.padding
+            padding: config.padding,
+            animationSteps: config.animationSteps,
+            transitionEffect: "easeInOutCubic",
+            fx: fx
         });
-        
-        
-      //Delete contents of the hidden panel. This is critical for some 
-      //assumptions made in the 'popstate' event listener.
-        nextPage.parentNode.innerHTML = "";
-        
-        
+
+
 
       //Watch for changes to the carousel
         {
@@ -131,7 +133,7 @@ javaxt.dhtml.WebSite = function (content, config) {
                 
               //Update tabs
                 var currDir = getDir(getPath(window.location.pathname));
-                var currTab = me.getTab(currDir);                
+                var currTab = me.getTab(currDir);
                 
                 for (var i=0; i<tabs.length; i++){
                     tabs[i].div.className = "";
@@ -217,8 +219,8 @@ javaxt.dhtml.WebSite = function (content, config) {
         
         log("slideIndex: " + slideIndex);
     };
-   
-    
+
+
   //**************************************************************************
   //** popstateListener
   //**************************************************************************
@@ -290,8 +292,8 @@ javaxt.dhtml.WebSite = function (content, config) {
   /** Used to update the content height whenever the carousel changes.
    */
     var resize = function(panel, animationSteps){
-        var r1 = _getRect(panel);
-        var r2 = _getRect(panel.getElementsByTagName("div")[0]);
+        var r1 = _getRect(panel.parentNode);
+        var r2 = _getRect(panel);
         var h = r2.height + (r2.top-r1.top);
         if (h<100) return; //Ignore invalid heights (e.g. JavaXT javadocs)
         
@@ -495,11 +497,10 @@ javaxt.dhtml.WebSite = function (content, config) {
       //
         var slide = tab.dir!=currTab.dir;
         slide = true;
-                
-        
 
-        
-        
+
+
+
       //Update content
         if (!slide){
             currPage.innerHTML = html;
