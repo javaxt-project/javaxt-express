@@ -23,6 +23,8 @@ javaxt.dhtml.Carousel = function(parent, config) {
         
         animate: true,
         animationSteps: 250.0, //time in milliseconds
+        transitionEffect: "linear",
+        fx: null,
         loop: false,
         visiblePanels: 1,
         drag: true,
@@ -161,10 +163,59 @@ javaxt.dhtml.Carousel = function(parent, config) {
             me.resize();
         });
         
+        
+
+      //Check whether the carousel has been added to the DOM
+        var w = outerDiv.offsetWidth;
+        if (w===0 || isNaN(w)){
+            var timer;
+
+            var checkWidth = function(){
+                var w = outerDiv.offsetWidth;
+                if (w===0 || isNaN(w)){
+                    timer = setTimeout(checkWidth, 100);
+                }
+                else{
+                    clearTimeout(timer);
+                    onRender();
+                }
+            };
+
+            timer = setTimeout(checkWidth, 100);
+        }
+        else{
+            onRender();
+        }
+
+        
     };
     
+
+  //**************************************************************************
+  //** onRender
+  //**************************************************************************
+    var onRender = function(){
+        me.resize();
+    };
     
 
+  //**************************************************************************
+  //** show
+  //**************************************************************************
+    this.show = function(){
+        me.el.style.visibility = '';
+        me.el.style.display = '';
+    };
+
+
+  //**************************************************************************
+  //** hide
+  //**************************************************************************
+    this.hide = function(){
+        me.el.style.visibility = 'hidden';
+        me.el.style.display = 'none';
+    };
+    
     
   //**************************************************************************
   //** add
@@ -262,38 +313,65 @@ javaxt.dhtml.Carousel = function(parent, config) {
   //**************************************************************************
     var slide = function(start, end, lastTick, timeLeft, callback){
 
-        var curTick = new Date().getTime();
-        var elapsedTicks = curTick - lastTick;
+        if (config.fx){
+            
+            
+            setTimeout(function(){ 
 
-
-      //If the animation is complete, ensure that the panel is completely visible 
-        if (timeLeft <= elapsedTicks){
-            innerDiv.style.left = end+"px";
-            if (callback) callback.apply(me, []);
-            return;
+                config.fx.setTransition(innerDiv, config.transitionEffect, config.animationSteps);
+                innerDiv.style.left = end+"px";
+                setTimeout(function(){
+                    
+                    
+                    innerDiv.style.WebkitTransition =
+                    innerDiv.style.MozTransition =
+                    innerDiv.style.MsTransition =
+                    innerDiv.style.OTransition =
+                    innerDiv.style.transition = "";
+                    
+                    if (callback) callback.apply(me, []);
+                    
+                }, config.animationSteps+50); 
+            }, 50);
+            
         }
+        else{
+
+
+            var curTick = new Date().getTime();
+            var elapsedTicks = curTick - lastTick;
+
+
+          //If the animation is complete, ensure that the panel is completely visible 
+            if (timeLeft <= elapsedTicks){
+                innerDiv.style.left = end+"px";
+                if (callback) callback.apply(me, []);
+                return;
+            }
 
 
 
-        timeLeft -= elapsedTicks;
-        
-        
-        var d = start-end;
-        var percentComplete = 1-(timeLeft/config.animationSteps);
-        var offset = Math.round(percentComplete * d);
-        innerDiv.style.left = start-offset + "px";
+            timeLeft -= elapsedTicks;
 
-        setTimeout(function(){
-            slide(start, end, curTick, timeLeft, callback);
-        }, 33);
+
+            var d = start-end;
+            var percentComplete = 1-(timeLeft/config.animationSteps);
+            var offset = Math.round(percentComplete * d);
+            innerDiv.style.left = start-offset + "px";
+
+            setTimeout(function(){
+                slide(start, end, curTick, timeLeft, callback);
+            }, 33);
+        }
     };
 
 
   //**************************************************************************
   //** next
   //**************************************************************************
-  /** Used to make the next panel visible. */
-  
+  /** Used to make the next panel visible. In a horizontal configuration, the 
+   *  active panel will slide left.
+   */
     this.next = function(){
 
         if (sliding) return;
@@ -318,12 +396,12 @@ javaxt.dhtml.Carousel = function(parent, config) {
 
         var nextDiv = currPanel.nextSibling;
         if (nextDiv) {
-            me.beforeChange(currPanel.childNodes[0], nextDiv.childNodes[0]);
+            me.beforeChange(currPanel.childNodes[0].childNodes[0], nextDiv.childNodes[0].childNodes[0]);
             
             w = nextDiv.offsetWidth;
             
             next(function(){
-                me.onChange(nextDiv.childNodes[0], currPanel.childNodes[0]);
+                me.onChange(nextDiv.childNodes[0].childNodes[0], currPanel.childNodes[0].childNodes[0]);
                 currPanel = nextDiv;
                 sliding = false;
             });
@@ -336,7 +414,7 @@ javaxt.dhtml.Carousel = function(parent, config) {
                 var clone = firstDiv.cloneNode(true);
                 innerDiv.style.width = (innerDiv.offsetWidth+w)+"px";
                 innerDiv.appendChild(clone);
-                me.beforeChange(currPanel.childNodes[0], clone.childNodes[0]);
+                me.beforeChange(currPanel.childNodes[0].childNodes[0], clone.childNodes[0].childNodes[0]);
                 
                 next(function(){
 
@@ -344,7 +422,7 @@ javaxt.dhtml.Carousel = function(parent, config) {
                     innerDiv.removeChild(firstDiv);
                     innerDiv.style.width = (innerDiv.offsetWidth-w)+"px";
                     
-                    me.onChange(clone.childNodes[0], currPanel.childNodes[0]);
+                    me.onChange(clone.childNodes[0].childNodes[0], currPanel.childNodes[0].childNodes[0]);
                     currPanel = clone;
                     sliding = false;
 
@@ -357,8 +435,9 @@ javaxt.dhtml.Carousel = function(parent, config) {
   //**************************************************************************
   //** back
   //**************************************************************************
-  /** Used to make the previous panel visible. */
-  
+  /** Used to make the previous panel visible. In a horizontal configuration,  
+   *  the active panel will slide right.
+   */
     this.back = function(){
         
         if (sliding) return;
@@ -381,14 +460,14 @@ javaxt.dhtml.Carousel = function(parent, config) {
         
         var previousDiv = currPanel.previousSibling;
         if (previousDiv){
-            me.beforeChange(currPanel.childNodes[0], previousDiv.childNodes[0]);
+            me.beforeChange(currPanel.childNodes[0].childNodes[0], previousDiv.childNodes[0].childNodes[0]);
             
             w = previousDiv.offsetWidth;
             start = parseFloat(innerDiv.style.left);
             end = start + w;
             
             back(function(){
-                me.onChange(previousDiv.childNodes[0], currPanel.childNodes[0]);
+                me.onChange(previousDiv.childNodes[0].childNodes[0], currPanel.childNodes[0].childNodes[0]);
                 currPanel = previousDiv;
                 sliding = false;
             });
@@ -401,7 +480,7 @@ javaxt.dhtml.Carousel = function(parent, config) {
                 var clone = lastDiv.cloneNode(true);
                 innerDiv.style.width = (innerDiv.offsetWidth+w)+"px";
                 innerDiv.insertBefore(clone, innerDiv.firstChild);
-                me.beforeChange(currPanel.childNodes[0], clone.childNodes[0]);
+                me.beforeChange(currPanel.childNodes[0].childNodes[0], clone.childNodes[0].childNodes[0]);
                 
                 start = -w;
                 end = 0;
@@ -414,7 +493,7 @@ javaxt.dhtml.Carousel = function(parent, config) {
                     innerDiv.removeChild(lastDiv);
                     innerDiv.style.width = (innerDiv.offsetWidth-w)+"px";
                     
-                    me.onChange(clone.childNodes[0], currPanel.childNodes[0]);
+                    me.onChange(clone.childNodes[0].childNodes[0], currPanel.childNodes[0].childNodes[0]);
                     currPanel = clone;
                     sliding = false;
                     
@@ -423,36 +502,43 @@ javaxt.dhtml.Carousel = function(parent, config) {
             }
         }
     };
-
-
-    
-    
-
     
     
   //**************************************************************************
   //** onChange
   //**************************************************************************
+  /** Called after the carousel switches panels
+   *  @param currPanel Content of the active panel
+   *  @param prevPanel Content of the previously active panel
+   */
     this.onChange = function(currPanel, prevPanel){};
 
 
   //**************************************************************************
   //** beforeChange
   //**************************************************************************
+  /** Called before the carousel switches panels.
+   *  @param currPanel Content of the active panel
+   *  @param prevPanel Content of the next active panel
+   */
     this.beforeChange = function(currPanel, nextPanel){};
     
     
   //**************************************************************************
   //** getPanels
   //**************************************************************************
+  /** Returns an array with information for each panel in the carousel 
+   *  including whether the panel is visible and the panel content.
+   */
     this.getPanels = function(){
         var arr = [];
+        var r1 = _getRect(outerDiv);
         for (var i=0; i<innerDiv.childNodes.length; i++){
-            var div = innerDiv.childNodes[i];
-            var isVisible = (div==currPanel); //Only valid if config.visiblePanels==1
+            var panel = innerDiv.childNodes[i];
+            var r2 = _getRect(panel);
             arr.push({
-               div: div.childNodes[0],
-               isVisible: isVisible
+               div: panel.childNodes[0].childNodes[0],
+               isVisible: intersects(r1, r2)
             });
         }
         return arr;
@@ -470,6 +556,7 @@ javaxt.dhtml.Carousel = function(parent, config) {
         var holdDelay = 50;
         
         var startX, offsetX;
+        var prevPanel;
 
       //Function called when a drag is initiated
         var onDragStart = function(e){
@@ -484,12 +571,13 @@ javaxt.dhtml.Carousel = function(parent, config) {
                 body.className += (body.className.length==0 ? "" : " ") + "javaxt-noselect";
             } 
             
-
+            
+            prevPanel = currPanel;
             innerDiv.style.cursor = 'move';
         };
         
-
         
+
       //Function called while the div is being dragged 
         var onDrag = function(e){
             var x = e.clientX;
@@ -608,7 +696,7 @@ javaxt.dhtml.Carousel = function(parent, config) {
             
             var debug = "Snap to panel " + innerDiv.childNodes[visiblePanel].innerText;
             if (debug.length>60) debug = debug.substring(0, 60);
-            console.log(debug + " idx=" + visiblePanel);
+            //console.log(debug + " idx=" + visiblePanel);
             
             var start = parseInt(innerDiv.style.left);
             var end = 0;
@@ -620,10 +708,13 @@ javaxt.dhtml.Carousel = function(parent, config) {
             
             var animationSteps = ((start-end)/config.animationSteps);
             if (animationSteps<0) animationSteps = -animationSteps;
-            console.log(start + "/" + end + " --> move " + (start-end) + "px in " + animationSteps + "ms");
+            //console.log(start + "/" + end + " --> move " + (start-end) + "px in " + animationSteps + "ms");
             
             slide(start, end, new Date().getTime(), 100, function(){
                 currPanel = innerDiv.childNodes[visiblePanel];
+                if (currPanel!=prevPanel){
+                    me.onChange(currPanel.childNodes[0].childNodes[0], prevPanel.childNodes[0].childNodes[0]);
+                }
             });
             
         };
@@ -653,7 +744,7 @@ javaxt.dhtml.Carousel = function(parent, config) {
                 holdActive = true;
 
               //begin hold-only operation here, if desired
-                console.log("Init Drag!");
+                //console.log("Init Drag!");
                 
                 onDragStart(e);
                 if (document.addEventListener) { // For all major browsers, except IE 8 and earlier
@@ -682,7 +773,7 @@ javaxt.dhtml.Carousel = function(parent, config) {
                 clearTimeout(holdStarter);
                 
               //run click-only operation here
-                console.log("Click!");
+                //console.log("Click!");
 
             }
             
@@ -806,50 +897,58 @@ javaxt.dhtml.Carousel = function(parent, config) {
    */
     var _getRect = function(el){
         
-        function findPosX(obj){
-            var curleft = 0;
-            if (obj.offsetParent){
-                while (obj.offsetParent) {
-                    curleft += obj.offsetLeft;
-                    obj = obj.offsetParent;
-                }
+        if (el.getBoundingClientRect){
+            return el.getBoundingClientRect();
+        }
+        else{
+            var x = 0;
+            var y = 0;
+            var w = el.offsetWidth;
+            var h = el.offsetHeight;
+
+            function isNumber(n){
+               return n === parseFloat(n);
             }
-            else if (obj.x)
-                    curleft += obj.x;
-            return curleft;
-        };
+
+            var org = el;
+
+            do{
+                x += el.offsetLeft - el.scrollLeft;
+                y += el.offsetTop - el.scrollTop;
+            } while ( el = el.offsetParent );
 
 
-        function findPosY(obj){
-            var curtop = 0;
-            if (obj.offsetParent) {
-                while (obj.offsetParent){
-                    curtop += obj.offsetTop;
-                    obj = obj.offsetParent;
-                }
-            }
-            else if (obj.y) {
-                curtop += obj.y;
-            }
-            return curtop;
-        };
+            el = org;
+            do{
+                if (isNumber(el.scrollLeft)) x -= el.scrollLeft;
+                if (isNumber(el.scrollTop)) y -= el.scrollTop;
+            } while ( el = el.parentNode );
 
 
+            return{
+                x: x,
+                y: y,
+                left: x,
+                right: x+w,
+                top: y,
+                bottom: y+h,
+                width: w,
+                height: h
+            };
+        }
+    };
+    
 
-        var x = 0;
-        var y = 0;
-        var h = el.offsetHeight;
-        var w = el.offsetWidth;
-
-        x = findPosX(el);
-        y = findPosY(el);
-
-        return{
-            x: x,
-            y: y,
-            width: w,
-            height: h
-        };
+  //**************************************************************************
+  //** intersects
+  //**************************************************************************
+  /** Used to test whether two rectangles intersect.
+   */
+    var intersects = function(r1, r2) {
+      return !(r2.left > r1.right || 
+               r2.right < r1.left || 
+               r2.top > r1.bottom ||
+               r2.bottom < r1.top);
     };
 
 
