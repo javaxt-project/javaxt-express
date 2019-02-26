@@ -5,27 +5,28 @@ import java.lang.reflect.Method;
 import javaxt.json.JSONObject;
 import javaxt.sql.*;
 import javaxt.utils.Console;
-import java.io.IOException;
+import javaxt.express.api.Sort;
 import javaxt.http.servlet.ServletException;
+import javaxt.json.JSONArray;
 
 
 //******************************************************************************
 //**  WebService
 //******************************************************************************
 /**
- *   Implementations of this class are used to generate responses to web 
+ *   Implementations of this class are used to generate responses to web
  *   service requests.
  *
  ******************************************************************************/
 
 public abstract class WebService {
 
-    private ConcurrentHashMap<String, DomainClass> classes = 
+    private ConcurrentHashMap<String, DomainClass> classes =
         new ConcurrentHashMap<String, DomainClass>();
 
-    
+
     public Console console = new Console();
-    
+
     private class DomainClass {
         private Class c;
         private boolean readOnly;
@@ -38,7 +39,7 @@ public abstract class WebService {
         }
     }
 
-    
+
   //**************************************************************************
   //** addClass
   //**************************************************************************
@@ -47,47 +48,47 @@ public abstract class WebService {
     public void addClass(Class c){
         addClass(c, false);
     }
-    
+
     public void addClass(Class c, boolean readOnly){
         if (!Model.class.isAssignableFrom(c)){
             throw new IllegalArgumentException();
         }
-        
-        String name = c.getSimpleName();         
+
+        String name = c.getSimpleName();
         String pkg = c.getPackage().getName();
         if (name.startsWith(pkg)) name = name.substring(pkg.length()+1);
         name = name.toLowerCase();
         int idx = name.lastIndexOf(".");
         if (idx>0) name = name.substring(idx+1);
-            
+
         synchronized(classes){
             classes.put(name, new DomainClass(c, readOnly));
             classes.notify();
         }
     }
-    
-    
+
+
   //**************************************************************************
   //** getServiceResponse
   //**************************************************************************
     public ServiceResponse getServiceResponse(ServiceRequest request, Database database)
-        throws ServletException, IOException {
+        throws ServletException {
 
-        
-        
+
+
       //Get requested method
         String method = request.getMethod().toLowerCase();
 
-        
-        
-      //Check if the subclass has implemented the requested method. Note that 
-      //the getDeclaredMethod will only find method declared in the current 
-      //Class, not inherited from supertypes. So we may need to traverse up the 
+
+
+      //Check if the subclass has implemented the requested method. Note that
+      //the getDeclaredMethod will only find method declared in the current
+      //Class, not inherited from supertypes. So we may need to traverse up the
       //concrete class hierarchy if necessary.
         for (Method m : this.getClass().getDeclaredMethods()){
             if (m.getName().equalsIgnoreCase(method)){
                 if (m.getReturnType().equals(ServiceResponse.class)){
-                    
+
                     Class<?>[] params = m.getParameterTypes();
                     if (params.length==2){
                         if (params[0]==ServiceRequest.class && params[1]==Database.class){
@@ -103,14 +104,28 @@ public abstract class WebService {
                 }
             }
         }
-        
-        
-      //If we're still here, see if the requested method corresponds to a 
-      //standard CRUD operation. 
+
+
+      //If we're still here, see if the requested method corresponds to a
+      //standard CRUD operation.
         if (method.startsWith("get")){
+
             String className = method.substring(3);
             DomainClass c = getClass(className);
             if (c!=null) return get(c.c, request);
+
+
+            if (className.endsWith("ies")){ //Categories == Category
+                c = getClass(className.substring(0, className.length()-3) + "y");
+            }
+            else if (className.endsWith("ses")){ //Classes == Class
+                c = getClass(className.substring(0, className.length()-2));
+            }
+            else if (className.endsWith("s")){ //Sources == Source
+                c = getClass(className.substring(0, className.length()-1));
+            }
+            if (c!=null) return list(c.c, request, database);
+
         }
         else if (method.startsWith("save")){
             String className = method.substring(4);
@@ -136,12 +151,12 @@ public abstract class WebService {
                 }
             }
         }
-        
+
         return new ServiceResponse(501, "Not Implemented.");
     }
 
-    
-    
+
+
   //**************************************************************************
   //** get
   //**************************************************************************
@@ -157,20 +172,113 @@ public abstract class WebService {
             return getServiceResponse(e);
         }
     }
-    
-    
+
+
+  //**************************************************************************
+  //** list
+  //**************************************************************************
+  /** Used to retrieve a shallow list of objects from the database.
+   */
+    private ServiceResponse list(Class c, ServiceRequest request, Database database){
+
+
+      //Get tableName associated with the Model
+        String tableName;
+        try{
+            Object obj = c.newInstance();
+            java.lang.reflect.Field field = obj.getClass().getSuperclass().getDeclaredField("tableName");
+            field.setAccessible(true);
+            tableName = (String) field.get(obj);
+        }
+        catch(Exception e){
+            return getServiceResponse(e);
+        }
+
+
+      //Excute query and generate response
+        Connection conn = null;
+        try{
+
+
+          //Build sql string
+            StringBuilder str = new StringBuilder("select * from ");
+            str.append(tableName);
+
+            Sort sort = request.getSort();
+            if (!sort.isEmpty()){
+                str.append(" order by ");
+                java.util.Iterator<String> it = sort.getKeySet().iterator();
+                while (it.hasNext()){
+                    String colName = it.next();
+                    String direction = sort.get(colName);
+                    str.append(colName);
+                    str.append(" ");
+                    str.append(direction);
+                    if (it.hasNext()) str.append(",");
+                }
+            }
+
+            Long offset = request.getOffset();
+            if (offset!=null){
+                str.append(" offset ");
+                str.append(offset);
+            }
+
+            Long limit = request.getLimit();
+            if (limit==null) limit = 100L;
+            if (limit!=null){
+                str.append(" limit ");
+                str.append(limit);
+            }
+
+
+            long x = 0;
+            JSONArray cols = new JSONArray();
+            StringBuilder json = new StringBuilder("{rows:");
+
+            conn = database.getConnection();
+            for (Recordset rs : conn.getRecordset(str.toString())){
+                JSONArray row = new JSONArray();
+                for (Field field : rs.getFields()){
+                    String fieldName = underscoreToCamelCase(field.getName());
+                    if (x==0) cols.add(fieldName);
+                    row.add(field.getValue());
+                }
+                if (x>0) json.append(",");
+                json.append("[");
+                json.append(row.toString());
+                json.append("]");
+                x++;
+            }
+            conn.close();
+            if (x==0) json.append("[]");
+
+            json.append(",cols:");
+            json.append(cols.toString());
+            json.append("}");
+            ServiceResponse response = new ServiceResponse(json.toString());
+            response.setContentType("application/json");
+            return response;
+        }
+        catch(Exception e){
+            if (conn!=null) conn.close();
+            return getServiceResponse(e);
+        }
+    }
+
+
   //**************************************************************************
   //** save
   //**************************************************************************
-  /** Used to create or update an object in the database. Returns the object 
+  /** Used to create or update an object in the database. Returns the object
    *  ID.
    */
     private ServiceResponse save(Class c, ServiceRequest request) {
         try{
             JSONObject json = new JSONObject(new String(request.getPayload(), "UTF-8"));
             if (json.isEmpty()) throw new Exception("JSON is empty.");
-            
-            
+
+
 
           //Create new instance of the class
             Object obj;
@@ -183,14 +291,14 @@ public abstract class WebService {
             else{
                 obj = newInstance(c, json);
             }
-            
-            
+
+
           //Call the save method
             Method save = c.getDeclaredMethod("save");
             save.invoke(obj);
-            
-            
-            
+
+
+
           //Return response
             Method getID = c.getDeclaredMethod("getID");
             return new ServiceResponse(((Long)getID.invoke(obj))+"");
@@ -212,24 +320,24 @@ public abstract class WebService {
 
           //Create new instance of the class
             Object obj = newInstance(c, request.getID());
-            
+
           //Delete object
             Method delete = c.getDeclaredMethod("delete");
             delete.invoke(obj);
-            
-            
+
+
             return new ServiceResponse(200);
         }
         catch(Exception e){
             return getServiceResponse(e);
         }
     }
-    
-    
+
+
   //**************************************************************************
   //** getClass
   //**************************************************************************
-  /** Returns a class from the list of know/supported classes for a given 
+  /** Returns a class from the list of know/supported classes for a given
    *  class name.
    */
     private DomainClass getClass(String className){
@@ -237,8 +345,8 @@ public abstract class WebService {
             return classes.get(className);
         }
     }
-    
-    
+
+
   //**************************************************************************
   //** newInstance
   //**************************************************************************
@@ -249,8 +357,8 @@ public abstract class WebService {
         Constructor constructor = c.getDeclaredConstructor(new Class[]{Long.TYPE});
         return constructor.newInstance(new Object[]{id});
     }
-    
-    
+
+
   //**************************************************************************
   //** newInstance
   //**************************************************************************
@@ -274,5 +382,28 @@ public abstract class WebService {
         else{
             return new ServiceResponse(e);
         }
+    }
+
+
+  //**************************************************************************
+  //** underscoreToCamelCase
+  //**************************************************************************
+  /** Used to convert a string with underscores (e.g. user_id) into camel case
+   *  (e.g. userID). Credit: https://stackoverflow.com/a/17061543/
+   */
+    private static String underscoreToCamelCase(String input){
+        java.util.regex.Pattern p = java.util.regex.Pattern.compile("_(.)");
+        java.util.regex.Matcher m = p.matcher(input);
+        StringBuffer sb = new StringBuffer();
+        while (m.find()) {
+            m.appendReplacement(sb, m.group(1).toUpperCase());
+        }
+        m.appendTail(sb);
+
+        String str = sb.toString();
+        if (str.endsWith("Id") && input.toLowerCase().endsWith("_id")){
+            str = str.substring(0, str.length()-2) + "ID";
+        }
+        return str;
     }
 }

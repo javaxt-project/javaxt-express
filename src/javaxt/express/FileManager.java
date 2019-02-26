@@ -39,6 +39,23 @@ public class FileManager {
   //**************************************************************************
   /** Used to send a file to the client. 
    */
+    public void sendFile(HttpServletRequest request, HttpServletResponse response)
+        throws IOException{
+        
+      //Get path from url, excluding servlet path and leading "/" character
+        String path = request.getPathInfo();
+        if (path!=null) path = path.substring(1);
+        
+      //Send file
+        sendFile(path, request, response);
+    }
+
+
+  //**************************************************************************
+  //** sendFile
+  //**************************************************************************
+  /** Used to send a file to the client. 
+   */
     public void sendFile(String path, HttpServletRequest request, HttpServletResponse response)
         throws IOException {
 
