@@ -165,7 +165,7 @@ public abstract class WebService {
     private ServiceResponse get(Class c, ServiceRequest request) {
         try{
             Object obj = newInstance(c, request.getID());
-            Method toJson = c.getDeclaredMethod("toJson");
+            Method toJson = getMethod("toJson", c);
             return new ServiceResponse((JSONObject) toJson.invoke(obj));
         }
         catch(Exception e){
@@ -201,7 +201,19 @@ public abstract class WebService {
 
 
           //Build sql string
-            StringBuilder str = new StringBuilder("select * from ");
+            StringBuilder str = new StringBuilder("select ");
+            javaxt.express.api.Field[] fields = request.getFields();
+            if (fields==null) str.append(" * ");
+            else{
+                for (int i=0; i<fields.length; i++){
+                    if (i>0) str.append(",");
+                    String fieldName = fields[i].toString();
+                    //TODO: camelcase to underscore
+                    str.append(fieldName);
+                }
+            }
+
+            str.append(" from ");
             str.append(tableName);
 
             Sort sort = request.getSort();
@@ -234,7 +246,7 @@ public abstract class WebService {
 
             long x = 0;
             JSONArray cols = new JSONArray();
-            StringBuilder json = new StringBuilder("{rows:");
+            StringBuilder json = new StringBuilder("{\"rows\":[");
 
             conn = database.getConnection();
             for (Recordset rs : conn.getRecordset(str.toString())){
@@ -242,18 +254,43 @@ public abstract class WebService {
                 for (Field field : rs.getFields()){
                     String fieldName = underscoreToCamelCase(field.getName());
                     if (x==0) cols.add(fieldName);
-                    row.add(field.getValue());
+                    Value val = field.getValue();
+
+
+                  //Special case for json objects
+                    if (!val.isNull()){
+                        Object obj = val.toObject();
+                        Package pkg = obj.getClass().getPackage();
+                        String packageName = pkg==null ? "" : pkg.getName();
+                        if (!packageName.startsWith("java")){
+                            String s = obj.toString().trim();
+                            if (s.startsWith("{") && s.endsWith("}")){
+                                try{
+                                    val = new Value(new JSONObject(s));
+                                }
+                                catch(Exception e){}
+                            }
+                            else if (s.startsWith("[") && s.endsWith("]")){
+                                try{
+                                    val = new Value(new JSONArray(s));
+                                }
+                                catch(Exception e){}
+                            }
+                        }
+                    }
+
+
+                    row.add(val);
                 }
                 if (x>0) json.append(",");
-                json.append("[");
                 json.append(row.toString());
-                json.append("]");
                 x++;
             }
             conn.close();
-            if (x==0) json.append("[]");
+            json.append("]");
 
-            json.append(",cols:");
+
+            json.append(",\"cols\":");
             json.append(cols.toString());
             json.append("}");
             ServiceResponse response = new ServiceResponse(json.toString());
@@ -294,13 +331,13 @@ public abstract class WebService {
 
 
           //Call the save method
-            Method save = c.getDeclaredMethod("save");
+            Method save = getMethod("save", c);
             save.invoke(obj);
 
 
 
           //Return response
-            Method getID = c.getDeclaredMethod("getID");
+            Method getID = getMethod("getID", c);
             return new ServiceResponse(((Long)getID.invoke(obj))+"");
         }
         catch(Exception e){
@@ -322,7 +359,7 @@ public abstract class WebService {
             Object obj = newInstance(c, request.getID());
 
           //Delete object
-            Method delete = c.getDeclaredMethod("delete");
+            Method delete = getMethod("delete", c);
             delete.invoke(obj);
 
 
@@ -344,6 +381,25 @@ public abstract class WebService {
         synchronized(classes){
             return classes.get(className);
         }
+    }
+
+
+  //**************************************************************************
+  //** getMethod
+  //**************************************************************************
+  /** Returns a declared (public) method defined in a given class.
+   */
+    private Method getMethod(String name, Class clazz){
+        while (clazz != null) {
+            Method[] methods = clazz.getDeclaredMethods();
+            for (Method method : methods) {
+                if (method.getName().equals(name)) {
+                    return method;
+                }
+            }
+            clazz = clazz.getSuperclass();
+        }
+        return null;
     }
 
 

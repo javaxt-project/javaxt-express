@@ -313,7 +313,7 @@ public class ServiceRequest {
     public Field[] getFields(){
         if (fields!=null) return fields;
         String fields = getParameter("fields").toString();
-        if (fields.isEmpty())  return null;
+        if (fields==null || fields.length()==0) return null;
 
 
         try{
@@ -333,7 +333,7 @@ public class ServiceRequest {
 
                 SelectExpressionItem si = (SelectExpressionItem) it.next();
                 Expression expression = si.getExpression();
-                String alias = si.getAlias().getName();
+                String alias = si.getAlias()==null ? null : si.getAlias().getName();
                 boolean addField = true;
 
 
