@@ -91,7 +91,11 @@ public abstract class WebService {
 
                     Class<?>[] params = m.getParameterTypes();
                     if (params.length==2){
-                        if (params[0]==ServiceRequest.class && params[1]==Database.class){
+
+
+                        if (ServiceRequest.class.isAssignableFrom(params[0]) &&
+                            Database.class.isAssignableFrom(params[1])
+                        ){
                             try{
                                 m.setAccessible(true);
                                 return (ServiceResponse) m.invoke(this, new Object[]{request, database});

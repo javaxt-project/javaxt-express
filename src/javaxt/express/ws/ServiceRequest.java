@@ -104,13 +104,7 @@ public class ServiceRequest {
 
 
       //Get offset and limit
-        offset = getParameter("offset").toLong();
-        limit = getParameter("limit").toLong();
-        Long page = getParameter("page").toLong();
-        if (offset==null && page!=null){
-            if (limit==null) limit = 25L;
-            offset = (page*limit)-limit;
-        }
+        updateOffsetLimit();
     }
 
 
@@ -234,6 +228,62 @@ public class ServiceRequest {
 
 
   //**************************************************************************
+  //** setParameter
+  //**************************************************************************
+    public void setParameter(String key, String val){
+        if (key!=null){
+            key = key.toLowerCase();
+            List<String> parameters = this.parameters.get(key);
+
+
+
+          //Special case for classes that override the hasParameter and
+          //getParameter methods.
+            if (parameters==null && hasParameter(key)){
+                parameters = new ArrayList<String>();
+                parameters.add(getParameter(key).toString());
+                this.parameters.put(key, parameters);
+            }
+
+
+
+          //Add or update value
+            if (parameters==null){
+                if (val!=null){
+                    parameters = new ArrayList<String>();
+                    parameters.add(val);
+                    this.parameters.put(key, parameters);
+                }
+
+            }
+            else{
+                parameters.set(0, val);
+            }
+
+
+          //Update offset and limit as needed
+            if (key.equals("offset") || key.equals("limit") || key.equals("page")){
+                updateOffsetLimit();
+            }
+        }
+    }
+
+
+  //**************************************************************************
+  //** updateOffsetLimit
+  //**************************************************************************
+    private void updateOffsetLimit(){
+        offset = getParameter("offset").toLong();
+        limit = getParameter("limit").toLong();
+        Long page = getParameter("page").toLong();
+        if (offset==null && page!=null){
+            if (limit==null) limit = 25L;
+            offset = (page*limit)-limit;
+        }
+    }
+
+
+  //**************************************************************************
   //** getOffset
   //**************************************************************************
     public Long getOffset(){
@@ -248,9 +298,14 @@ public class ServiceRequest {
         return limit;
     }
 
+
+  //**************************************************************************
+  //** getRequest
+  //**************************************************************************
     public HttpServletRequest getRequest(){
         return request;
     }
+
 
   //**************************************************************************
   //** getPayload
