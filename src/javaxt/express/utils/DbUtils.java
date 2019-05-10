@@ -41,7 +41,7 @@ public class DbUtils {
 
             String cmd = str.toString().trim();
             if (cmd.length()>0){
-                statements.add(str.toString() + ";");
+                statements.add(rtrim(str.toString()) + ";");
             }
         }
 
@@ -153,10 +153,42 @@ public class DbUtils {
 
 
 
+          //Update list of statements
+            ArrayList<String> arr = new ArrayList<String>();
+            for (int i=0; i<statements.size(); i++){
+                String statement = statements.get(i);
+                String str = statement.trim().toLowerCase();
+                if (str.startsWith("create function") ||
+                    str.startsWith("create or replace function")){
+
+                    while (i<statements.size()){
+                        i++;
+                        statement += "\r\n";
+                        statement += statements.get(i);
+
+                        str = statement.trim().toLowerCase();
+                        if (str.contains("language plpgsql")){
+                            arr.add(statement);
+                            /*
+                            System.out.println("------------------------------");
+                            System.out.println(statement);
+                            System.out.println("------------------------------");
+                            */
+                            break;
+                        }
+                    }
+
+                }
+                else{
+                    arr.add(statement);
+                }
+            }
+
+
 
           //Create tables
             try{
-                initSchema(statements, conn);
+                initSchema(arr, conn);
                 conn.close();
             }
             catch(Exception e){
@@ -174,20 +206,36 @@ public class DbUtils {
    */
     private static void initSchema(ArrayList<String> statements, Connection conn) throws java.sql.SQLException {
 
-      //Get list of tables in the database
-        HashSet<String> tables = new HashSet<String>();
-        for (Table table : Database.getTables(conn)){
-            tables.add(table.getName().toLowerCase());
-        }
 
 
       //Check whether the database contains tables defined in the schema
-        if (!tables.isEmpty()){
+        Table[] tables = Database.getTables(conn);
+        if (tables.length>0){
             for (String cmd : statements){
                 String tableName = getTableName(cmd);
                 if (tableName!=null){
-                    if (tables.contains(tableName.toLowerCase())){
-                        return;
+                    tableName = tableName.replace("\"", "");
+                    String schema = null;
+                    if (tableName.contains(".")){
+                        String[] arr = tableName.split("\\.");
+                        schema = arr[0];
+                        tableName = arr[1];
+                    }
+
+                    for (Table table : tables){
+                        if (schema==null){
+                            if (table.getName().equalsIgnoreCase(tableName)){
+                                return;
+                            }
+                        }
+                        else{
+                            if (table.getSchema()!=null){
+                                if (table.getSchema().equalsIgnoreCase(schema) &&
+                                    table.getName().equalsIgnoreCase(tableName)){
+                                    return;
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -199,7 +247,13 @@ public class DbUtils {
         for (String cmd : statements){
             //String tableName = getTableName(cmd);
             //if (tableName!=null) console.log(tableName);
-            stmt.execute(cmd);
+            try{
+                stmt.execute(cmd);
+            }
+            catch(java.sql.SQLException e){
+                System.out.println(cmd);
+                throw e;
+            }
         }
         stmt.close();
     }
@@ -1100,5 +1154,14 @@ System.out.println(Thread.currentThread().getName() + " is done!");
             s = " " + s;
         }
         return s;
+    }
+
+
+    private static String rtrim(String s) {
+        int i = s.length()-1;
+        while (i >= 0 && Character.isWhitespace(s.charAt(i))) {
+            i--;
+        }
+        return s.substring(0,i+1);
     }
 }
