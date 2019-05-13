@@ -320,14 +320,15 @@ public abstract class WebService {
             if (json.isEmpty()) throw new Exception("JSON is empty.");
 
 
-
           //Create new instance of the class
             Object obj;
             Long id = json.get("id").toLong();
+            boolean isNew = false;
             if (id!=null){
                 obj = newInstance(c, id);
                 Method update = c.getDeclaredMethod("update", JSONObject.class);
                 update.invoke(obj, new Object[]{json});
+                isNew = true;
             }
             else{
                 obj = newInstance(c, json);
@@ -339,10 +340,17 @@ public abstract class WebService {
             save.invoke(obj);
 
 
+          //Get id
+            Method getID = getMethod("getID", c);
+            id = (Long) getID.invoke(obj);
+
+
+          //Fire event
+            if (isNew) onCreate(c, id); else onUpdate(c, id);
+
 
           //Return response
-            Method getID = getMethod("getID", c);
-            return new ServiceResponse(((Long)getID.invoke(obj))+"");
+            return new ServiceResponse(id+"");
         }
         catch(Exception e){
             return getServiceResponse(e);
@@ -359,20 +367,31 @@ public abstract class WebService {
     private ServiceResponse delete(Class c, ServiceRequest request) {
         try{
 
+          //Get id
+            long id = request.getID();
+
           //Create new instance of the class
-            Object obj = newInstance(c, request.getID());
+            Object obj = newInstance(c, id);
 
           //Delete object
             Method delete = getMethod("delete", c);
             delete.invoke(obj);
 
+          //Fire event
+            onDelete(c, id);
 
+          //Return response
             return new ServiceResponse(200);
         }
         catch(Exception e){
             return getServiceResponse(e);
         }
     }
+
+
+    public void onCreate(Class c, long id){};
+    public void onUpdate(Class c, long id){};
+    public void onDelete(Class c, long id){};
 
 
   //**************************************************************************

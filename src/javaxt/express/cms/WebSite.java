@@ -1,55 +1,54 @@
 package javaxt.express.cms;
+import javaxt.express.FileManager;
+import javaxt.express.utils.WebUtils;
 import javaxt.http.servlet.*;
 import javaxt.utils.Console;
 import java.io.IOException;
-import java.util.Calendar;
-import java.util.TimeZone;
 
 //******************************************************************************
 //**  WebSite Servlet
 //******************************************************************************
 /**
- *   Servlet used to serve up files and images for a website.
+ *   Servlet used to serve up files and images for a website. HTML pages are
+ *   assembled on-the-fly using an HTML template and content files. Keywords
+ *   in the content files and template are substituted at runtime. Assembled
+ *   files are cached by clients using last modified dates.
  *
  ******************************************************************************/
 
 public abstract class WebSite extends HttpServlet {
 
     protected Console console = new Console();
-    private static final String z = "GMT";
-    private static final TimeZone tz = TimeZone.getTimeZone(z);
-    
     private javaxt.io.Directory web;
+    private FileManager fileManager;
     private javaxt.io.File template;
     private Tabs tabs;
     private String companyName;
     private String companyAcronym;
     private String author;
     private String keywords;
-
-    private String servletPath = "/"; //servlet path
     private Redirects redirects;
 
 
     private String[] fileExtensions = new String[]{
     ".html", ".txt"
     };
-    
+
     private String[] DefaultFileNames = new String[]{
     "home", "index", "Overview"
     };
-    
-    
-    
+
+
+
   //**************************************************************************
   //** Constructor
   //**************************************************************************
   /** Used to instantiate the website.
-   * 
-   *  @param web Directory that contains html files, css, javascript, images, 
+   *
+   *  @param web Directory that contains html files, css, javascript, images,
    *  etc. Assumes the template, tabs, and redirects are found in the style
    *  folder.
-   * 
+   *
    *  @param servletPath URL path to the website (relative to the hostname).
    */
     public WebSite(javaxt.io.Directory web, String servletPath){
@@ -57,26 +56,16 @@ public abstract class WebSite extends HttpServlet {
         this.template = new javaxt.io.File(web + "style/template.html");
         this.tabs = new Tabs(new javaxt.io.File(web + "style/tabs.txt"));
         this.redirects = new Redirects(new javaxt.io.File(web + "style/redirects.txt"));
-        if (servletPath==null) servletPath = "/";
-        else{
-            servletPath = servletPath.trim();
-            if (!servletPath.startsWith("/")) servletPath = "/" + servletPath;
-            if (!servletPath.endsWith("/")) servletPath += "/";
-        }
-        this.servletPath = servletPath;
+        setServletPath(servletPath);
+        this.fileManager = new FileManager(web);
     }
 
-    
+
+  //**************************************************************************
+  //** Constructor
+  //**************************************************************************
     public WebSite(javaxt.io.Directory web){
         this(web, "/");
-    }
-
-
-  //**************************************************************************
-  //** getServletPath
-  //**************************************************************************
-    public String getServletPath(){
-        return servletPath;
     }
 
 
@@ -92,7 +81,7 @@ public abstract class WebSite extends HttpServlet {
         this.companyAcronym = companyAcronym;
     }
 
-    
+
   //**************************************************************************
   //** setAuthor
   //**************************************************************************
@@ -111,12 +100,12 @@ public abstract class WebSite extends HttpServlet {
     protected String getCopyright(){
        return "Copyright &copy; " + getYear();
     }
-    
-    
+
+
     protected int getYear(){
         return new javaxt.utils.Date().getYear();
     }
-    
+
 
   //**************************************************************************
   //** processRequest
@@ -125,13 +114,13 @@ public abstract class WebSite extends HttpServlet {
     throws ServletException, IOException {
 
 
-        
+
       //Redirect as needed
         java.net.URL url = request.getURL();
         if (redirect(url, response)) return;
 
-        
-        
+
+
       //Upgrade to HTTPS if we can...
         if (this.supportsHttps()){
             response.setHeader("Content-Security-Policy", "upgrade-insecure-requests");
@@ -148,40 +137,41 @@ public abstract class WebSite extends HttpServlet {
                     return;
                 }
             }
-        } 
+        }
 
 
 
-        
+
       //Send static file if we can
         javaxt.io.File file = getFile(url);
         if (file!=null){
 
-          //Check whether the file ends in a ".html" or ".txt" extension. If so, 
-          //check whether the file is static or if needs to be wrapped 
+          //Check whether the file ends in a ".html" or ".txt" extension. If so,
+          //check whether the file is static or if needs to be wrapped
           //in a template.
             boolean sendFile = true;
             String ext = file.getExtension().toLowerCase();
             if (ext.equals("html")){
-                
+
               //Don't send html files unless they end with a </html> tag
                 sendFile = !isSnippet(file);
             }
             else if (ext.equals("txt")){
-                
+
               //Don't send text files from the wiki directory
                 String filePath = file.getDirectory().toString();
                 int idx = filePath.indexOf("/wiki/");
                 sendFile = (idx==-1);
             }
-            
+
             if (sendFile){
-                sendFile(file, request, response);
+                //sendFile(file, request, response);
+                fileManager.sendFile(file, request, response);
                 return;
             }
         }
         else{
-            
+
           //Check whether the url path ends with a file extension. Return an error
             String path = request.getURL().getPath();
             int idx = path.lastIndexOf("/");
@@ -193,15 +183,13 @@ public abstract class WebSite extends HttpServlet {
             }
         }
 
-        
-        
 
 
-        
+
       //If we're still here, generate html response
         sendHTML(request, response);
     }
-    
+
 
 
   //**************************************************************************
@@ -212,17 +200,17 @@ public abstract class WebSite extends HttpServlet {
    */
     protected void sendFile(javaxt.io.File file, HttpServletRequest request, HttpServletResponse response)
     throws ServletException, IOException {
-        
+
 
         String contentType = file.getContentType();
         String ext = file.getExtension().toLowerCase();
-        
-        
+
+
         if (ext.equals("js") || ext.equals("css")){
             javaxt.utils.URL url = new javaxt.utils.URL(request.getURL());
 
-          //Add version number to javascript and css files to ensure  
-          //proper caching. Otherwise, browsers like Chrome may not 
+          //Add version number to javascript and css files to ensure
+          //proper caching. Otherwise, browsers like Chrome may not
           //return the correct file to the client.
             long currVersion = new javaxt.utils.Date(file.getLastModifiedTime()).toLong();
             long requestedVersion = 0;
@@ -236,16 +224,15 @@ public abstract class WebSite extends HttpServlet {
             }
         }
         else if (ext.equals("xml")){
-            
-          //Update contentType. javaxt.io.File returns "application/xml"  
+
+          //Update contentType. javaxt.io.File returns "application/xml"
           //which is not ideal for web applications.
             contentType = "text/xml";
         }
-        
-         
+
+
 
         response.write(file.toFile(), contentType, true);
-        
     }
 
 
@@ -255,12 +242,14 @@ public abstract class WebSite extends HttpServlet {
   /** Returns a path to a static file (e.g. css, javascript, images, zip, etc)
    */
     private javaxt.io.File getFile(java.net.URL url){
-        
+
       //Get path from URL
         String path = url.getPath();
+        String servletPath = getServletPath();
+        if (!servletPath.endsWith("/")) servletPath += "/";
         path = path.substring(path.indexOf(servletPath)).substring(servletPath.length());
         if (path.startsWith("/")) path = path.substring(1);
-        
+
 
 
 
@@ -268,9 +257,9 @@ public abstract class WebSite extends HttpServlet {
         if (path.length()==0 || path.endsWith("/") || path.toLowerCase().startsWith("bin/")){
             return null;
         }
-        
-        
-        
+
+
+
       //Make sure none of the directories/files in the path are "hidden".
       //Any directory that statrs with a "." is considered hidden.
         for (String p : path.split("/")){
@@ -278,16 +267,16 @@ public abstract class WebSite extends HttpServlet {
                 return null;
             }
         }
-        
-        
+
+
 
       //Construct a list of possible file paths
         java.util.ArrayList<String> files = new java.util.ArrayList<>();
         files.add(path);
         files.add("downloads/" + path);
-        
-        
-        
+
+
+
       //Loop through all the possible file combinations
         for (String str : files){
             javaxt.io.File file = new javaxt.io.File(web + str);
@@ -295,7 +284,7 @@ public abstract class WebSite extends HttpServlet {
                 return file;
             }
         }
-        
+
         return null;
     }
 
@@ -307,8 +296,10 @@ public abstract class WebSite extends HttpServlet {
    */
     private void sendHTML(HttpServletRequest request, HttpServletResponse response)
     throws ServletException, IOException {
-        
-        
+
+        String servletPath = getServletPath();
+        if (!servletPath.endsWith("/")) servletPath += "/";
+
 
       //Get the html file
         java.net.URL url = request.getURL();
@@ -324,10 +315,10 @@ public abstract class WebSite extends HttpServlet {
                 useTemplate = false;
             }
         }
-        
 
 
-        
+
+
       //Calculate last modified date and estimated file fize
         java.util.TreeSet<Long> dates = new java.util.TreeSet<Long>();
         if (file!=null) dates.add(file.getDate().getTime());
@@ -336,9 +327,9 @@ public abstract class WebSite extends HttpServlet {
             dates.add(tabs.getLastModified());
         }
 
-        
-        
-        
+
+
+
       //Get file content
         Content content = getContent(request, file);
         dates.add(content.getDate().getTime());
@@ -346,16 +337,16 @@ public abstract class WebSite extends HttpServlet {
         html = html.replace("<%=Path%>", servletPath);
 
 
-        
+
 
       //Wrap content in a template
         if (useTemplate){
-            
-            
+
+
           //Instantiate html parser
             javaxt.html.Parser document = new javaxt.html.Parser(html);
 
-        
+
           //Extract Title
             String title = null;
             try{
@@ -389,8 +380,8 @@ public abstract class WebSite extends HttpServlet {
                 }
             }
             if (title==null) title = "";
-        
-            
+
+
 
           //Extract Description
             String description = null;
@@ -403,7 +394,7 @@ public abstract class WebSite extends HttpServlet {
             if (description==null) description = "";
 
 
-        
+
           //Extract Keywords
             String keywords = null;
             try{
@@ -416,7 +407,7 @@ public abstract class WebSite extends HttpServlet {
             if (keywords==null) keywords = "";
 
 
-            
+
             html = template.getText().replace("<%=content%>", html);
             html = html.replace("<%=title%>", title);
             html = html.replace("<%=description%>", description);
@@ -465,7 +456,7 @@ public abstract class WebSite extends HttpServlet {
 
       //Get last modified date
         long lastModified = dates.last();
-        String date = getDate(lastModified); //"EEE, dd MMM yyyy HH:mm:ss zzz"
+        String date = WebUtils.getDate(lastModified); //"EEE, dd MMM yyyy HH:mm:ss zzz"
 
 
       //Create eTag using the combined, uncompressed size of the html
@@ -481,7 +472,6 @@ public abstract class WebSite extends HttpServlet {
             if (cacheControl==null) cacheControl = "";
             if (cacheControl.equalsIgnoreCase("no-cache")==false){
                 if (eTag.equalsIgnoreCase(matchTag)){
-                    //System.out.println("Sending 304 Response!");
                     response.setStatus(304);
                     return;
                 }
@@ -491,7 +481,6 @@ public abstract class WebSite extends HttpServlet {
                     if (matchTag!=null){
                         for (String tag: matchTag.split(";")){
                             if (tag.trim().equalsIgnoreCase(date)){
-                                //System.out.println("Sending 304 Response!");
                                 response.setStatus(304);
                                 return;
                             }
@@ -502,11 +491,11 @@ public abstract class WebSite extends HttpServlet {
             }
         }
 
-        
-        
-        
-        
-        
+
+
+
+
+
       //Convert the html to a byte array
         byte[] rsp = html.getBytes("UTF-8");
 
@@ -538,13 +527,13 @@ public abstract class WebSite extends HttpServlet {
             String a = src.substring(0, idx);
             String b = src.substring(idx, idx+ext.length()+1);
             String p = javaxt.html.Parser.MapPath(src, url);
-            
+
             try{
                 javaxt.io.File f = getFile(new java.net.URL(p));
                 java.util.Date d = f.getDate();
                 dates.add(d.getTime());
                 long v = new javaxt.utils.Date(d).toLong();
-            
+
                 javaxt.utils.URL u = new javaxt.utils.URL(p);
                 u.setParameter("v", v+"");
                 src = a + b + "?" + u.getQueryString();
@@ -556,11 +545,11 @@ public abstract class WebSite extends HttpServlet {
         return src;
     }
 
-    
+
   //**************************************************************************
   //** getContent
   //**************************************************************************
-  /** Returns an html snippet found in the given file. This method can be 
+  /** Returns an html snippet found in the given file. This method can be
    *  overridden to generate dynamic content or to support custom tags.
    */
     protected Content getContent(HttpServletRequest request, javaxt.io.File file){
@@ -571,8 +560,8 @@ public abstract class WebSite extends HttpServlet {
             return new Content(file.getText("UTF-8"), file.getDate());
         }
     }
-    
-        
+
+
   //**************************************************************************
   //** getHtmlFile
   //**************************************************************************
@@ -580,12 +569,14 @@ public abstract class WebSite extends HttpServlet {
    *  Returns null if suitable a file is not found.
    */
     private javaxt.io.File getHtmlFile(java.net.URL url){
-        
+
       //Get path from url
         String path = url.getPath();
+        String servletPath = getServletPath();
+        if (!servletPath.endsWith("/")) servletPath += "/";
         path = path.substring(path.indexOf(servletPath)).substring(servletPath.length());
-        
-        
+
+
       //Remove leading and trailing "/" characters
         if (path.startsWith("/")) path = path.substring(1);
         if (path.endsWith("/")) path = path.substring(0, path.length()-1);
@@ -596,27 +587,27 @@ public abstract class WebSite extends HttpServlet {
         String folderPath = web.toString();
         javaxt.io.File file = getFile(path, folderPath);
         if (file!=null) return file;
-        
 
-           
+
+
       //If we are still here, check whether the url is missing a content folder
       //in its path (e.g. "documentation", "wiki").
         String[] contentFolders = new String[]{"documentation", "wiki"};
         for (String folderName : contentFolders){
-            
+
             folderPath = web + folderName + "/";
-            
+
             file = getFile(path, folderPath);
             if (file!=null) return file;
         }
-      
-        
+
+
         return null;
     }
-    
-    
+
+
     private javaxt.io.File getFile(String path, String folderPath){
-        
+
       //Check whether the url points directly to a file (minus the file extension)
         if (path.length()>0){
             //System.out.println("Checking: " + folderPath + path + ".*");
@@ -645,29 +636,29 @@ public abstract class WebSite extends HttpServlet {
                 }
             }
         }
-        
+
         return null;
     }
 
-    
+
     private boolean isSnippet(javaxt.io.File file){
         String str = file.getText("UTF-8").trim();
         return !str.endsWith("</html>");
     }
-    
-    
-    
-    
+
+
+
+
   //**************************************************************************
   //** getIndex
   //**************************************************************************
-  /** Returns an html snippet with paths to all the html/txt files found in 
+  /** Returns an html snippet with paths to all the html/txt files found in
    *  the given file path. Note that the file date is updated to reflect the
    *  most current file.
    */
     protected Content getIndex(javaxt.io.File file){
 
-        
+
       //Get relative path to the file
         javaxt.io.Directory dir = file.getDirectory();
         String path = dir.toString();
@@ -675,20 +666,20 @@ public abstract class WebSite extends HttpServlet {
         path = path.replace("\\", "/");
         if (!path.startsWith("/")) path = "/" + path;
         if (!path.endsWith("/")) path += "/";
-        
-        
+
+
       //Generate list of files and dates
         java.util.List<javaxt.io.File> files = new java.util.LinkedList<javaxt.io.File>();
         java.util.TreeSet<Long> dates = new java.util.TreeSet<Long>();
         dates.add(file.getDate().getTime());
         for (javaxt.io.File f : dir.getFiles(fileExtensions, true)){
-            if (!f.equals(file)){ 
+            if (!f.equals(file)){
                 files.add(f);
                 dates.add(f.getDate().getTime());
             }
         }
-        
-        
+
+
       //Build table of contents using ul/li tags
         StringBuffer toc = new StringBuffer();
         toc.append("<ul>\r\n");
@@ -696,21 +687,21 @@ public abstract class WebSite extends HttpServlet {
         int len = dir.getPath().length();
         java.util.Iterator<javaxt.io.File> it = files.iterator();
         while (it.hasNext()){
-            
+
             javaxt.io.File f = it.next();
             String fileName = f.getName(false);
             String relPath = f.getDirectory().getPath().substring(len).replace("\\", "/");
-            
+
             String link = path;
             if (relPath.length()>0){
                 link += relPath;
             }
             link += fileName;
-            
+
 
             String li = "<li><a href=\"" + link + "\">" + fileName.replace("_", " ") + "</a></li>\r\n";
-            
-            
+
+
             if (relPath.equals(prevPath)){
                 toc.append(li);
             }
@@ -721,7 +712,7 @@ public abstract class WebSite extends HttpServlet {
               //Close previous UL tags
                 if (prevPath.length()>0){
 
-                    
+
                   //Compute number of tags to close
                     int numTags = prevDirs.length;
                     for (int i=0; i<prevDirs.length; i++){
@@ -739,11 +730,11 @@ public abstract class WebSite extends HttpServlet {
                     for (int j=0; j<numTags; j++){
                         toc.append("</ul>\r\n");
                     }
-                    
+
                 }
 
 
-                
+
               //Compute number of tags to open
                 int numTags = currDirs.length;
                 if (prevPath.length()>0){
@@ -758,49 +749,49 @@ public abstract class WebSite extends HttpServlet {
                         }
                     }
                 }
-                    
+
 
               //Open new tags
                 for (int i=0; i<numTags; i++){
                     int offset = (currDirs.length)-numTags;
                     int idx = offset+i;
                     String dirName = currDirs[idx];
-                    
-                    
+
+
                     String tag = null;
                     if (idx==0){
                         tag = "h2";
                     }
-                    
-                    
-                    toc.append("<li>"); 
-                    
+
+
+                    toc.append("<li>");
+
                     if (tag!=null) toc.append("<" + tag + ">");
                     toc.append(dirName.replace("_", " "));
                     if (tag!=null) toc.append("</" + tag + ">");
-                            
+
                     toc.append("</li>\r\n");
-                    
-                    
+
+
                     toc.append("<ul>\r\n");
-                }                 
-                
-                
+                }
+
+
 
                 toc.append(li);
 
 
-                
 
-                
+
+
                 prevPath = relPath;
             }
 
-            
+
           //Close tags
             if (!it.hasNext()){
 
-                
+
               //Compute number of tags to close
                 String[] currDirs = relPath.split("/");
                 int numTags = currDirs.length;
@@ -827,7 +818,7 @@ public abstract class WebSite extends HttpServlet {
 
         return new Content(toc.toString(), lastModified);
     }
-    
+
 
   //**************************************************************************
   //** getTabs
@@ -842,6 +833,9 @@ public abstract class WebSite extends HttpServlet {
         java.util.Iterator<String> it = items.keySet().iterator();
 
 
+        String servletPath = getServletPath();
+        if (!servletPath.endsWith("/")) servletPath += "/";
+
       //Create html fragment
         StringBuffer str = new StringBuffer();
         while (it.hasNext()){
@@ -850,7 +844,7 @@ public abstract class WebSite extends HttpServlet {
             boolean isActive = isActiveTab(text, link, reqPath);
             //System.out.println("|" + reqPath + "| vs |" + link + "|" + (isActive? " <--" : ""));
 
-            
+
             str.append("<a href=\"" + link + "\">");
             str.append("<div");
             if (isActive) str.append(" class=\"active\"");
@@ -859,12 +853,12 @@ public abstract class WebSite extends HttpServlet {
             str.append("</div>");
             str.append("</a>");
         }
-        
+
 
         return str.toString();
     }
 
-    
+
   //**************************************************************************
   //** isActiveTab
   //**************************************************************************
@@ -876,18 +870,20 @@ public abstract class WebSite extends HttpServlet {
    */
     protected boolean isActiveTab(String tabLabel, String tabLink, String reqPath){
         boolean isActive = false;
-        if (reqPath.startsWith(tabLink)){ 
+        if (reqPath.startsWith(tabLink)){
+            String servletPath = getServletPath();
+            if (!servletPath.endsWith("/")) servletPath += "/";
             if (tabLink.equals(servletPath)){
                 isActive = reqPath.equals(servletPath);
             }
             else{
-                isActive = true; 
+                isActive = true;
             }
         }
         return isActive;
     }
 
-    
+
   //**************************************************************************
   //** getNavBar
   //**************************************************************************
@@ -896,8 +892,8 @@ public abstract class WebSite extends HttpServlet {
     protected String getNavBar(HttpServletRequest request, javaxt.io.File file){
         return "";
     }
-    
-    
+
+
   //**************************************************************************
   //** getRedirect
   //**************************************************************************
@@ -905,88 +901,13 @@ public abstract class WebSite extends HttpServlet {
    */
     private boolean redirect(java.net.URL url, HttpServletResponse response)
     throws ServletException, IOException {
-        
+
         String redirect = redirects.getRedirect(url);
         if (redirect!=null){
             response.sendRedirect(redirect, true);
             return true;
-        }        
-        
+        }
+
         return false;
-    }
-
-    
-  //**************************************************************************
-  //** getDate
-  //**************************************************************************
-  /** Used to convert a date to a string (e.g. "Mon, 20 Feb 2012 07:22:20 EST").
-   */
-    private String getDate(long milliseconds){
-        java.util.Calendar cal = java.util.Calendar.getInstance();
-        cal.setTimeInMillis(milliseconds);
-        return getDate(cal);
-    }
-
-    
-  //**************************************************************************
-  //** getDate
-  //**************************************************************************
-  /** Used to convert a date to a string (e.g. "Mon, 20 Feb 2012 07:22:20 EST").
-   *  This method does not rely on the java.text.SimpleDateFormat for
-   *  performance reasons.
-   */
-    private static String getDate(Calendar cal){
-
-        if (!cal.getTimeZone().equals(tz)){
-            cal = (java.util.Calendar) cal.clone();
-            cal.setTimeZone(tz);
-        }
-
-        StringBuffer str = new StringBuffer(29);
-        switch(cal.get(Calendar.DAY_OF_WEEK)){
-            case Calendar.MONDAY:    str.append("Mon, "); break;
-            case Calendar.TUESDAY:   str.append("Tue, "); break;
-            case Calendar.WEDNESDAY: str.append("Wed, "); break;
-            case Calendar.THURSDAY:  str.append("Thu, "); break;
-            case Calendar.FRIDAY:    str.append("Fri, "); break;
-            case Calendar.SATURDAY:  str.append("Sat, "); break;
-            case Calendar.SUNDAY:    str.append("Sun, "); break;
-        }
-
-        int i = cal.get(Calendar.DAY_OF_MONTH);
-        str.append(i<10 ? "0"+i : i);
-
-        switch (cal.get(Calendar.MONTH)) {
-            case Calendar.JANUARY:   str.append(" Jan "); break;
-            case Calendar.FEBRUARY:  str.append(" Feb "); break;
-            case Calendar.MARCH:     str.append(" Mar "); break;
-            case Calendar.APRIL:     str.append(" Apr "); break;
-            case Calendar.MAY:       str.append(" May "); break;
-            case Calendar.JUNE:      str.append(" Jun "); break;
-            case Calendar.JULY:      str.append(" Jul "); break;
-            case Calendar.AUGUST:    str.append(" Aug "); break;
-            case Calendar.SEPTEMBER: str.append(" Sep "); break;
-            case Calendar.OCTOBER:   str.append(" Oct "); break;
-            case Calendar.NOVEMBER:  str.append(" Nov "); break;
-            case Calendar.DECEMBER:  str.append(" Dec "); break;
-        }
-
-        str.append(cal.get(Calendar.YEAR));
-        str.append(" ");
-
-        i = cal.get(Calendar.HOUR_OF_DAY);
-        str.append(i<10 ? "0"+i+":" : i+":");
-
-        i = cal.get(Calendar.MINUTE);
-        str.append(i<10 ? "0"+i+":" : i+":");
-
-        i = cal.get(Calendar.SECOND);
-        str.append(i<10 ? "0"+i+" " : i+" ");
-
-        str.append(z);
-        return str.toString();
-
-        //new java.text.SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss zzz");
-        //return f.format(date);
     }
 }

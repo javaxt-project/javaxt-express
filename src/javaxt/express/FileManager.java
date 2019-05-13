@@ -9,9 +9,9 @@ import java.util.TimeZone;
 //**  FileManager
 //******************************************************************************
 /**
- *   Used to serve up static files (html, javascript, css, images, etc). 
+ *   Used to serve up static files (html, javascript, css, images, etc).
  *   Ensures static files are cached properly by browsers by appending
- *   version numbers to css and js files. Also updates js and css resources 
+ *   version numbers to css and js files. Also updates js and css resources
  *   referenced inside html files and application-specific xml files. Redirects
  *   requests to the most recent version of each file. Sends 304 responses as
  *   required.
@@ -24,28 +24,28 @@ public class FileManager {
     private String[] welcomeFiles = new String[]{"index.html", "index.htm", "default.htm"};
     private static final String z = "GMT";
     private static final TimeZone tz = TimeZone.getTimeZone(z);
-    
-    
+
+
   //**************************************************************************
   //** Constructor
   //**************************************************************************
     public FileManager(javaxt.io.Directory web){
         this.web = web;
     }
-    
-    
+
+
   //**************************************************************************
   //** sendFile
   //**************************************************************************
-  /** Used to send a file to the client. 
+  /** Used to send a file to the client.
    */
     public void sendFile(HttpServletRequest request, HttpServletResponse response)
         throws IOException{
-        
+
       //Get path from url, excluding servlet path and leading "/" character
         String path = request.getPathInfo();
         if (path!=null) path = path.substring(1);
-        
+
       //Send file
         sendFile(path, request, response);
     }
@@ -54,16 +54,16 @@ public class FileManager {
   //**************************************************************************
   //** sendFile
   //**************************************************************************
-  /** Used to send a file to the client. 
+  /** Used to send a file to the client.
    */
     public void sendFile(String path, HttpServletRequest request, HttpServletResponse response)
         throws IOException {
 
- 
+
         if (path==null) path = "";
- 
-        
-         
+
+
+
       //Construct a list of possible file paths
         java.util.ArrayList<String> files = new java.util.ArrayList<String>();
         files.add(web + path);
@@ -71,21 +71,21 @@ public class FileManager {
         for (String welcomeFile : welcomeFiles){
             files.add(web + path + welcomeFile);
         }
-         
-         
- 
+
+
+
       //Loop through all the possible file combinations
         for (String str : files){
- 
+
           //Ensure that the path doesn't have any illegal directives
             str = str.replace("\\", "/");
             if (str.contains("..") || str.contains("/.") ||
                 str.toLowerCase().contains("/keystore")){
                 continue;
             }
- 
- 
- 
+
+
+
           //Send file if it exists
             java.io.File file = new java.io.File(str);
             if (file.exists() && file.isFile() && !file.isHidden()){
@@ -94,17 +94,17 @@ public class FileManager {
             }
 
         }
-         
-         
+
+
       //If we're still here, throw an error
         response.setStatus(404);
     }
-    
-    
+
+
   //**************************************************************************
   //** sendFile
   //**************************************************************************
-  /** Used to send a file to the client. 
+  /** Used to send a file to the client.
    */
     public void sendFile(java.io.File file, HttpServletRequest request, HttpServletResponse response)
         throws IOException {
@@ -115,12 +115,23 @@ public class FileManager {
             response.setStatus(404);
         }
     }
-    
-    
+
+
   //**************************************************************************
   //** sendFile
   //**************************************************************************
-  /** Used to send a file to the client. Does not check if the file exists or 
+  /** Used to send a file to the client.
+   */
+    public void sendFile(javaxt.io.File file, HttpServletRequest request, HttpServletResponse response)
+        throws IOException {
+        this.sendFile(file.toFile(), request, response);
+    }
+
+
+  //**************************************************************************
+  //** sendFile
+  //**************************************************************************
+  /** Used to send a file to the client. Does not check if the file exists or
    *  is valid. Only returns 200 and 3XX responses. It is up to the caller to
    *  pass in a valid file and return errors to the client (e.g. 404).
    */
@@ -135,8 +146,8 @@ public class FileManager {
             if (ext.equals("js") || ext.equals("css")){
 
 
-              //Add version number to javascript and css files to ensure  
-              //proper caching. Otherwise, browsers like Chrome may not 
+              //Add version number to javascript and css files to ensure
+              //proper caching. Otherwise, browsers like Chrome may not
               //return the correct file to the client.
                 javaxt.utils.URL url = new javaxt.utils.URL(request.getURL());
                 long currVersion = new javaxt.utils.Date(file.lastModified()).toLong();
@@ -151,17 +162,17 @@ public class FileManager {
                 }
                 else if (requestedVersion==currVersion){
                     response.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-                }                        
+                }
 
             }
             else if (ext.equals("htm") || ext.equals("html")){
 
 
               //Convert html to xml. Assumes the html file is xhtml.
-              //Note that the parser will be extremely slow if there is 
+              //Note that the parser will be extremely slow if there is
               //a !DOCTYPE declaration.
                 javaxt.io.File htmlFile = new javaxt.io.File(file);
-                org.w3c.dom.Document xml = htmlFile.getXML(); 
+                org.w3c.dom.Document xml = htmlFile.getXML();
                 java.util.TreeSet<Long> dates = new java.util.TreeSet<Long>();
                 dates.add(file.lastModified());
 
@@ -243,9 +254,9 @@ public class FileManager {
             else if (ext.equals("xml")){
 
 
-              //Check whether the xml file is a javaxt-specific file 
-              //with CSS and JS includes. If so, add version numbers to  
-              //the js and css files sourced in the xml document. 
+              //Check whether the xml file is a javaxt-specific file
+              //with CSS and JS includes. If so, add version numbers to
+              //the js and css files sourced in the xml document.
                 javaxt.io.File xmlFile = new javaxt.io.File(file);
                 org.w3c.dom.Document xml = xmlFile.getXML();
                 String outerNode = javaxt.xml.DOM.getOuterNode(xml).getNodeName();
@@ -333,15 +344,15 @@ public class FileManager {
         response.write(file, javaxt.io.File.getContentType(file.getName()), true);
 
     }
-    
-    
+
+
   //**************************************************************************
   //** sendResponse
   //**************************************************************************
   /** Sends a given string to the client. Transparently handles caching using
    *  "ETag" and "Last-Modified" headers.
    */
-    private void sendResponse(String html, long date, HttpServletRequest request, 
+    private void sendResponse(String html, long date, HttpServletRequest request,
         HttpServletResponse response) throws IOException {
 
 
@@ -385,13 +396,13 @@ public class FileManager {
 
         response.write(html);
     }
-    
-    
+
+
   //**************************************************************************
   //** updateNodes
   //**************************************************************************
-  /** Adds empty comment blocks to "childless" nodes to prevent self-enclosing 
-   *  tags. 
+  /** Adds empty comment blocks to "childless" nodes to prevent self-enclosing
+   *  tags.
    */
     private void updateNodes(org.w3c.dom.NodeList nodes, org.w3c.dom.Document xml){
         for (int i=0; i<nodes.getLength(); i++){
@@ -404,15 +415,15 @@ public class FileManager {
                     updateNode(node, xml);
                 }
             }
-            
+
         }
     }
 
-    
+
   //**************************************************************************
   //** updateNode
   //**************************************************************************
-  /** Adds an empty comment block to a node to prevent self-enclosing tags. 
+  /** Adds an empty comment block to a node to prevent self-enclosing tags.
    */
     private void updateNode(org.w3c.dom.Node node, org.w3c.dom.Document xml){
         try{
@@ -422,8 +433,8 @@ public class FileManager {
             System.out.println(node.getNodeName());
         }
     }
-    
-    
+
+
   //**************************************************************************
   //** getDate
   //**************************************************************************
@@ -486,7 +497,7 @@ public class FileManager {
         //return f.format(date);
     }
 
-    
+
     private String getDate(long milliseconds){
         java.util.Calendar cal = java.util.Calendar.getInstance();
         cal.setTimeInMillis(milliseconds);
