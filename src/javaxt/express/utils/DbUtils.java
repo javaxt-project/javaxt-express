@@ -26,6 +26,25 @@ public class DbUtils {
   //** initSchema
   //**************************************************************************
     public static void initSchema(Database database, String schema) throws Exception {
+        initSchema(database, schema, null);
+    }
+
+
+  //**************************************************************************
+  //** initSchema
+  //**************************************************************************
+  /** Used to execute SQL statements and populate a database with table, views,
+   *  triggers, etc. If the target database does not exist, an attempt is made
+   *  to create a new database. Currently only supports PostgreSQL and H2.
+   *  @param database Connection info for the database
+   *  @param schema String containing SQL statements. Assumes individual
+   *  statements are delimited with a semicolon.
+   *  @param tableSpace Default tablespace used to store tables, views, etc.
+   *  If null, will use the default database tablespace. This option only
+   *  applies to PostgreSQL
+   */
+    public static void initSchema(Database database, String schema, String tableSpace)
+        throws Exception {
 
 
       //Split schema into individual statements
@@ -153,8 +172,9 @@ public class DbUtils {
 
 
 
-          //Update list of statements
+          //Generate list of SQL statements
             ArrayList<String> arr = new ArrayList<String>();
+            if (tableSpace!=null) arr.add("SET default_tablespace = " + tableSpace + ";");
             for (int i=0; i<statements.size(); i++){
                 String statement = statements.get(i);
                 String str = statement.trim().toLowerCase();
@@ -204,7 +224,8 @@ public class DbUtils {
   //**************************************************************************
   /** Used to create tables and foreign keys in the database.
    */
-    private static void initSchema(ArrayList<String> statements, Connection conn) throws java.sql.SQLException {
+    private static void initSchema(ArrayList<String> statements, Connection conn)
+        throws java.sql.SQLException {
 
 
 
