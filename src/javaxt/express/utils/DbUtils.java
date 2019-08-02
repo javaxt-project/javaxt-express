@@ -366,6 +366,26 @@ public class DbUtils {
         return columns;
     }
 
+
+
+  //**************************************************************************
+  //** executeBatch
+  //**************************************************************************
+    public static void executeBatch(ArrayList<String> statements, Connection conn) throws Exception {
+        if (statements.isEmpty()) return;
+        StringBuffer str = new StringBuffer();
+        str.append("BEGIN;\n");
+        for (String statement : statements){
+            statement = statement.trim();
+            str.append(statement);
+            if (!statement.endsWith(";")) str.append(";");
+            str.append("\n");
+        }
+        str.append("END;\n");
+        conn.execute(str.toString());
+    }
+
+
   //**************************************************************************
   //** copyTable
   //**************************************************************************
