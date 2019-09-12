@@ -4,7 +4,8 @@ package javaxt.express;
 //**  LogFile Class
 //******************************************************************************
 /**
- *   Used to parse a log file of web requests. See Logger.log(HttpServletRequest)
+ *   Used to parse a log file of web requests.
+ *   See Logger.log(HttpServletRequest)
  *
  ******************************************************************************/
 
@@ -13,7 +14,7 @@ public class WebLog {
     private javaxt.io.File log;
     private Integer id;
 
-    
+
   //**************************************************************************
   //** Constructor
   //**************************************************************************
@@ -44,7 +45,7 @@ public class WebLog {
         return log.toString();
     }
 
-    
+
   //**************************************************************************
   //** Entry Class
   //**************************************************************************
@@ -67,13 +68,13 @@ public class WebLog {
             this.url = url;
             this.date = date;
             this.header = header.split("\r\n");
-            
+
           //Parse first line in the header to get path and protocol
             String[] arr = this.header[0].split(" ");
             this.path = arr[1];
             this.protocol = arr[2];
-            
-            
+
+
           //Parse host and extract domain name
             try{
                 host = url.substring(url.indexOf("://")+3).toLowerCase();
@@ -137,9 +138,9 @@ public class WebLog {
   //**************************************************************************
   //** getEntries
   //**************************************************************************
-    public java.util.Iterator<Entry> getEntries(){
+    public javaxt.utils.Generator<Entry> getEntries(){
 
-        javaxt.utils.Generator<Entry> generator = new javaxt.utils.Generator<Entry>() {
+        return new javaxt.utils.Generator<Entry>() {
 
             @Override
             public void run() {
@@ -221,7 +222,7 @@ public class WebLog {
                             String range = entry.getValue("Range");
                             if (range.contains("bytes=")){ //Range: bytes=658282-
 
-                              //The JavaXT Server did not support range requests 
+                              //The JavaXT Server did not support range requests
                               //before 5/18/2013
                                 if (id!=null && id<20130518) skip = true;
                             }
@@ -242,18 +243,16 @@ public class WebLog {
                         System.out.println(requests[i]);
                     }
                 }
-                
+
             }
         };
-
-        return generator.iterator();
     }
 
 
   //**************************************************************************
   //** cleanLogFile
   //**************************************************************************
-  /** Used to update the log file by removing any records for a given IP 
+  /** Used to update the log file by removing any records for a given IP
    *  address.
    */
     public void cleanLogFile(String ipAddress){

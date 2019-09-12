@@ -62,45 +62,8 @@ public class ServiceRequest {
 
 
       //Parse path, excluding servlet and service path
-        String path = request.getPathInfo();
-        if (path!=null){
-            path = path.substring(1);
-            boolean addPath = service==null;
-            ArrayList<String> arr = new ArrayList<String>();
-            for (String str : path.split("/")){
-                if (addPath) arr.add(str);
+        setPath(request.getPathInfo());
 
-                if (str.equalsIgnoreCase(service)){
-                    addPath = true;
-                }
-            }
-            this.path = arr.toArray(new String[arr.size()]);
-        }
-
-
-      //Generate a method name using the request method and first "directory"
-      //in the path. Example: "GET /config/users" would yield the "getUsers"
-      //from the "config" service.
-        String name = getPath(0).toString();
-        if (name!=null){
-            name = name.substring(0, 1).toUpperCase() + name.substring(1);
-
-            String method = request.getMethod();
-            if (method.equals("GET")){
-                this.method = "get" + name;
-            }
-            else if (method.equals("PUT") || method.equals("POST")){
-                this.method = "save" + name;
-            }
-            else if (method.equals("DELETE")){
-                this.method = "delete" + name;
-            }
-        }
-
-
-      //Get ID
-        id = getPath(1).toLong();
-        if (id==null) id = new javaxt.utils.Value(request.getParameter("id")).toLong();
 
 
       //Get offset and limit
@@ -167,6 +130,54 @@ public class ServiceRequest {
             str.append(s);
         }
         return str.toString();
+    }
+
+
+  //**************************************************************************
+  //** setPath
+  //**************************************************************************
+  /** Used to set the url path
+   *  @param path URL path, excluding servlet and service path
+   */
+    public void setPath(String path){
+        if (path!=null){
+            path = path.substring(1);
+            boolean addPath = service==null;
+            ArrayList<String> arr = new ArrayList<String>();
+            for (String str : path.split("/")){
+                if (addPath) arr.add(str);
+
+                if (str.equalsIgnoreCase(service)){
+                    addPath = true;
+                }
+            }
+            this.path = arr.toArray(new String[arr.size()]);
+        }
+
+
+      //Generate a method name using the request method and first "directory"
+      //in the path. Example: "GET /config/users" would yield the "getUsers"
+      //from the "config" service.
+        String name = getPath(0).toString();
+        if (name!=null){
+            name = name.substring(0, 1).toUpperCase() + name.substring(1);
+
+            String method = request.getMethod();
+            if (method.equals("GET")){
+                this.method = "get" + name;
+            }
+            else if (method.equals("PUT") || method.equals("POST")){
+                this.method = "save" + name;
+            }
+            else if (method.equals("DELETE")){
+                this.method = "delete" + name;
+            }
+        }
+
+
+      //Get ID
+        id = getPath(1).toLong();
+        if (id==null) id = new javaxt.utils.Value(request.getParameter("id")).toLong();
     }
 
 

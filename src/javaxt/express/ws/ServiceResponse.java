@@ -20,9 +20,11 @@ public class ServiceResponse {
     }
 
     public ServiceResponse(javaxt.io.File file){
+        this.contentType = file.getContentType();
+        this.contentLength = file.getSize();
         this.response = file;
     }
-    
+
     public ServiceResponse(java.io.InputStream response){
         this.response = response;
     }
@@ -44,16 +46,16 @@ public class ServiceResponse {
         this(200, json.toString());
         this.contentType = "application/json";
     }
-    
+
     public ServiceResponse(JSONArray json){
         this(200, json.toString());
         this.contentType = "application/json";
     }
-    
+
     public ServiceResponse(javaxt.sql.Model model){
         this(model.toJson());
     }
-    
+
     public ServiceResponse(int status){
         this.status = status;
     }
@@ -61,7 +63,7 @@ public class ServiceResponse {
     public ServiceResponse(Exception e){
         this((Throwable) e);
     }
-    
+
     public ServiceResponse(Throwable e){
 
         this(500, (e.getMessage()==null || e.getMessage().trim().length()==0) ? "Unspecified Web Services Error" : e.getMessage());
@@ -121,32 +123,32 @@ e.printStackTrace();
     public int getStatus(){
         return status;
     }
-    
+
 //    public String getStatusMessage(){
 //        return statusMessage;
 //    }
-//    
+//
 //    public void setStatusMessage(String msg){
 //        statusMessage = msg;
 //    }
-//    
-    
+//
+
     //"WWW-Authenticate", "Basic realm=\"Access Denied\""
     public void setAuthMessage(String msg){
         authMessage = msg;
     }
-    
+
     public String getAuthMessage(){
         return authMessage;
     }
-    
+
 
     public Object getResponse() {
         return response;
     }
-    
-    
-    
+
+
+
     private static byte[] getBytes(String str){
         try{
             return str.getBytes("UTF-8");
