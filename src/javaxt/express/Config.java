@@ -6,7 +6,7 @@ import java.util.*;
 //**  Config Class
 //******************************************************************************
 /**
- *   Provides thread-safe, static methods used to get and set application 
+ *   Provides thread-safe, static methods used to get and set application
  *   variables.
  *
  ******************************************************************************/
@@ -22,8 +22,8 @@ public class Config {
         config.add(new JSONObject());
     }
     protected Config(){}
-    
-    
+
+
   //**************************************************************************
   //** init
   //**************************************************************************
@@ -36,8 +36,8 @@ public class Config {
             config.notify();
         }
     }
-    
-    
+
+
   //**************************************************************************
   //** get
   //**************************************************************************
@@ -49,7 +49,7 @@ public class Config {
         }
     }
 
-    
+
   //**************************************************************************
   //** set
   //**************************************************************************
@@ -61,8 +61,8 @@ public class Config {
             config.notify();
         }
     }
-    
-    
+
+
   //**************************************************************************
   //** has
   //**************************************************************************
@@ -73,8 +73,8 @@ public class Config {
             return config.get(0).has(key);
         }
     }
-    
-    
+
+
   //**************************************************************************
   //** getKeys
   //**************************************************************************
@@ -90,8 +90,8 @@ public class Config {
         }
         return keys;
     }
-    
-    
+
+
   //**************************************************************************
   //** isEmpty
   //**************************************************************************
@@ -100,8 +100,8 @@ public class Config {
     public static boolean isEmpty(){
         return getKeys().isEmpty();
     }
-    
-    
+
+
   //**************************************************************************
   //** getDatabase
   //**************************************************************************
@@ -127,57 +127,16 @@ public class Config {
         }
     }
 
-    
+
   //**************************************************************************
   //** setDatabase
   //**************************************************************************
     public static void setDatabase(javaxt.sql.Database database){
         set("database", database);
     }
+
     
-    
-//  //**************************************************************************
-//  //** initSchema
-//  //**************************************************************************
-//    public static void initSchema(Connection conn) throws SQLException {
-//        
-//        String schema = jar.getEntry("javaxt.photos", "Database.sql").getText();
-//        ArrayList<String> statements = new ArrayList<String>();
-//        for (String s : schema.split(";")){
-//
-//            StringBuffer str = new StringBuffer();
-//            for (String i : s.split("\r\n")){
-//                if (!i.trim().startsWith("--") && !i.trim().startsWith("COMMENT ")){
-//                    str.append(i + "\r\n");
-//                }
-//            }
-//
-//            String cmd = str.toString().trim();
-//            if (cmd.length()>0){
-//                statements.add(str.toString() + ";");
-//            }
-//        }
-//        
-//        
-//        java.sql.Statement stmt = conn.getConnection().createStatement();
-//        for (String cmd : statements){
-//
-//          //Print table name
-//            if (cmd.startsWith("CREATE TABLE")){
-//                String tableName = cmd.substring(cmd.indexOf("TABLE")+5, cmd.indexOf("(")).trim();
-//                if (tableName.startsWith("\"") && tableName.endsWith("\"")){ 
-//                    tableName = tableName.substring(1, tableName.length()-1);
-//                }
-//                System.out.println("CREATE " + tableName);
-//            }
-//
-//          //Execute statment
-//            stmt.execute(cmd);
-//        }
-//        stmt.close();
-//    }
-    
-    
+
   //**************************************************************************
   //** toJson
   //**************************************************************************
@@ -211,7 +170,7 @@ public class Config {
                 }
             }
         }
-        
+
         return json;
     }
 }

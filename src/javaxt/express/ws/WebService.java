@@ -6,6 +6,7 @@ import javaxt.json.JSONObject;
 import javaxt.sql.*;
 import javaxt.utils.Console;
 import javaxt.express.api.Sort;
+import javaxt.express.utils.StringUtils;
 import javaxt.http.servlet.ServletException;
 import javaxt.json.JSONArray;
 
@@ -212,7 +213,7 @@ public abstract class WebService {
                 for (int i=0; i<fields.length; i++){
                     if (i>0) str.append(",");
                     String fieldName = fields[i].toString();
-                    //TODO: camelcase to underscore
+                    fieldName = StringUtils.camelCaseToUnderScore(fieldName);
                     str.append(fieldName);
                 }
             }
@@ -256,16 +257,22 @@ public abstract class WebService {
             for (Recordset rs : conn.getRecordset(str.toString())){
                 JSONArray row = new JSONArray();
                 for (Field field : rs.getFields()){
-                    String fieldName = underscoreToCamelCase(field.getName());
-                    if (x==0) cols.add(fieldName);
+                    if (x==0){
+                        String fieldName = field.getName().toLowerCase();
+                        fieldName = underscoreToCamelCase(fieldName);
+                        cols.add(fieldName);
+                    }
+
                     Value val = field.getValue();
-
-
-                  //Special case for json objects
                     if (!val.isNull()){
                         Object obj = val.toObject();
-                        Package pkg = obj.getClass().getPackage();
+                        Class cls = obj.getClass();
+                        String className = cls.getSimpleName();
+                        Package pkg = cls.getPackage();
                         String packageName = pkg==null ? "" : pkg.getName();
+
+
+                      //Special case for json objects
                         if (!packageName.startsWith("java")){
                             String s = obj.toString().trim();
                             if (s.startsWith("{") && s.endsWith("}")){
@@ -279,6 +286,14 @@ public abstract class WebService {
                                     val = new Value(new JSONArray(s));
                                 }
                                 catch(Exception e){}
+                            }
+                        }
+
+
+                      //Special case for H2's TimestampWithTimeZone
+                        if (packageName.equals("org.h2.api")){
+                            if (className.equals("TimestampWithTimeZone")){
+                                val = new Value(val.toDate());
                             }
                         }
                     }
