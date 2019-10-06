@@ -273,7 +273,9 @@ public abstract class WebService {
 
 
                       //Special case for json objects
-                        if (!packageName.startsWith("java")){
+                        if ((packageName.equals("java.lang") && className.equals("String")) ||
+                            !packageName.startsWith("java"))
+                        {
                             String s = obj.toString().trim();
                             if (s.startsWith("{") && s.endsWith("}")){
                                 try{

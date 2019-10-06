@@ -112,7 +112,8 @@ public class DbUtils {
                 Connection conn = null;
                 try{
                     conn = database.getConnection();
-                    conn.execute("CREATE domain IF NOT EXISTS jsonb AS clob");
+                    conn.execute("CREATE domain IF NOT EXISTS text AS varchar");
+                    conn.execute("CREATE domain IF NOT EXISTS jsonb AS varchar");
                     initSchema(arr, conn);
                     conn.close();
                 }
