@@ -5,7 +5,9 @@ import java.lang.reflect.Method;
 import javaxt.json.JSONObject;
 import javaxt.sql.*;
 import javaxt.utils.Console;
-import javaxt.express.api.Sort;
+import javaxt.express.ws.ServiceRequest.Sort;
+import javaxt.express.ws.ServiceRequest.Field;
+import javaxt.express.ws.ServiceRequest.Filter;
 import javaxt.express.utils.StringUtils;
 import javaxt.http.servlet.ServletException;
 import javaxt.json.JSONArray;
@@ -207,7 +209,7 @@ public abstract class WebService {
 
           //Build sql string
             StringBuilder str = new StringBuilder("select ");
-            javaxt.express.api.Field[] fields = request.getFields();
+            Field[] fields = request.getFields();
             if (fields==null) str.append(" * ");
             else{
                 for (int i=0; i<fields.length; i++){
@@ -220,6 +222,28 @@ public abstract class WebService {
 
             str.append(" from ");
             str.append(tableName);
+
+
+            Filter filter = request.getFilter();
+            if (!filter.isEmpty()){
+                //System.out.println(filter.toJson().toString(4));
+                str.append(" where ");
+                Filter.Item[] items = filter.getItems();
+                for (int i=0; i<items.length; i++){
+                    if (i>0) str.append(" and ");
+                    str.append("(");
+                    str.append(items[i].toString());
+                    str.append(")");
+                }
+            }
+            else{
+                String where = request.getWhere();
+                if (where!=null){
+                    str.append(" where ");
+                    str.append(where);
+                }
+            }
+
 
             Sort sort = request.getSort();
             if (!sort.isEmpty()){
@@ -256,7 +280,7 @@ public abstract class WebService {
             conn = database.getConnection();
             for (Recordset rs : conn.getRecordset(str.toString())){
                 JSONArray row = new JSONArray();
-                for (Field field : rs.getFields()){
+                for (javaxt.sql.Field field : rs.getFields()){
                     if (x==0){
                         String fieldName = field.getName().toLowerCase();
                         fieldName = underscoreToCamelCase(fieldName);

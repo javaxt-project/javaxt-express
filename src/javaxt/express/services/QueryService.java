@@ -315,6 +315,10 @@ public class QueryService {
             str = new StringBuilder();
             this.format = format;
             this.addMetadata = addMetadata;
+
+            if (format.equals("json")){
+                str.append("{\"rows\":[");
+            }
         }
 
         public void write(Recordset rs){
@@ -336,10 +340,7 @@ public class QueryService {
                     count++;
                 }
 
-                if (format.equals("json")){
-                    str.append("{\"rows\":[");
-                }
-                else if (format.equals("tsv") || format.equals("csv")){
+                if (format.equals("tsv") || format.equals("csv")){
                     String s = format.equals("tsv") ? "\t" : ",";
                     for (int i=0; i<fields.length; i++){
                         if (i>0) str.append(s);
@@ -347,7 +348,6 @@ public class QueryService {
                     }
                     str.append("\r\n");
                 }
-
             }
 
 
@@ -958,14 +958,10 @@ public class QueryService {
                             Recordset rs = new Recordset();
                             rs.setFetchSize(1000);
                             rs.open("--" + job.getKey() + "\n" + query, conn);
-                            int x = 0;
-                            //console.log(rs.EOF);
                             while (rs.hasNext()){
                                 writer.write(rs);
-                                x++;
                                 rs.moveNext();
                             }
-                            console.log(x);
                             rs.close();
                             if (job.isCanceled()) throw new Exception();
 

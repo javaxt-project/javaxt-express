@@ -5,7 +5,7 @@ import javaxt.http.servlet.HttpServletRequest;
 import javaxt.http.servlet.ServletException;
 import javaxt.json.*;
 import javaxt.utils.Console;
-import javaxt.express.api.*;
+import javaxt.express.utils.StringUtils;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.Function;
 import net.sf.jsqlparser.parser.CCJSqlParserManager;
@@ -29,7 +29,7 @@ public class ServiceRequest {
     private javaxt.utils.URL url;
     private byte[] payload;
     private JSONObject json;
-    private HashMap<String, List<String>> parameters;
+    private HashMap<String, List<String>> parameters; //<- Don't use this directly! Use the static getParameter() and setParameter() methods
     private Field[] fields;
     private Filter filter;
     private Sort sort;
@@ -214,7 +214,7 @@ public class ServiceRequest {
    */
     public javaxt.utils.Value getParameter(String key){
         if (key!=null){
-            List<String> parameters = this.parameters.get(key.toLowerCase());
+            List<String> parameters = getParameter(key, this.parameters);
             if (parameters!=null){
                 String val = parameters.get(0).trim();
                 if (val.length()>0) return new javaxt.utils.Value(val);
@@ -231,7 +231,7 @@ public class ServiceRequest {
   //**************************************************************************
     public boolean hasParameter(String key){
         if (key!=null){
-            List<String> parameters = this.parameters.get(key.toLowerCase());
+            List<String> parameters = getParameter(key, this.parameters);
             if (parameters!=null) return true;
         }
         return false;
@@ -244,7 +244,7 @@ public class ServiceRequest {
     public void setParameter(String key, String val){
         if (key!=null){
             key = key.toLowerCase();
-            List<String> parameters = this.parameters.get(key);
+            List<String> parameters = getParameter(key, this.parameters);
 
 
 
@@ -253,7 +253,7 @@ public class ServiceRequest {
             if (parameters==null && hasParameter(key)){
                 parameters = new ArrayList<String>();
                 parameters.add(getParameter(key).toString());
-                this.parameters.put(key, parameters);
+                setParameter(key, parameters, this.parameters);
             }
 
 
@@ -263,7 +263,7 @@ public class ServiceRequest {
                 if (val!=null){
                     parameters = new ArrayList<String>();
                     parameters.add(val);
-                    this.parameters.put(key, parameters);
+                    setParameter(key, parameters, this.parameters);
                 }
 
             }
@@ -278,6 +278,18 @@ public class ServiceRequest {
             }
         }
     }
+
+
+
+    private static List<String> getParameter(String key, HashMap<String, List<String>> parameters){
+        return javaxt.utils.URL.getParameter(key, parameters);
+    };
+
+    private static void setParameter(String key, List<String> values, HashMap<String, List<String>> parameters){
+        javaxt.utils.URL.setParameter(key, values, parameters);
+    }
+
+
 
 
   //**************************************************************************
@@ -476,7 +488,7 @@ public class ServiceRequest {
    */
     private Field[] getFields(String fields){
         javaxt.sql.Parser sqlParser = new javaxt.sql.Parser("SELECT " + fields + " FROM T");
-        ArrayList<Field> arr = new ArrayList<Field>();
+        ArrayList<Field> arr = new ArrayList<>();
         for (javaxt.sql.Parser.SelectStatement stmt : sqlParser.getSelectStatements()){
             Field field = new Field(stmt.getField());
             field.setAlias(stmt.getAlias());
@@ -492,7 +504,26 @@ public class ServiceRequest {
   //**************************************************************************
     public Filter getFilter(){
         if (filter!=null) return filter;
-        filter = new Filter(new JSONObject(getParameter("filter").toString()));
+
+        if (hasParameter("filter")){
+            filter = new Filter(new JSONObject(getParameter("filter").toString()));
+        }
+        else{
+            JSONObject filter = new JSONObject();
+            Iterator<String> it = parameters.keySet().iterator();
+            while (it.hasNext()){
+                String key = it.next();
+                String k = key.toLowerCase();
+                if (k.equals("fields") || k.equals("where") || k.equals("orderby") ||
+                    k.equals("limit") || k.equals("offset") || k.equals("page") ||
+                    k.equals("count") || k.equals("_")){
+                    continue;
+                }
+                filter.set(key, getParameter(key));
+            }
+            this.filter = new Filter(filter);
+        }
+
         return filter;
     }
 
@@ -513,28 +544,43 @@ public class ServiceRequest {
     public Sort getSort(){
         if (sort!=null) return sort;
 
-        LinkedHashMap<String, String> fields = new LinkedHashMap<String, String>();
+        LinkedHashMap<String, String> fields = new LinkedHashMap<>();
         String orderBy = getParameter("orderby").toString();
-        //TODO: &sort=[{"property":"dob","direction":"ASC"}]
+
 
         if (orderBy!=null){
-            for (String field : orderBy.split(",")){
-                field = field.trim();
-                if (field.length()>0){
-
-                    String a, b;
-                    field = field.toUpperCase();
-                    if (field.endsWith(" ASC") || field.endsWith(" DESC")){
-                        int x = field.lastIndexOf(" ");
-                        a = field.substring(0, x).trim();
-                        b = field.substring(x).trim();
+            if (orderBy.startsWith("[") && orderBy.endsWith("]")){
+                //Example: &sort=[{"property":"dob","direction":"ASC"}]
+                JSONArray arr = new JSONArray(orderBy);
+                for (int i=0; i<arr.length(); i++){
+                    JSONObject json = arr.get(i).toJSONObject();
+                    String key = json.get("property").toString();
+                    String dir = json.get("direction").toString();
+                    if (key!=null){
+                        if (dir==null) dir = "ASC";
+                        fields.put(key, dir);
                     }
-                    else{
-                        a = field;
-                        b = "ASC";
-                    }
+                }
+            }
+            else{
+                for (String field : orderBy.split(",")){
+                    field = field.trim();
+                    if (field.length()>0){
 
-                    fields.put(a, b);
+                        String a, b;
+                        field = field.toUpperCase();
+                        if (field.endsWith(" ASC") || field.endsWith(" DESC")){
+                            int x = field.lastIndexOf(" ");
+                            a = field.substring(0, x).trim();
+                            b = field.substring(x).trim();
+                        }
+                        else{
+                            a = field;
+                            b = "ASC";
+                        }
+
+                        fields.put(a, b);
+                    }
                 }
             }
         }
@@ -542,4 +588,215 @@ public class ServiceRequest {
         sort = new Sort(fields);
         return sort;
     }
+
+
+  //**************************************************************************
+  //** Sort Class
+  //**************************************************************************
+    public class Sort {
+        LinkedHashMap<String, String> fields;
+        public Sort(LinkedHashMap<String, String> fields){
+            this.fields = fields;
+        }
+        public LinkedHashMap<String, String> getFields(){
+            return fields;
+        }
+        public java.util.Set<String> getKeySet(){
+            return fields.keySet();
+        }
+        public String get(String key){
+            return fields.get(key);
+        }
+        public boolean isEmpty(){
+            return fields.isEmpty();
+        }
+    }
+
+
+  //**************************************************************************
+  //** Field Class
+  //**************************************************************************
+    public class Field {
+        private String col;
+        private String table;
+        private String alias;
+        private boolean isFunction;
+
+        public Field(String field){
+            col = field;
+            isFunction = false;
+        }
+
+        public void setAlias(String alias){
+            this.alias = alias;
+        }
+
+        public boolean isFunction(){
+            return isFunction;
+        }
+
+        public void isFunction(boolean isFunction){
+            this.isFunction = isFunction;
+        }
+
+        public String toString(){
+            String str = col;
+            if (table!=null) str = table + "." + str;
+            if (alias!=null) str += " as " + alias;
+            return str;
+        }
+
+        public boolean equals(Object obj){
+            if (obj instanceof String){
+                String str = (String) obj;
+                if (str.equalsIgnoreCase(col)) return true;
+                if (str.equalsIgnoreCase(alias)) return true;
+                if (str.equalsIgnoreCase(this.toString())) return true;
+            }
+            else if (obj instanceof Field){
+                Field field = (Field) obj;
+                return field.equals(this.toString());
+            }
+            return false;
+        }
+    }
+
+
+  //**************************************************************************
+  //** Filter Class
+  //**************************************************************************
+    public class Filter {
+        private ArrayList<Item> items;
+
+        public class Item {
+            String col;
+            String op;
+            String val;
+            private Item(String col, String op, String val){
+                this.col = col;
+                this.op = op;
+                this.val = val;
+            }
+            private Item(JSONObject item){
+                col = item.get("col").toString();
+                op = item.get("op").toString();
+                val = item.get("val").toString();
+            }
+            public String toString(){
+                return StringUtils.camelCaseToUnderScore(col) + " " + op + " " + val;
+            }
+            public JSONObject toJson(){
+                JSONObject json = new JSONObject();
+                json.set("col", col);
+                json.set("op", op);
+                json.set("val", val);
+                return json;
+            }
+        }
+
+
+        public Filter(JSONArray filters){
+            items = new ArrayList<>();
+            for (int i=0; i<filters.length(); i++){
+                items.add(new Item(filters.get(i).toJSONObject()));
+            }
+        }
+
+        public Filter(JSONObject filter){
+            items = new ArrayList<>();
+            java.util.Iterator<String> it = filter.keys();
+            while (it.hasNext()){
+                String key = it.next();
+                String val = filter.get(key).toString();
+                String op = "=";
+
+                if (val.contains(",")){
+                    if (val.startsWith("!")){
+                        val = "(" + val.substring(1).trim() + ")";
+                        op = "NOT IN";
+                    }
+                    else{
+                        val = "(" + val + ")";
+                        op = "IN";
+                    }
+                }
+                else{
+                    String str = val.substring(0, 2);
+                    switch (str) {
+                        case "<>":
+                            op = str;
+                            val = val.substring(2).trim();
+                            break;
+                        case "!=":
+                            op = "<>";
+                            val = val.substring(2).trim();
+                            break;
+                        case ">=":
+                            op = str;
+                            val = val.substring(2).trim();
+                            break;
+                        case "<=":
+                            op = str;
+                            val = val.substring(2).trim();
+                            break;
+                        default:
+
+
+                            String s = val.substring(0, 1);
+                            switch (s) {
+                                case "=":
+                                    op = s;
+                                    val = val.substring(1).trim();
+                                    break;
+                                case ">":
+                                    op = s;
+                                    val = val.substring(1).trim();
+                                    break;
+                                case "!":
+                                    op = "<>";
+                                    val = val.substring(1).trim();
+                                    break;
+                                case "<":
+                                    op = s;
+                                    val = val.substring(1).trim();
+                                    break;
+                                default:
+
+                                    break;
+                            }
+
+
+                            break;
+                    }
+                }
+
+
+              //Special case for nulls
+                if (val.equalsIgnoreCase("null")){
+                    if (op.equals("=")) op = "IS";
+                    if (op.equals("<>")) op = "IS NOT";
+                }
+
+                items.add(new Item(key, op, val));
+            }
+        }
+
+
+        public boolean isEmpty(){
+            return items.isEmpty();
+        }
+
+        public Item[] getItems(){
+            return items.toArray(new Item[items.size()]);
+        }
+
+        public JSONArray toJson(){
+            JSONArray arr = new JSONArray();
+            for (Item item : items){
+                arr.add(item.toJson());
+            }
+            return arr;
+        }
+    }
+
 }
