@@ -1,4 +1,4 @@
-package javaxt.express.ws;
+package javaxt.express;
 import javaxt.json.*;
 
 

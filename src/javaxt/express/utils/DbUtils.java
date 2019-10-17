@@ -43,9 +43,9 @@ public class DbUtils {
    *  If null, will use the default database tablespace. This option only
    *  applies to PostgreSQL
    */
-    public static void initSchema(Database database, String schema, String tableSpace)
+    public static boolean initSchema(Database database, String schema, String tableSpace)
         throws Exception {
-
+        boolean schemaInitialized = false;
 
       //Split schema into individual statements
         ArrayList<String> statements = new ArrayList<String>();
@@ -114,7 +114,7 @@ public class DbUtils {
                     conn = database.getConnection();
                     conn.execute("CREATE domain IF NOT EXISTS text AS varchar");
                     conn.execute("CREATE domain IF NOT EXISTS jsonb AS varchar");
-                    initSchema(arr, conn);
+                    schemaInitialized = initSchema(arr, conn);
                     conn.close();
                 }
                 catch(java.sql.SQLException e){
@@ -209,7 +209,7 @@ public class DbUtils {
 
           //Create tables
             try{
-                initSchema(arr, conn);
+                schemaInitialized = initSchema(arr, conn);
                 conn.close();
             }
             catch(Exception e){
@@ -217,6 +217,7 @@ public class DbUtils {
                 throw e;
             }
         }
+        return schemaInitialized;
     }
 
 
@@ -225,7 +226,7 @@ public class DbUtils {
   //**************************************************************************
   /** Used to create tables and foreign keys in the database.
    */
-    private static void initSchema(ArrayList<String> statements, Connection conn)
+    private static boolean initSchema(ArrayList<String> statements, Connection conn)
         throws java.sql.SQLException {
 
 
@@ -247,14 +248,14 @@ public class DbUtils {
                     for (Table table : tables){
                         if (schema==null){
                             if (table.getName().equalsIgnoreCase(tableName)){
-                                return;
+                                return false;
                             }
                         }
                         else{
                             if (table.getSchema()!=null){
                                 if (table.getSchema().equalsIgnoreCase(schema) &&
                                     table.getName().equalsIgnoreCase(tableName)){
-                                    return;
+                                    return false;
                                 }
                             }
                         }
@@ -278,6 +279,7 @@ public class DbUtils {
             }
         }
         stmt.close();
+        return true;
     }
 
 

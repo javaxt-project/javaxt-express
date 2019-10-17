@@ -1,4 +1,4 @@
-package javaxt.express.ws;
+package javaxt.express;
 import java.io.StringReader;
 import java.util.*;
 import javaxt.http.servlet.HttpServletRequest;
