@@ -13,7 +13,6 @@ import javaxt.sql.*;
 import javaxt.json.*;
 import javaxt.utils.Console;
 
-import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.parser.*;
 import net.sf.jsqlparser.statement.select.*;
 import net.sf.jsqlparser.statement.Statement;
@@ -192,43 +191,7 @@ public class QueryService {
 
 
           //Check whether the select statement has illegal or unsupported functions
-            PlainSelect plainSelect = (PlainSelect) select.getSelectBody();
-            Iterator<SelectItem> it = plainSelect.getSelectItems().iterator();
-            while (it.hasNext()){
-                SelectItem selectItem = it.next();
-
-                String functionName = null;
-                if (selectItem instanceof SelectExpressionItem){
-                    SelectExpressionItem si = (SelectExpressionItem) selectItem;
-                    Expression expression = si.getExpression();
-
-                    try{
-                        net.sf.jsqlparser.expression.Function f = (net.sf.jsqlparser.expression.Function) expression;
-                        functionName = f.getName().toUpperCase();
-
-                    }
-                    catch(Exception e){
-                        try{
-                            SubSelect ss = (SubSelect) expression;
-                            functionName = "SELECT";
-                        }
-                        catch(Exception ex){
-                        }
-                    }
-                }
-                else if (selectItem instanceof AllColumns){}
-                else if (selectItem instanceof AllTableColumns){}
-                else{
-                    throw new IllegalArgumentException("Unsupported select expression");
-                }
-
-
-                if (functionName!=null){
-                    if (functionName.equals("COUNT")){
-                        //throw new IllegalArgumentException(functionName + " statements are not currently supported");
-                    }
-                }
-            }
+            checkSelect((PlainSelect) select.getSelectBody());
 
 
 
@@ -293,6 +256,15 @@ public class QueryService {
             return new ServiceResponse(e);
         }
     }
+
+
+  //**************************************************************************
+  //** checkSelect
+  //**************************************************************************
+  /** Used to check whether the select statement has illegal or unsupported
+   *  functions
+   */
+    protected void checkSelect(PlainSelect plainSelect){}
 
 
   //**************************************************************************
@@ -662,18 +634,16 @@ public class QueryService {
   //**************************************************************************
   /** Returns a list of tables and columns
    */
-    private ServiceResponse getTables(ServiceRequest request, Database database) {
+    public ServiceResponse getTables(ServiceRequest request, Database database) {
         Connection conn = null;
         try{
 
             JSONArray arr = new JSONArray();
             conn = database.getConnection();
             for (Table table : Database.getTables(conn)){
-
-                if (table.getName().startsWith("device_location_")) continue; //skip partition tables
-
                 JSONArray columns = new JSONArray();
                 for (Column column : table.getColumns()){
+
                     JSONObject col = new JSONObject();
                     col.set("name", column.getName());
                     col.set("type", column.getType());
@@ -685,6 +655,7 @@ public class QueryService {
 
                 JSONObject json = new JSONObject();
                 json.set("name", table.getName());
+                json.set("schema", table.getSchema());
                 json.set("columns", columns);
                 arr.add(json);
             }
