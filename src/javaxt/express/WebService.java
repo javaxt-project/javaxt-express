@@ -1,19 +1,19 @@
 package javaxt.express;
-import javaxt.express.ServiceResponse;
-import javaxt.express.ServiceRequest;
-import java.util.concurrent.ConcurrentHashMap;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Method;
-import javaxt.json.JSONObject;
-import javaxt.sql.*;
-import javaxt.utils.Console;
 import javaxt.express.ServiceRequest.Sort;
 import javaxt.express.ServiceRequest.Field;
 import javaxt.express.ServiceRequest.Filter;
 import javaxt.express.utils.StringUtils;
-import javaxt.http.servlet.ServletException;
-import javaxt.json.JSONArray;
 
+import javaxt.sql.*;
+import javaxt.json.*;
+import javaxt.utils.Console;
+import javaxt.http.servlet.ServletException;
+
+
+import java.util.concurrent.ConcurrentHashMap;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 
 //******************************************************************************
 //**  WebService
@@ -91,6 +91,8 @@ public abstract class WebService {
       //Class, not inherited from supertypes. So we may need to traverse up the
       //concrete class hierarchy if necessary.
         for (Method m : this.getClass().getDeclaredMethods()){
+            if (Modifier.isPrivate(m.getModifiers())) continue;
+
             if (m.getName().equalsIgnoreCase(method)){
                 if (m.getReturnType().equals(ServiceResponse.class)){
 
