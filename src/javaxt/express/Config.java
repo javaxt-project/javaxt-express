@@ -113,6 +113,7 @@ public class Config {
         }
         else{
             JSONObject json = val.toJSONObject();
+            if (json==null) return null;
             javaxt.sql.Database database = new javaxt.sql.Database();
             database.setDriver(json.get("driver").toString());
             database.setHost(json.get("host").toString());
@@ -135,7 +136,7 @@ public class Config {
         set("database", database);
     }
 
-    
+
 
   //**************************************************************************
   //** toJson
