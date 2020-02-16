@@ -280,6 +280,16 @@ public class ServiceRequest {
     }
 
 
+  //**************************************************************************
+  //** getParameterNames
+  //**************************************************************************
+    public String[] getParameterNames(){
+        ArrayList<String> arr = new ArrayList<>();
+        Iterator<String> it = this.parameters.keySet().iterator();
+        while (it.hasNext()) arr.add(it.next());
+        return arr.toArray(new String[arr.size()]);
+    }
+
 
     private static List<String> getParameter(String key, HashMap<String, List<String>> parameters){
         return javaxt.utils.URL.getParameter(key, parameters);

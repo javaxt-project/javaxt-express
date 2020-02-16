@@ -9,7 +9,7 @@ import javaxt.json.*;
 import javaxt.utils.Console;
 import javaxt.http.servlet.ServletException;
 
-
+import java.util.ArrayList;
 import java.util.concurrent.ConcurrentHashMap;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
@@ -175,7 +175,25 @@ public abstract class WebService {
    */
     private ServiceResponse get(Class c, ServiceRequest request) {
         try{
-            Object obj = newInstance(c, request.getID());
+            Object obj;
+            Long id = request.getID();
+            if (id==null){
+                Method get = getMethod("get", c);
+                String[] keys = request.getParameterNames();
+                ArrayList<Object> params = new ArrayList<>();
+                for (String key : keys){
+                    if (key.equals("_")) continue;
+                    params.add(key + "=");
+                    params.add(request.getParameter(key).toString());
+                }
+                Object[] arr = params.toArray(new Object[params.size()]);
+                obj = get.invoke(null, new Object[]{arr});
+            }
+            else{
+                obj = newInstance(c, id);
+            }
+            if (obj==null) return new ServiceResponse(404);
+
             Method toJson = getMethod("toJson", c);
             return new ServiceResponse((JSONObject) toJson.invoke(obj));
         }
