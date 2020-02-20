@@ -209,6 +209,7 @@ public class ServiceRequest {
   //** getParameter
   //**************************************************************************
   /** Returns the value of a specific variable supplied in the query string.
+   *  If the value is "null" then a null value is returned.
    *  @param key Query string parameter name. Performs a case insensitive
    *  search for the keyword.
    */
@@ -217,11 +218,12 @@ public class ServiceRequest {
             List<String> parameters = getParameter(key, this.parameters);
             if (parameters!=null){
                 String val = parameters.get(0).trim();
-                if (val.length()>0) return new javaxt.utils.Value(val);
+                if (val.length()>0){
+                    if (val.equalsIgnoreCase("null")) val = null;
+                    return new javaxt.utils.Value(val);
+                }
             }
-            //request.getBody()
         }
-
         return new javaxt.utils.Value(null);
     }
 
