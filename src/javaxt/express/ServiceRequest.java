@@ -511,29 +511,134 @@ public class ServiceRequest {
     }
 
 
+
   //**************************************************************************
   //** getFilter
   //**************************************************************************
     public Filter getFilter(){
         if (filter!=null) return filter;
 
+
+      //Parse querystring
+        HashMap<String, javaxt.utils.Value> params = new HashMap<>();
         if (hasParameter("filter")){
-            filter = new Filter(new JSONObject(getParameter("filter").toString()));
+
+            String str = getParameter("filter").toString();
+            if (str.startsWith("{") && str.endsWith("}")){
+                JSONObject json = new JSONObject(str);
+                Iterator<String> it = json.keys();
+                while (it.hasNext()){
+                    String key = it.next();
+                    params.put(key.toLowerCase(), json.get(key));
+                }
+            }
+            else{
+                HashMap<String, List<String>> map = javaxt.utils.URL.parseQueryString(str);
+                Iterator<String> it = map.keySet().iterator();
+                while (it.hasNext()){
+                    String key = it.next();
+                    List<String> vals = map.get(key);
+                    if (!vals.isEmpty()) params.put(key, new javaxt.utils.Value(vals.get(0)));
+                }
+            }
         }
         else{
-            JSONObject filter = new JSONObject();
-            Iterator<String> it = parameters.keySet().iterator();
-            while (it.hasNext()){
-                String key = it.next();
-                String k = key.toLowerCase();
-                if (k.equals("fields") || k.equals("where") || k.equals("orderby") ||
-                    k.equals("limit") || k.equals("offset") || k.equals("page") ||
-                    k.equals("count") || k.equals("_")){
-                    continue;
-                }
-                filter.set(key, getParameter(key));
+            for (String key : getParameterNames()){
+                params.put(key.toLowerCase(), getParameter(key));
             }
-            this.filter = new Filter(filter);
+        }
+
+
+      //Create filter
+        filter = new Filter();
+        Iterator<String> it = params.keySet().iterator();
+        while (it.hasNext()){
+            String key = it.next();
+            String k = key.toLowerCase();
+            if (k.equals("fields") || k.equals("where") || k.equals("orderby") ||
+                k.equals("limit") || k.equals("offset") || k.equals("page") ||
+                k.equals("count") || k.equals("_")){
+                continue;
+            }
+
+
+            String val = params.get(key).toString();
+            String op;
+
+
+
+          //Special case: look for comma seperated numbers
+            if (val.contains(",")){
+                if (val.startsWith("!")){
+                    val = "(" + val.substring(1).trim() + ")";
+                    op = "NOT IN";
+                }
+                else{
+                    val = "(" + val + ")";
+                    op = "IN";
+                }
+            }
+            else {
+                op = "=";
+
+                String str = val.substring(0, 2);
+                switch (str) {
+                    case "<>":
+                        op = str;
+                        val = val.substring(2).trim();
+                        break;
+                    case "!=":
+                        op = "<>";
+                        val = val.substring(2).trim();
+                        break;
+                    case ">=":
+                        op = str;
+                        val = val.substring(2).trim();
+                        break;
+                    case "<=":
+                        op = str;
+                        val = val.substring(2).trim();
+                        break;
+                    default:
+
+
+                        String s = val.substring(0, 1);
+                        switch (s) {
+                            case "=":
+                                op = s;
+                                val = val.substring(1).trim();
+                                break;
+                            case ">":
+                                op = s;
+                                val = val.substring(1).trim();
+                                break;
+                            case "!":
+                                op = "<>";
+                                val = val.substring(1).trim();
+                                break;
+                            case "<":
+                                op = s;
+                                val = val.substring(1).trim();
+                                break;
+                            default:
+
+                                break;
+                        }
+
+
+                        break;
+                }
+            }
+
+
+          //Special case for nulls
+            if (val.equalsIgnoreCase("null")){
+                if (op.equals("=")) op = "IS";
+                if (op.equals("<>")) op = "IS NOT";
+            }
+
+
+            filter.set(key, op, val);
         }
 
         return filter;
@@ -678,21 +783,16 @@ public class ServiceRequest {
   //** Filter Class
   //**************************************************************************
     public class Filter {
-        private ArrayList<Item> items;
+        private LinkedHashMap<String, Item> items = new LinkedHashMap<>();
 
         public class Item {
-            String col;
-            String op;
-            String val;
-            private Item(String col, String op, String val){
+            private String col;
+            private String op;
+            private javaxt.utils.Value val;
+            private Item(String col, String op, javaxt.utils.Value val){
                 this.col = col;
                 this.op = op;
                 this.val = val;
-            }
-            private Item(JSONObject item){
-                col = item.get("col").toString();
-                op = item.get("op").toString();
-                val = item.get("val").toString();
             }
             public String toString(){
                 return StringUtils.camelCaseToUnderScore(col) + " " + op + " " + val;
@@ -706,91 +806,27 @@ public class ServiceRequest {
             }
         }
 
+        protected Filter(){}
 
-        public Filter(JSONArray filters){
-            items = new ArrayList<>();
-            for (int i=0; i<filters.length(); i++){
-                items.add(new Item(filters.get(i).toJSONObject()));
-            }
+        public void set(String col, Object val){
+            set(col, "=", val);
         }
 
-        public Filter(JSONObject filter){
-            items = new ArrayList<>();
-            java.util.Iterator<String> it = filter.keys();
-            while (it.hasNext()){
-                String key = it.next();
-                String val = filter.get(key).toString();
-                String op = "=";
-
-                if (val.contains(",")){
-                    if (val.startsWith("!")){
-                        val = "(" + val.substring(1).trim() + ")";
-                        op = "NOT IN";
-                    }
-                    else{
-                        val = "(" + val + ")";
-                        op = "IN";
-                    }
-                }
-                else{
-                    String str = val.substring(0, 2);
-                    switch (str) {
-                        case "<>":
-                            op = str;
-                            val = val.substring(2).trim();
-                            break;
-                        case "!=":
-                            op = "<>";
-                            val = val.substring(2).trim();
-                            break;
-                        case ">=":
-                            op = str;
-                            val = val.substring(2).trim();
-                            break;
-                        case "<=":
-                            op = str;
-                            val = val.substring(2).trim();
-                            break;
-                        default:
+        public void set(String col, String op, Object val){
+            items.put(
+                col.toLowerCase(),
+                new Item(col, op, (val instanceof javaxt.utils.Value) ?
+                    (javaxt.utils.Value) val : new javaxt.utils.Value(val))
+            );
+        }
 
 
-                            String s = val.substring(0, 1);
-                            switch (s) {
-                                case "=":
-                                    op = s;
-                                    val = val.substring(1).trim();
-                                    break;
-                                case ">":
-                                    op = s;
-                                    val = val.substring(1).trim();
-                                    break;
-                                case "!":
-                                    op = "<>";
-                                    val = val.substring(1).trim();
-                                    break;
-                                case "<":
-                                    op = s;
-                                    val = val.substring(1).trim();
-                                    break;
-                                default:
-
-                                    break;
-                            }
-
-
-                            break;
-                    }
-                }
-
-
-              //Special case for nulls
-                if (val.equalsIgnoreCase("null")){
-                    if (op.equals("=")) op = "IS";
-                    if (op.equals("<>")) op = "IS NOT";
-                }
-
-                items.add(new Item(key, op, val));
+        public javaxt.utils.Value get(String col){
+            Item item = items.get(col.toLowerCase());
+            if (item!=null){
+                return item.val;
             }
+            return new javaxt.utils.Value(null);
         }
 
 
@@ -799,14 +835,19 @@ public class ServiceRequest {
         }
 
         public Item[] getItems(){
-            return items.toArray(new Item[items.size()]);
+            ArrayList<Item> arr = new ArrayList<>();
+            Iterator<String> it = items.keySet().iterator();
+            while (it.hasNext()){
+                String key = it.next();
+                Item item = items.get(key);
+                arr.add(item);
+            }
+            return arr.toArray(new Item[arr.size()]);
         }
 
         public JSONArray toJson(){
             JSONArray arr = new JSONArray();
-            for (Item item : items){
-                arr.add(item.toJson());
-            }
+            for (Item item : getItems()) arr.add(item.toJson());
             return arr;
         }
     }
