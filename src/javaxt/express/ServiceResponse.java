@@ -75,6 +75,8 @@ e.printStackTrace();
 
         if (error.equalsIgnoreCase("NullPointerException")){
             for (StackTraceElement x : e.getStackTrace()){
+                String err = x.toString();
+                if (err.trim().startsWith("org.eclipse.jetty")) break;
                 error+="\n"+x;
             }
         }
