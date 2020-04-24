@@ -54,6 +54,7 @@ public class WebLog {
     public class Entry {
         private String ip;
         private String host;
+        private String method;
         private String url;
         private String path;
         private String protocol;
@@ -63,28 +64,36 @@ public class WebLog {
         private String domainName;
         private boolean skip = false;
 
-        public Entry(String ip, String url, javaxt.utils.Date date, String header){
+        public Entry(javaxt.utils.Date date, String ip, String method, String url, String header){
             this.ip = ip;
             this.url = url;
             this.date = date;
+            this.method = method;
             this.header = header.split("\r\n");
-
-          //Parse first line in the header to get path and protocol
-            String[] arr = this.header[0].split(" ");
-            this.path = arr[1];
-            this.protocol = arr[2];
 
 
           //Parse host and extract domain name
             try{
-                host = url.substring(url.indexOf("://")+3).toLowerCase();
-                int idx = host.indexOf("/");
-                if (idx>0) host = host.substring(0, idx);
-                arr = host.split("\\.");
-                tld = arr[arr.length-1];
-                domainName = arr[arr.length-2];
+                String str = url.substring(url.indexOf("://")+3);
+                int idx = str.indexOf("/");
+                if (idx>0){
+                    host = str.substring(0, idx);
+                    path = str.substring(idx+1);
+                }
+                else{
+                    host = str;
+                }
+
+                host = host.toLowerCase();
+                if (host.contains(".")){
+                    String[] arr = host.split("\\.");
+                    tld = arr[arr.length-1]; //top level domain
+                    domainName = arr[arr.length-2];
+                }
             }
-            catch(Exception e){}
+            catch(Exception e){
+                e.printStackTrace();
+            }
         }
 
         public String[] getValues(String name){
@@ -113,6 +122,9 @@ public class WebLog {
        */
         public boolean ignore(){
             return skip;
+        }
+        public String getMethod(){
+            return method;
         }
         public String getURL(){
             return url;
@@ -215,7 +227,8 @@ public class WebLog {
                           //Parse request header
                             i=i+1;
                             String requestHeader = requests[i];
-                            Entry entry = new Entry(ip, url, date, requestHeader);
+                            if (op!=null) op = op.toUpperCase();
+                            Entry entry = new Entry(date, ip, op, url, requestHeader);
 
 
                           //Check if this is a range request. If so mark it as skipable
@@ -239,8 +252,8 @@ public class WebLog {
                     }
                     catch(Exception e){
                         e.printStackTrace();
-                        System.out.println(log.getName());
-                        System.out.println(requests[i]);
+                        //System.out.println(log.getName());
+                        //System.out.println(requests[i]);
                     }
                 }
 

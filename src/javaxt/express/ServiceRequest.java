@@ -409,7 +409,7 @@ public class ServiceRequest {
         try{
 
           //
-            ArrayList<Field> arr = new ArrayList<Field>();
+            ArrayList<Field> arr = new ArrayList<>();
 
           //Parse fields parameter using JSQLParser
             CCJSqlParserManager parserManager = new CCJSqlParserManager();
@@ -529,7 +529,7 @@ public class ServiceRequest {
                 Iterator<String> it = json.keys();
                 while (it.hasNext()){
                     String key = it.next();
-                    params.put(key.toLowerCase(), json.get(key));
+                    params.put(key, json.get(key));
                 }
             }
             else{
@@ -544,7 +544,7 @@ public class ServiceRequest {
         }
         else{
             for (String key : getParameterNames()){
-                params.put(key.toLowerCase(), getParameter(key));
+                params.put(key, getParameter(key));
             }
         }
 
@@ -563,20 +563,55 @@ public class ServiceRequest {
 
 
             String val = params.get(key).toString();
+            if (val==null) val = "null";
             String op;
 
 
 
-          //Special case: look for comma seperated numbers
+          //Special case: look for comma seperated values
             if (val.contains(",")){
+
                 if (val.startsWith("!")){
-                    val = "(" + val.substring(1).trim() + ")";
+                    val = val.substring(1).trim();
                     op = "NOT IN";
                 }
                 else{
-                    val = "(" + val + ")";
                     op = "IN";
                 }
+
+                StringBuilder str = new StringBuilder("(");
+                int x = 0;
+                String nullVal = null;
+                for (String s : val.split(",")){
+                    if (s.equalsIgnoreCase("NULL") || s.equalsIgnoreCase("!NULL")){
+                        nullVal = s;
+                    }
+                    else{
+                        if (x>0) str.append(",");
+                        str.append(s);
+                        x++;
+                    }
+                }
+                str.append(")");
+
+                if (nullVal!=null){
+                    if (op.equals("IN")){
+                        str.append(" OR ");
+                        str.append(StringUtils.camelCaseToUnderScore(key));
+                        str.append(" IS");
+                        if (nullVal.startsWith("!")) str.append(" NOT");
+                        str.append(" NULL");
+                    }
+                    else{ //not tested...
+                        str.append(" AND ");
+                        str.append(StringUtils.camelCaseToUnderScore(key));
+                        str.append(" IS");
+                        if (nullVal.startsWith("!")) str.append(" NOT");
+                        str.append(" NULL");
+                    }
+                }
+
+                val = str.toString();
             }
             else {
                 op = "=";
