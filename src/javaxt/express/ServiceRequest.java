@@ -616,7 +616,7 @@ public class ServiceRequest {
             else {
                 op = "=";
 
-                String str = val.substring(0, 2);
+                String str = val.substring(0, val.length()>1 ? 2 : 1);
                 switch (str) {
                     case "<>":
                         op = str;

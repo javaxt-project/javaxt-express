@@ -70,6 +70,14 @@ public abstract class WebSite extends HttpServlet {
 
 
   //**************************************************************************
+  //** getWebDirectory
+  //**************************************************************************
+    public javaxt.io.Directory getWebDirectory(){
+        return web;
+    }
+
+
+  //**************************************************************************
   //** setCompanyName
   //**************************************************************************
     public void setCompanyName(String companyName){
@@ -140,10 +148,36 @@ public abstract class WebSite extends HttpServlet {
         }
 
 
+      //Get path from URL, excluding servlet path and leading "/" character
+        String path = getPath(url);
+
+
+
+      //Special case for Certbot. When generating certificates using the
+      //certonly command, Certbot creates a hidden directory in the web root.
+      //The web server must return the files in this hidden directory. However,
+      //the filemanager does not allow access to hidden directories so we need
+      //to handle these requests manually.
+        if (path.startsWith(".well-known")){
+            console.log(path);
+            java.io.File file = new java.io.File(web + path);
+            console.log(file + "\t" + file.exists());
+
+          //Send file
+            if (file.exists()){
+                response.write(file, javaxt.io.File.getContentType(file.getName()), true);
+            }
+            else{
+                response.setStatus(404);
+                response.setContentType("text/plain");
+            }
+            return;
+        }
+
 
 
       //Send static file if we can
-        javaxt.io.File file = getFile(url);
+        javaxt.io.File file = getFile(path);
         if (file!=null){
 
           //Check whether the file ends in a ".html" or ".txt" extension. If so,
@@ -173,7 +207,6 @@ public abstract class WebSite extends HttpServlet {
         else{
 
           //Check whether the url path ends with a file extension. Return an error
-            String path = request.getURL().getPath();
             int idx = path.lastIndexOf("/");
             if (idx>-1) path = path.substring(idx);
             idx = path.lastIndexOf(".");
@@ -237,20 +270,27 @@ public abstract class WebSite extends HttpServlet {
 
 
   //**************************************************************************
-  //** getFile
+  //** getPath
   //**************************************************************************
-  /** Returns a path to a static file (e.g. css, javascript, images, zip, etc)
+  /** Returns the path part of a url, excluding servlet path and leading "/"
+   *  character
    */
-    private javaxt.io.File getFile(java.net.URL url){
-
-      //Get path from URL
+    private String getPath(java.net.URL url){
         String path = url.getPath();
         String servletPath = getServletPath();
         if (!servletPath.endsWith("/")) servletPath += "/";
         path = path.substring(path.indexOf(servletPath)).substring(servletPath.length());
         if (path.startsWith("/")) path = path.substring(1);
+        return path;
+    }
 
 
+  //**************************************************************************
+  //** getFile
+  //**************************************************************************
+  /** Returns a path to a static file (e.g. css, javascript, images, zip, etc)
+   */
+    private javaxt.io.File getFile(String path){
 
 
       //Validate the filename/path
@@ -529,7 +569,7 @@ public abstract class WebSite extends HttpServlet {
             String p = javaxt.html.Parser.MapPath(src, url);
 
             try{
-                javaxt.io.File f = getFile(new java.net.URL(p));
+                javaxt.io.File f = getFile(getPath(new java.net.URL(p)));
                 java.util.Date d = f.getDate();
                 dates.add(d.getTime());
                 long v = new javaxt.utils.Date(d).toLong();
