@@ -720,8 +720,8 @@ public class ServiceRequest {
                     if (field.length()>0){
 
                         String a, b;
-                        field = field.toUpperCase();
-                        if (field.endsWith(" ASC") || field.endsWith(" DESC")){
+                        String f = field.toUpperCase();
+                        if (f.endsWith(" ASC") || f.endsWith(" DESC")){
                             int x = field.lastIndexOf(" ");
                             a = field.substring(0, x).trim();
                             b = field.substring(x).trim();
@@ -731,6 +731,7 @@ public class ServiceRequest {
                             b = "ASC";
                         }
 
+                        a = StringUtils.camelCaseToUnderScore(a).toUpperCase();
                         fields.put(a, b);
                     }
                 }
