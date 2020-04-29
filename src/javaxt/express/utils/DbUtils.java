@@ -5,6 +5,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.*;
 import javaxt.sql.*;
+import javaxt.json.*;
 import javaxt.utils.Console;
 
 
@@ -294,7 +295,7 @@ public class DbUtils {
     }
 
     public static LinkedHashMap<String, Boolean> getColumns(String tableName, Database sourceDB) throws Exception{
-        LinkedHashMap<String, Boolean> columns = new LinkedHashMap<String, Boolean>();
+        LinkedHashMap<String, Boolean> columns = new LinkedHashMap<>();
         Connection conn = null;
         try{
             conn = sourceDB.getConnection();
@@ -656,7 +657,7 @@ public class DbUtils {
                         r2.addNew();
                         for (Field field : rs.getFields()){
                             String fieldName = field.getName();
-                            boolean isGeometry = columns.get(fieldName);
+                            boolean isGeometry = columns.get(fieldName.toLowerCase());
                             if (isGeometry){
                                 r2.setValue(fieldName, new Function(
                                     "ST_GeomFromText(?, 4326)", new Object[]{
@@ -686,7 +687,7 @@ public class DbUtils {
 
                     if (x<pageSize) break;
                 }
-System.out.println(Thread.currentThread().getName() + " is done!");
+//System.out.println(Thread.currentThread().getName() + " is done!");
 
 
                 r2.close();
@@ -708,10 +709,7 @@ System.out.println(Thread.currentThread().getName() + " is done!");
             catch(Exception e){
                 if (c1!=null) c1.close();
                 if (c2!=null) c2.close();
-                e.printStackTrace();
-                if (e instanceof java.sql.SQLException){
-                    System.out.println(((java.sql.SQLException) e).getNextException());
-                }
+                throw new RuntimeException(e);
             }
         }
 
@@ -1176,6 +1174,62 @@ System.out.println(Thread.currentThread().getName() + " is done!");
 
     }
 
+
+  //**************************************************************************
+  //** getJson
+  //**************************************************************************
+  /** Returns a JSON representation of a record in a Recordset
+   */
+    public static JSONObject getJson(Recordset rs){
+        JSONObject json = new JSONObject();
+        for (javaxt.sql.Field field : rs.getFields()){
+
+            String fieldName = field.getName().toLowerCase();
+            fieldName = StringUtils.underscoreToCamelCase(fieldName);
+
+
+            Value val = field.getValue();
+            if (!val.isNull()){
+                Object obj = val.toObject();
+                Class cls = obj.getClass();
+                String className = cls.getSimpleName();
+                Package pkg = cls.getPackage();
+                String packageName = pkg==null ? "" : pkg.getName();
+
+
+              //Special case for json objects
+                if ((packageName.equals("java.lang") && className.equals("String")) ||
+                    !packageName.startsWith("java"))
+                {
+                    String s = obj.toString().trim();
+                    if (s.startsWith("{") && s.endsWith("}")){
+                        try{
+                            val = new Value(new JSONObject(s));
+                        }
+                        catch(Exception e){}
+                    }
+                    else if (s.startsWith("[") && s.endsWith("]")){
+                        try{
+                            val = new Value(new JSONArray(s));
+                        }
+                        catch(Exception e){}
+                    }
+                }
+
+
+              //Special case for H2's TimestampWithTimeZone
+                if (packageName.equals("org.h2.api")){
+                    if (className.equals("TimestampWithTimeZone")){
+                        val = new Value(val.toDate());
+                    }
+                }
+            }
+
+
+            json.set(fieldName, val);
+        }
+        return json;
+    }
 
 
   //**************************************************************************

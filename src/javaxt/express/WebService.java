@@ -2,14 +2,14 @@ package javaxt.express;
 import javaxt.express.ServiceRequest.Sort;
 import javaxt.express.ServiceRequest.Field;
 import javaxt.express.ServiceRequest.Filter;
-import javaxt.express.utils.StringUtils;
+import javaxt.express.utils.*;
 
 import javaxt.sql.*;
 import javaxt.json.*;
 import javaxt.utils.Console;
 import javaxt.http.servlet.ServletException;
 
-import java.util.ArrayList;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
@@ -302,53 +302,15 @@ public abstract class WebService {
             conn = database.getConnection();
             for (Recordset rs : conn.getRecordset(str.toString())){
                 JSONArray row = new JSONArray();
-                for (javaxt.sql.Field field : rs.getFields()){
-                    if (x==0){
-                        String fieldName = field.getName().toLowerCase();
-                        fieldName = underscoreToCamelCase(fieldName);
-                        cols.add(fieldName);
-                    }
 
-                    Value val = field.getValue();
-                    if (!val.isNull()){
-                        Object obj = val.toObject();
-                        Class cls = obj.getClass();
-                        String className = cls.getSimpleName();
-                        Package pkg = cls.getPackage();
-                        String packageName = pkg==null ? "" : pkg.getName();
-
-
-                      //Special case for json objects
-                        if ((packageName.equals("java.lang") && className.equals("String")) ||
-                            !packageName.startsWith("java"))
-                        {
-                            String s = obj.toString().trim();
-                            if (s.startsWith("{") && s.endsWith("}")){
-                                try{
-                                    val = new Value(new JSONObject(s));
-                                }
-                                catch(Exception e){}
-                            }
-                            else if (s.startsWith("[") && s.endsWith("]")){
-                                try{
-                                    val = new Value(new JSONArray(s));
-                                }
-                                catch(Exception e){}
-                            }
-                        }
-
-
-                      //Special case for H2's TimestampWithTimeZone
-                        if (packageName.equals("org.h2.api")){
-                            if (className.equals("TimestampWithTimeZone")){
-                                val = new Value(val.toDate());
-                            }
-                        }
-                    }
-
-
-                    row.add(val);
+                JSONObject record = DbUtils.getJson(rs);
+                Iterator<String> it = record.keys();
+                while (it.hasNext()){
+                    String fieldName = it.next();
+                    if (x==0) cols.add(fieldName);
+                    row.add(record.get(fieldName));
                 }
+
                 if (x>0) json.append(",");
                 json.append(row.toString());
                 x++;
@@ -524,28 +486,5 @@ public abstract class WebService {
         else{
             return new ServiceResponse(e);
         }
-    }
-
-
-  //**************************************************************************
-  //** underscoreToCamelCase
-  //**************************************************************************
-  /** Used to convert a string with underscores (e.g. user_id) into camel case
-   *  (e.g. userID). Credit: https://stackoverflow.com/a/17061543/
-   */
-    private static String underscoreToCamelCase(String input){
-        java.util.regex.Pattern p = java.util.regex.Pattern.compile("_(.)");
-        java.util.regex.Matcher m = p.matcher(input);
-        StringBuffer sb = new StringBuffer();
-        while (m.find()) {
-            m.appendReplacement(sb, m.group(1).toUpperCase());
-        }
-        m.appendTail(sb);
-
-        String str = sb.toString();
-        if (str.endsWith("Id") && input.toLowerCase().endsWith("_id")){
-            str = str.substring(0, str.length()-2) + "ID";
-        }
-        return str;
     }
 }
