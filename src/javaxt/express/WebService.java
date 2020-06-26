@@ -304,9 +304,9 @@ public abstract class WebService {
                 JSONArray row = new JSONArray();
 
                 JSONObject record = DbUtils.getJson(rs);
-                Iterator<String> it = record.keys();
-                while (it.hasNext()){
-                    String fieldName = it.next();
+                for (javaxt.sql.Field field : rs.getFields()){
+                    String fieldName = field.getName().toLowerCase();
+                    fieldName = StringUtils.underscoreToCamelCase(fieldName);
                     if (x==0) cols.add(fieldName);
                     row.add(record.get(fieldName));
                 }

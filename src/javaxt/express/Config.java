@@ -112,20 +112,29 @@ public class Config {
             return (javaxt.sql.Database) val.toObject();
         }
         else{
-            JSONObject json = val.toJSONObject();
-            if (json==null) return null;
-            javaxt.sql.Database database = new javaxt.sql.Database();
-            database.setDriver(json.get("driver").toString());
-            database.setHost(json.get("host").toString());
-            database.setName(json.get("name").toString());
-            database.setUserName(json.get("username").toString());
-            database.setPassword(json.get("password").toString());
-            if (json.has("maxConnections")){
-                database.setConnectionPoolSize(json.get("maxConnections").toInteger());
-            }
-            setDatabase(database);
+            javaxt.sql.Database database = getDatabase(val);
+            if (database!=null) setDatabase(database);
             return database;
         }
+    }
+
+    public static javaxt.sql.Database getDatabase(JSONValue val){
+        return getDatabase(val.toJSONObject());
+    }
+
+    public static javaxt.sql.Database getDatabase(JSONObject json){
+        if (json==null) return null;
+        javaxt.sql.Database database = new javaxt.sql.Database();
+        database.setDriver(json.get("driver").toString());
+        database.setHost(json.get("host").toString());
+        database.setName(json.get("name").toString());
+        database.setUserName(json.get("username").toString());
+        database.setPassword(json.get("password").toString());
+        if (json.has("maxConnections")){
+            database.setConnectionPoolSize(json.get("maxConnections").toInteger());
+        }
+        setDatabase(database);
+        return database;
     }
 
 
