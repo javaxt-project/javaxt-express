@@ -80,7 +80,10 @@ public class FileService {
         if (sort!=null && !sort.isEmpty()){
             sortBy = sort.getKeySet().iterator().next();
             direction = sort.get(sortBy);
+            sortBy = sortBy.toLowerCase();
         }
+
+
 
         Boolean showHidden = request.getParameter("hidden").toBoolean();
         if (showHidden==null) showHidden = false;
@@ -143,7 +146,7 @@ public class FileService {
             item.add(size);
 
 
-            String key;
+            String key = "";
             if (sortBy.equals("date")){
                 if (date==null){
                         //"yyyyMMddHHmmssSSS"
@@ -162,9 +165,8 @@ public class FileService {
             else if (sortBy.equals("type")){
                 key = type;
             }
-            else{
-                key = name.toLowerCase();
-            }
+            key += "|" + name.toLowerCase();
+
 
             if (isFolder){
                 folders.put(key, item);
@@ -184,41 +186,10 @@ public class FileService {
 
         Long x = 0L;
         JSONArray arr = new JSONArray();
-        Iterator<String> it;
-        if (direction.equalsIgnoreCase("DESC")){
-            it = files.descendingKeySet().iterator();
-            while (it.hasNext()){
-                String k = it.next();
-                JSONArray item = files.get(k);
-                if (x>=start && x<end){
-                    arr.add(item);
-                }
-                x++;
-            }
-            if (x<end){
-                it = folders.descendingKeySet().iterator();
-                while (it.hasNext()){
-                    String k = it.next();
-                    JSONArray item = folders.get(k);
-                    if (x>=start && x<end){
-                        arr.add(item);
-                    }
-                    x++;
-                }
-            }
-        }
-        else{
-            it = folders.keySet().iterator();
-            while (it.hasNext()){
-                String k = it.next();
-                JSONArray item = folders.get(k);
-                if (x>=start && x<end){
-                    arr.add(item);
-                }
-                x++;
-            }
-            if (x<end){
-                it = files.keySet().iterator();
+        if (sortBy.equals("name")){
+            Iterator<String> it;
+            if (direction.equalsIgnoreCase("DESC")){
+                it = files.descendingKeySet().iterator();
                 while (it.hasNext()){
                     String k = it.next();
                     JSONArray item = files.get(k);
@@ -227,6 +198,66 @@ public class FileService {
                     }
                     x++;
                 }
+                if (x<end){
+                    it = folders.descendingKeySet().iterator();
+                    while (it.hasNext()){
+                        String k = it.next();
+                        JSONArray item = folders.get(k);
+                        if (x>=start && x<end){
+                            arr.add(item);
+                        }
+                        x++;
+                    }
+                }
+            }
+            else{
+                it = folders.keySet().iterator();
+                while (it.hasNext()){
+                    String k = it.next();
+                    JSONArray item = folders.get(k);
+                    if (x>=start && x<end){
+                        arr.add(item);
+                    }
+                    x++;
+                }
+                if (x<end){
+                    it = files.keySet().iterator();
+                    while (it.hasNext()){
+                        String k = it.next();
+                        JSONArray item = files.get(k);
+                        if (x>=start && x<end){
+                            arr.add(item);
+                        }
+                        x++;
+                    }
+                }
+            }
+        }
+        else{
+            TreeMap<String, JSONArray> items;
+            if (files.size()>folders.size()){
+                items = files;
+                items.putAll(folders);
+            }
+            else{
+                items = folders;
+                items.putAll(files);
+            }
+
+            Iterator<String> it;
+            if (direction.equalsIgnoreCase("DESC")){
+                it = items.descendingKeySet().iterator();
+            }
+            else{
+                it = items.keySet().iterator();
+            }
+            while (it.hasNext()){
+                String k = it.next();
+                JSONArray item = items.get(k);
+                if (x>=start && x<end){
+                    arr.add(item);
+                }
+                x++;
             }
         }
 
