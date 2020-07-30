@@ -11,7 +11,7 @@ public class ServiceResponse {
     private int status = 200;
     //private String statusMessage; //not generally used or required
     private javaxt.utils.Date date; //<--Used for eTags and 304 responses
-    private String cache;
+    private String cacheControl;
     private String authMessage;
     private Object response;
 
@@ -119,12 +119,13 @@ e.printStackTrace();
         return contentLength;
     }
 
-    public void setCache(String cache){
-        this.cache = cache;
+    //e.g. "no-cache, no-transform"
+    public void setCacheControl(String cacheControl){
+        this.cacheControl = cacheControl;
     }
 
-    public String getCache(){
-        return cache;
+    public String getCacheControl(){
+        return cacheControl;
     }
 
 //    public void setStatus(int status){
