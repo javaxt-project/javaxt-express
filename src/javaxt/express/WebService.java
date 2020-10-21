@@ -30,7 +30,7 @@ public abstract class WebService {
         new ConcurrentHashMap<String, DomainClass>();
 
 
-    public Console console = new Console();
+    public static Console console = new Console(); //do not replace with static import!
 
     private class DomainClass {
         private Class c;
