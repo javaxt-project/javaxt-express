@@ -14,6 +14,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.lang.reflect.Parameter;
 
 //******************************************************************************
 //**  WebService
@@ -87,7 +88,7 @@ public abstract class WebService {
 
 
       //Check if the subclass has implemented the requested method. Note that
-      //the getDeclaredMethod will only find method declared in the current
+      //the getDeclaredMethod will only find methods declared in the current
       //Class, not inherited from supertypes. So we may need to traverse up the
       //concrete class hierarchy if necessary.
         for (Method m : this.getClass().getDeclaredMethods()){
@@ -123,7 +124,7 @@ public abstract class WebService {
 
             String className = method.substring(3);
             DomainClass c = getClass(className);
-            if (c!=null) return get(c.c, request);
+            if (c!=null) return get(c.c, request, database);
 
 
             if (className.endsWith("ies")){ //Categories == Category
@@ -146,7 +147,7 @@ public abstract class WebService {
                     return new ServiceResponse(403, "Write access forbidden.");
                 }
                 else{
-                    return save(c.c, request);
+                    return save(c.c, request, database);
                 }
             }
         }
@@ -158,7 +159,7 @@ public abstract class WebService {
                     return new ServiceResponse(403, "Delete access forbidden.");
                 }
                 else{
-                    return delete(c.c, request);
+                    return delete(c.c, request, database);
                 }
             }
         }
@@ -167,14 +168,31 @@ public abstract class WebService {
     }
 
 
+  //**************************************************************************
+  //** getRecordset
+  //**************************************************************************
+  /** Protected method that subclasses can override to apply filters or add
+   *  constraints when retrieving objects from the database. This method is
+   *  called before "get", "create", "update", "delete" requests.
+   */
+    protected Recordset getRecordset(ServiceRequest request, String op, Class c, String sql, Connection conn) throws Exception {
+        Recordset rs = new Recordset();
+        if (op.equals("list")) rs.setFetchSize(1000);
+        rs.open(sql, conn);
+        return rs;
+    }
+
 
   //**************************************************************************
   //** get
   //**************************************************************************
   /** Used to retrieve an object from the database. Returns a JSON object.
    */
-    private ServiceResponse get(Class c, ServiceRequest request) {
+    private ServiceResponse get(Class c, ServiceRequest request, Database database) {
+        Connection conn = null;
         try{
+
+          //Get model
             Object obj;
             Long id = request.getID();
             if (id==null){
@@ -194,6 +212,19 @@ public abstract class WebService {
             }
             if (obj==null) return new ServiceResponse(404);
 
+
+
+          //Apply filter
+            conn = database.getConnection();
+            Recordset rs = getRecordset(request, "get", c, "select id from " +
+            getTableName(obj) + " where id=" + getMethod("getID", c).invoke(obj), conn);
+            if (!rs.EOF) id = rs.getValue(0).toLong();
+            rs.close();
+            conn.close();
+            if (id==null) return new ServiceResponse(404);
+
+
+          //Return response
             Method toJson = getMethod("toJson", c);
             return new ServiceResponse((JSONObject) toJson.invoke(obj));
         }
@@ -211,13 +242,27 @@ public abstract class WebService {
     private ServiceResponse list(Class c, ServiceRequest request, Database database){
 
 
-      //Get tableName associated with the Model
+      //Get tableName and spatial fields associated with the Model
         String tableName;
+        HashSet<String> spatialFields = new HashSet<>();
         try{
             Object obj = c.newInstance();
             java.lang.reflect.Field field = obj.getClass().getSuperclass().getDeclaredField("tableName");
             field.setAccessible(true);
             tableName = (String) field.get(obj);
+
+
+            for (java.lang.reflect.Field f : obj.getClass().getDeclaredFields()){
+                Class fieldType = f.getType();
+                String packageName = fieldType.getPackage()==null ? "" :
+                                     fieldType.getPackage().getName();
+
+                if (packageName.startsWith("javaxt.geospatial.geometry") ||
+                    packageName.startsWith("com.vividsolutions.jts.geom") ||
+                    packageName.startsWith("org.locationtech.jts.geom")){
+                    spatialFields.add(f.getName());
+                }
+            }
         }
         catch(Exception e){
             return getServiceResponse(e);
@@ -300,7 +345,8 @@ public abstract class WebService {
             StringBuilder json = new StringBuilder("{\"rows\":[");
 
             conn = database.getConnection();
-            for (Recordset rs : conn.getRecordset(str.toString())){
+            Recordset rs = getRecordset(request, "list", c, str.toString(), conn);
+            while (rs.hasNext()){
                 JSONArray row = new JSONArray();
 
                 JSONObject record = DbUtils.getJson(rs);
@@ -308,13 +354,24 @@ public abstract class WebService {
                     String fieldName = field.getName().toLowerCase();
                     fieldName = StringUtils.underscoreToCamelCase(fieldName);
                     if (x==0) cols.add(fieldName);
-                    row.add(record.get(fieldName));
+
+                    JSONValue val = record.get(fieldName);
+                    if (!val.isNull()){
+                        if (spatialFields.contains(fieldName)){
+                            if (database.getDriver().equals("PostgreSQL")){
+                                val = new JSONValue(createGeom(val.toString()));
+                            }
+                        }
+                    }
+                    row.add(val);
                 }
 
                 if (x>0) json.append(",");
                 json.append(row.toString());
+                rs.moveNext();
                 x++;
             }
+            rs.close();
             conn.close();
             json.append("]");
 
@@ -339,7 +396,8 @@ public abstract class WebService {
   /** Used to create or update an object in the database. Returns the object
    *  ID.
    */
-    private ServiceResponse save(Class c, ServiceRequest request) {
+    private ServiceResponse save(Class c, ServiceRequest request, Database database) {
+        Connection conn = null;
         try{
             JSONObject json = new JSONObject(new String(request.getPayload(), "UTF-8"));
             if (json.isEmpty()) throw new Exception("JSON is empty.");
@@ -360,6 +418,16 @@ public abstract class WebService {
             }
 
 
+          //Apply filter
+            conn = database.getConnection();
+            Recordset rs = getRecordset(request, "save", c, "select id from " +
+            getTableName(obj) + " where id=" + getMethod("getID", c).invoke(obj), conn);
+            if (!rs.EOF) id = rs.getValue(0).toLong();
+            rs.close();
+            conn.close();
+            if (id==null) return new ServiceResponse(404);
+
+
           //Call the save method
             Method save = getMethod("save", c);
             save.invoke(obj);
@@ -378,6 +446,7 @@ public abstract class WebService {
             return new ServiceResponse(id+"");
         }
         catch(Exception e){
+            if (conn!=null) conn.close();
             return getServiceResponse(e);
         }
     }
@@ -389,11 +458,20 @@ public abstract class WebService {
   /** Used to delete an object in the database. Returns a 200 status code if
    *  the object was successfully deleted.
    */
-    private ServiceResponse delete(Class c, ServiceRequest request) {
+    private ServiceResponse delete(Class c, ServiceRequest request, Database database) {
+        Connection conn = null;
         try{
 
-          //Get id
-            long id = request.getID();
+          //Apply filter
+            Long id = null;
+            conn = database.getConnection();
+            Recordset rs = getRecordset(request, "delete", c, "select id from " +
+            getTableName(c.newInstance()) + " where id=" + request.getID(), conn);
+            if (!rs.EOF) id = rs.getValue(0).toLong();
+            rs.close();
+            conn.close();
+            if (id==null) return new ServiceResponse(404);
+
 
           //Create new instance of the class
             Object obj = newInstance(c, id);
@@ -409,6 +487,7 @@ public abstract class WebService {
             return new ServiceResponse(200);
         }
         catch(Exception e){
+            if (conn!=null) conn.close();
             return getServiceResponse(e);
         }
     }
@@ -422,7 +501,7 @@ public abstract class WebService {
   //**************************************************************************
   //** getClass
   //**************************************************************************
-  /** Returns a class from the list of know/supported classes for a given
+  /** Returns a class from the list of known/supported classes for a given
    *  class name.
    */
     private DomainClass getClass(String className){
@@ -475,6 +554,19 @@ public abstract class WebService {
 
 
   //**************************************************************************
+  //** getTableName
+  //**************************************************************************
+  /** Returns the "tableName" private variable associated with a model
+   */
+    private String getTableName(Object obj) throws Exception {
+        java.lang.reflect.Field field = obj.getClass().getSuperclass().getDeclaredField("tableName");
+        field.setAccessible(true);
+        String tableName = (String) field.get(obj);
+        return tableName;
+    }
+
+
+  //**************************************************************************
   //** getServiceResponse
   //**************************************************************************
   /** Returns a ServiceResponse for a given Exception.
@@ -486,5 +578,50 @@ public abstract class WebService {
         else{
             return new ServiceResponse(e);
         }
+    }
+
+
+  //**************************************************************************
+  //** createGeom
+  //**************************************************************************
+  /** Used to create a geometry from a EWKT formatted string returned from
+   *  PostgreSQL/PostGIS
+   */
+    public Object createGeom(String hex) throws Exception {
+
+        //byte[] b = WKBReader.hexToBytes(hex);
+        //return new WKBReader().read(b);
+
+
+        Class c;
+        try{
+            c = Class.forName("com.vividsolutions.jts.io.WKBReader");
+        }
+        catch(ClassNotFoundException e){
+            try{
+                c = Class.forName("org.locationtech.jts.io.WKBReader");
+            }
+            catch(ClassNotFoundException ex){
+                throw new Exception("JTS not found!");
+            }
+        }
+
+
+        Method hexToBytes, read;
+        hexToBytes = read = null;
+        for (Method method : c.getDeclaredMethods()) {
+            String methodName = method.getName();
+            if (methodName.equals("hexToBytes")) {
+                hexToBytes = method;
+            }
+            else if (methodName.equals("read")) {
+                Parameter[] parameters = method.getParameters();
+                if (parameters.length==1 && parameters[0].getType().equals(byte[].class)){
+                    read = method;
+                }
+            }
+        }
+        byte[] b = (byte[]) hexToBytes.invoke(null, new Object[]{hex});
+        return read.invoke(c.newInstance(), new Object[]{b});
     }
 }
