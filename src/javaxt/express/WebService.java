@@ -411,21 +411,23 @@ public abstract class WebService {
                 obj = newInstance(c, id);
                 Method update = c.getDeclaredMethod("update", JSONObject.class);
                 update.invoke(obj, new Object[]{json});
-                isNew = true;
             }
             else{
                 obj = newInstance(c, json);
+                isNew = true;
             }
 
 
           //Apply filter
-            conn = database.getConnection();
-            Recordset rs = getRecordset(request, "save", c, "select id from " +
-            getTableName(obj) + " where id=" + getMethod("getID", c).invoke(obj), conn);
-            if (!rs.EOF) id = rs.getValue(0).toLong();
-            rs.close();
-            conn.close();
-            if (id==null) return new ServiceResponse(404);
+            if (!isNew){
+                conn = database.getConnection();
+                Recordset rs = getRecordset(request, "save", c, "select id from " +
+                getTableName(obj) + " where id=" + getMethod("getID", c).invoke(obj), conn);
+                if (!rs.EOF) id = rs.getValue(0).toLong();
+                rs.close();
+                conn.close();
+                if (id==null) return new ServiceResponse(404);
+            }
 
 
           //Call the save method
@@ -439,7 +441,7 @@ public abstract class WebService {
 
 
           //Fire event
-            if (isNew) onCreate(c, id); else onUpdate(c, id);
+            if (isNew) onCreate(obj); else onUpdate(obj);
 
 
           //Return response
@@ -481,7 +483,7 @@ public abstract class WebService {
             delete.invoke(obj);
 
           //Fire event
-            onDelete(c, id);
+            onDelete(obj);
 
           //Return response
             return new ServiceResponse(200);
@@ -493,9 +495,9 @@ public abstract class WebService {
     }
 
 
-    public void onCreate(Class c, long id){};
-    public void onUpdate(Class c, long id){};
-    public void onDelete(Class c, long id){};
+    public void onCreate(Object obj){};
+    public void onUpdate(Object obj){};
+    public void onDelete(Object obj){};
 
 
   //**************************************************************************
