@@ -202,7 +202,10 @@ public class FileManager {
                 for (org.w3c.dom.Node node : javaxt.xml.DOM.getElementsByTagName("link", xml)){
                     String href = javaxt.xml.DOM.getAttributeValue(node, "href");
                     String type = javaxt.xml.DOM.getAttributeValue(node, "type");
-                    if (href.length()>0 && type.equalsIgnoreCase("text/css")){
+                    String rel = javaxt.xml.DOM.getAttributeValue(node, "rel");
+                    boolean isStyleSheet = type.equalsIgnoreCase("text/css");
+                    if (!isStyleSheet) isStyleSheet = rel.equalsIgnoreCase("stylesheet");
+                    if (href.length()>0 && isStyleSheet){
 
                         try{
                             javaxt.io.File cssFile = new javaxt.io.File(htmlFile.MapPath(href));

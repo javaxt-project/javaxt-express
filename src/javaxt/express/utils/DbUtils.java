@@ -167,6 +167,7 @@ public class DbUtils {
                     conn = database.getConnection();
                 }
                 catch(Exception ex){
+                    ex.printStackTrace();
                     if (c2!=null) c2.close();
                     throw new Exception("Failed to connect to the database");
                 }

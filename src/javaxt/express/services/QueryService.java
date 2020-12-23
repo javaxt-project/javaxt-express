@@ -36,7 +36,7 @@ public class QueryService {
     private List<String> pendingJobs = new LinkedList<>();
     private List<String> completedJobs = new LinkedList<>();
     private java.util.List<SelectItem> selectCount;
-    private Console console = new Console();
+    public static Console console = Console.console;
 
 
   //**************************************************************************

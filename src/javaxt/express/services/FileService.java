@@ -1,11 +1,14 @@
 package javaxt.express.services;
+
 import javaxt.express.*;
 import javaxt.express.ServiceRequest.Sort;
+import javaxt.http.servlet.FormInput;
+import javaxt.http.servlet.FormValue;
 
 import javaxt.json.*;
 import javaxt.io.File;
 import javaxt.io.Directory;
-import javaxt.utils.Console;
+import static javaxt.utils.Console.console;
 
 import java.util.*;
 
@@ -19,7 +22,6 @@ import java.util.*;
 
 public class FileService {
 
-    private static Console console = new Console();
     private static int numDigits = (Long.MAX_VALUE+"").length();
     private static String zeros = getZeros();
     private static String getZeros(){
@@ -28,24 +30,48 @@ public class FileService {
         return str;
     }
 
+    private javaxt.io.Directory uploadDir;
+
+  //**************************************************************************
+  //** setUploadDirectory
+  //**************************************************************************
+    public void setUploadDirectory(javaxt.io.Directory uploadDir){
+        this.uploadDir = uploadDir;
+    }
+
+  //**************************************************************************
+  //** getUploadDirectory
+  //**************************************************************************
+    public javaxt.io.Directory getUploadDirectory(){
+        return uploadDir;
+    }
+    
 
   //**************************************************************************
   //** getServiceResponse
   //**************************************************************************
-    public ServiceResponse getServiceResponse(javaxt.express.ServiceRequest req) {
-        ServiceRequest request = new ServiceRequest(req);
-        String path = request.getParameter("path").toString();
+    public ServiceResponse getServiceResponse(javaxt.express.ServiceRequest request) {
 
         try{
 
-            String method = request.getMethod();
-            if (method.equals("GET") || method.equals("POST")){
-                return list(path, req.getSort(), request);
+            String path = request.getPath(0).toString();
+            if (path==null || path.equals("")) path = "list";
+            else path = path.toLowerCase();
+            String method = request.getRequest().getMethod();
+
+
+            if (path.equals("list")){
+                if (method.equals("GET") || method.equals("POST")){
+                    return list(request);
+                }
             }
-            else{
-                return new ServiceResponse(501, "Not implemented");
+            else if (path.equals("upload")){
+                if (method.equals("POST")){
+                    return upload(request);
+                }
             }
 
+            return new ServiceResponse(501, "Not Implemented");
         }
         catch(Exception e){
             return new ServiceResponse(e);
@@ -56,7 +82,11 @@ public class FileService {
   //**************************************************************************
   //** list
   //**************************************************************************
-    private ServiceResponse list(String path, Sort sort, ServiceRequest request) throws Exception {
+    private ServiceResponse list(javaxt.express.ServiceRequest req) throws Exception {
+        ServiceRequest request = new ServiceRequest(req);
+        String path = request.getParameter("path").toString();
+
+
         if (path==null) path = "";
         else path = path.trim();
 
@@ -77,6 +107,7 @@ public class FileService {
 
         String sortBy = "name";
         String direction = "ASC";
+        Sort sort = request.getSort();
         if (sort!=null && !sort.isEmpty()){
             sortBy = sort.getKeySet().iterator().next();
             direction = sort.get(sortBy);
@@ -273,6 +304,26 @@ public class FileService {
 
 
   //**************************************************************************
+  //** upload
+  //**************************************************************************
+    private ServiceResponse upload(javaxt.express.ServiceRequest req) throws Exception {
+        if (uploadDir==null) return new ServiceResponse(501);
+
+        java.util.Iterator<FormInput> it = req.getRequest().getFormInputs();
+        while (it.hasNext()){
+            FormInput input = it.next();
+            if (input.isFile()){
+                String fileName = input.getFileName();
+                FormValue value = input.getValue();
+                value.toFile(new java.io.File(uploadDir.toFile(), fileName));
+            }
+        }
+
+        return new ServiceResponse(200);
+    }
+
+
+  //**************************************************************************
   //** ServiceRequest
   //**************************************************************************
     private class ServiceRequest {
@@ -292,6 +343,10 @@ public class FileService {
 
         public Long getLimit(){
             return request.getLimit();
+        }
+
+        public Sort getSort(){
+            return request.getSort();
         }
 
         public javaxt.utils.Value getParameter(String name){

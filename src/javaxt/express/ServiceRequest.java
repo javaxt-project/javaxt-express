@@ -267,10 +267,12 @@ public class ServiceRequest {
                     parameters.add(val);
                     setParameter(key, parameters, this.parameters);
                 }
-
+                else{
+                    removeParameter(key, this.parameters);
+                }
             }
             else{
-                parameters.set(0, val);
+                if (val!=null) parameters.set(0, val);
             }
 
 
@@ -300,7 +302,9 @@ public class ServiceRequest {
     private static void setParameter(String key, List<String> values, HashMap<String, List<String>> parameters){
         javaxt.utils.URL.setParameter(key, values, parameters);
     }
-
+    private static void removeParameter(String key, HashMap<String, List<String>> parameters){
+        javaxt.utils.URL.removeParameter(key, parameters);
+    }
 
 
 
@@ -361,7 +365,10 @@ public class ServiceRequest {
   //**************************************************************************
     public JSONObject getJson(){
         if (json==null){
-            json = new JSONObject(new String(getPayload()));
+            try{
+                json = new JSONObject(new String(getPayload(), "UTF-8"));
+            }
+            catch(java.io.UnsupportedEncodingException e){} //should never happen
         }
         return json;
     }
@@ -477,15 +484,15 @@ public class ServiceRequest {
             this.fields = arr.toArray(new Field[arr.size()]);
 
         }
-        catch(net.sf.jsqlparser.JSQLParserException e){
-            //JSQLParser doesn't like one of the fields
-            this.fields = getFields(fields);
-        }
-        catch(Exception e){
-            e.printStackTrace();
-        }
+//        catch(net.sf.jsqlparser.JSQLParserException e){
+//            //JSQLParser doesn't like one of the fields
+//            this.fields = getFields(fields);
+//        }
+//        catch(Exception e){
+//            e.printStackTrace();
+//        }
         catch(Throwable e){
-            System.err.println("Missing JSqlParser!");
+//            System.err.println("Missing JSqlParser!");
             this.fields = getFields(fields);
         }
 
