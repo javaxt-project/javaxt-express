@@ -83,7 +83,7 @@ public class DbUtils {
                 for (String statement : statements){
                     String str = statement.trim().toUpperCase();
                     if (arr==null){
-                        if (str.startsWith("CREATE TABLE")){
+                        if (str.startsWith("CREATE TABLE") || str.startsWith("CREATE SCHEMA")){
                             arr = new ArrayList<String>();
                         }
                     }
