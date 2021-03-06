@@ -6,22 +6,18 @@ import java.util.*;
 //**  Config Class
 //******************************************************************************
 /**
- *   Provides thread-safe, static methods used to get and set application
- *   variables.
+ *   Provides thread-safe methods used to get and set application variables.
  *
  ******************************************************************************/
 
-
 public class Config {
 
-    //private static javaxt.io.Jar jar;
-    private static List<JSONObject> config;
-    static {
-        //jar = new javaxt.io.Jar(new Config());
-        config = new LinkedList<JSONObject>();
+    private List<JSONObject> config;
+
+    public Config(){
+        config = new LinkedList<>();
         config.add(new JSONObject());
     }
-    protected Config(){}
 
 
   //**************************************************************************
@@ -30,7 +26,7 @@ public class Config {
   /** Used to initialize the config with a given JSON document. This will
    *  replace any previously assigned config values.
    */
-    public static void init(JSONObject json){
+    public void init(JSONObject json){
         synchronized(config){
             config.set(0, json);
             config.notify();
@@ -43,7 +39,7 @@ public class Config {
   //**************************************************************************
   /** Returns the value for a given key.
    */
-    public static JSONValue get(String key){
+    public JSONValue get(String key){
         synchronized(config){
             return config.get(0).get(key);
         }
@@ -55,7 +51,7 @@ public class Config {
   //**************************************************************************
   /** Used to set the value for a given key.
    */
-    public static void set(String key, Object value){
+    public void set(String key, Object value){
         synchronized(config){
             config.get(0).set(key, value);
             config.notify();
@@ -68,7 +64,7 @@ public class Config {
   //**************************************************************************
   /** Returns true if the config has a given key.
    */
-    public static boolean has(String key){
+    public boolean has(String key){
         synchronized(config){
             return config.get(0).has(key);
         }
@@ -80,7 +76,7 @@ public class Config {
   //**************************************************************************
   /** Returns a list of keys found in the config.
    */
-    public static ArrayList<String> getKeys(){
+    public ArrayList<String> getKeys(){
         ArrayList<String> keys = new ArrayList<String>();
         synchronized(config){
             Iterator<String> it = config.get(0).keys();
@@ -97,7 +93,7 @@ public class Config {
   //**************************************************************************
   /** Returns true if there are no entries in the config.
    */
-    public static boolean isEmpty(){
+    public boolean isEmpty(){
         return getKeys().isEmpty();
     }
 
@@ -105,7 +101,7 @@ public class Config {
   //**************************************************************************
   //** getDatabase
   //**************************************************************************
-    public static javaxt.sql.Database getDatabase(){
+    public javaxt.sql.Database getDatabase(){
         JSONValue val = get("database");
         if (val==null) return null;
         if (val.toObject() instanceof javaxt.sql.Database){
@@ -118,11 +114,11 @@ public class Config {
         }
     }
 
-    public static javaxt.sql.Database getDatabase(JSONValue val){
+    public javaxt.sql.Database getDatabase(JSONValue val){
         return getDatabase(val.toJSONObject());
     }
 
-    public static javaxt.sql.Database getDatabase(JSONObject json){
+    public javaxt.sql.Database getDatabase(JSONObject json){
         if (json==null) return null;
         javaxt.sql.Database database = new javaxt.sql.Database();
         database.setDriver(json.get("driver").toString());
@@ -141,10 +137,9 @@ public class Config {
   //**************************************************************************
   //** setDatabase
   //**************************************************************************
-    public static void setDatabase(javaxt.sql.Database database){
+    public void setDatabase(javaxt.sql.Database database){
         set("database", database);
     }
-
 
 
   //**************************************************************************
@@ -152,7 +147,7 @@ public class Config {
   //**************************************************************************
   /** Returns the current config in JSON notation.
    */
-    public static JSONObject toJson(){
+    public JSONObject toJson(){
         JSONObject json = new JSONObject();
         synchronized(config){
             JSONObject currConfig = config.get(0);

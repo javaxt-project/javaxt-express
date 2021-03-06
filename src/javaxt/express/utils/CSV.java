@@ -11,6 +11,7 @@ import java.util.ArrayList;
 
 public class CSV {
 
+    public static final String UTF8_BOM = "\uFEFF";
 
   //**************************************************************************
   //** Columns

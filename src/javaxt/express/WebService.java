@@ -281,9 +281,15 @@ public abstract class WebService {
             else{
                 for (int i=0; i<fields.length; i++){
                     if (i>0) str.append(",");
-                    String fieldName = fields[i].toString();
-                    fieldName = StringUtils.camelCaseToUnderScore(fieldName);
-                    str.append(fieldName);
+                    Field field = fields[i];
+                    String fieldName = field.toString();
+                    if (field.isFunction()){
+                        str.append(fieldName);
+                    }
+                    else{
+                        fieldName = StringUtils.camelCaseToUnderScore(fieldName);
+                        str.append(fieldName);
+                    }
                 }
             }
 

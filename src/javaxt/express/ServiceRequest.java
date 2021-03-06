@@ -245,9 +245,15 @@ public class ServiceRequest {
   //**************************************************************************
     public void setParameter(String key, String val){
         if (key!=null){
-            key = key.toLowerCase();
-            List<String> parameters = getParameter(key, this.parameters);
 
+            if (val==null){
+                removeParameter(key, this.parameters);
+                return;
+            }
+
+
+          //Get parameters
+            List<String> parameters = getParameter(key, this.parameters);
 
 
           //Special case for classes that override the hasParameter and
@@ -267,9 +273,6 @@ public class ServiceRequest {
                     parameters.add(val);
                     setParameter(key, parameters, this.parameters);
                 }
-                else{
-                    removeParameter(key, this.parameters);
-                }
             }
             else{
                 if (val!=null) parameters.set(0, val);
@@ -277,7 +280,8 @@ public class ServiceRequest {
 
 
           //Update offset and limit as needed
-            if (key.equals("offset") || key.equals("limit") || key.equals("page")){
+            String k = key.toLowerCase();
+            if (k.equals("offset") || k.equals("limit") || k.equals("page")){
                 updateOffsetLimit();
             }
         }
