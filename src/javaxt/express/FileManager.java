@@ -1,6 +1,7 @@
 package javaxt.express;
 import javaxt.http.servlet.HttpServletRequest;
 import javaxt.http.servlet.HttpServletResponse;
+import javaxt.utils.ThreadPool;
 import java.io.IOException;
 import java.util.Calendar;
 import java.util.TimeZone;
@@ -172,57 +173,98 @@ public class FileManager {
               //Note that the parser will be extremely slow if there is
               //a !DOCTYPE declaration.
                 javaxt.io.File htmlFile = new javaxt.io.File(file);
-                org.w3c.dom.Document xml = htmlFile.getXML();
+                String xhtml = htmlFile.getText().trim();
+                idx = xhtml.toUpperCase().indexOf("<!DOCTYPE");
+                if (idx>-1){
+                    xhtml = xhtml.substring(idx+"<!DOCTYPE".length()).trim();
+                    xhtml = xhtml.substring(xhtml.indexOf(">")+1).trim();
+                }
+                org.w3c.dom.Document xml = javaxt.xml.DOM.createDocument(xhtml);
                 java.util.TreeSet<Long> dates = new java.util.TreeSet<Long>();
                 dates.add(file.lastModified());
 
 
-              //Update links to scripts
-                for (org.w3c.dom.Node node : javaxt.xml.DOM.getElementsByTagName("script", xml)){
-                    String src = javaxt.xml.DOM.getAttributeValue(node, "src");
-                    if (src.length()>0)
-                    try{
-                        javaxt.io.File jsFile = new javaxt.io.File(htmlFile.MapPath(src));
-                        if (jsFile.exists()){
+              //Update links to scripts and css files by appending a version
+              //number to the urls (?v=12345678). This operation is multi-
+              //threaded to improve performance.
+                try{
 
-                          //Append version number to the path
-                            long lastModified = jsFile.getLastModifiedTime().getTime();
-                            long currVersion = new javaxt.utils.Date(lastModified).toLong();
-                            javaxt.xml.DOM.setAttributeValue(node, "src" , src + "?v=" + currVersion);
-                            dates.add(lastModified);
-                        }
-                    }
-                    catch(Exception e){
-                        //System.out.println("Invalid path? " + src);
-                    }
-                }
+                  //Instantiate the ThreadPool
+                    ThreadPool pool = new ThreadPool(4){
+                        public void process(Object obj){
+                            org.w3c.dom.Node node = (org.w3c.dom.Node) obj;
+                            String nodeName = node.getNodeName().toLowerCase();
+                            if (nodeName.equals("script")){
 
+                              //Update links to scripts
+                                String src = javaxt.xml.DOM.getAttributeValue(node, "src");
+                                if (src.length()>0)
+                                try{
+                                    javaxt.io.File jsFile = new javaxt.io.File(htmlFile.MapPath(src));
+                                    if (jsFile.exists()){
 
-              //Update links to css files
-                for (org.w3c.dom.Node node : javaxt.xml.DOM.getElementsByTagName("link", xml)){
-                    String href = javaxt.xml.DOM.getAttributeValue(node, "href");
-                    String type = javaxt.xml.DOM.getAttributeValue(node, "type");
-                    String rel = javaxt.xml.DOM.getAttributeValue(node, "rel");
-                    boolean isStyleSheet = type.equalsIgnoreCase("text/css");
-                    if (!isStyleSheet) isStyleSheet = rel.equalsIgnoreCase("stylesheet");
-                    if (href.length()>0 && isStyleSheet){
+                                      //Append version number to the path
+                                        long lastModified = jsFile.getLastModifiedTime().getTime();
+                                        long currVersion = new javaxt.utils.Date(lastModified).toLong();
+                                        javaxt.xml.DOM.setAttributeValue(node, "src" , src + "?v=" + currVersion);
+                                        dates.add(lastModified);
+                                    }
+                                }
+                                catch(Exception e){
+                                    //System.out.println("Invalid path? " + src);
+                                }
+                            }
+                            else if (nodeName.equals("link")){
 
-                        try{
-                            javaxt.io.File cssFile = new javaxt.io.File(htmlFile.MapPath(href));
-                            if (cssFile.exists()){
+                              //Update links to css files
+                                String href = javaxt.xml.DOM.getAttributeValue(node, "href");
+                                String type = javaxt.xml.DOM.getAttributeValue(node, "type");
+                                String rel = javaxt.xml.DOM.getAttributeValue(node, "rel");
+                                boolean isStyleSheet = type.equalsIgnoreCase("text/css");
+                                if (!isStyleSheet) isStyleSheet = rel.equalsIgnoreCase("stylesheet");
+                                if (href.length()>0 && isStyleSheet){
 
-                              //Append version number to the path
-                                long lastModified = cssFile.getLastModifiedTime().getTime();
-                                long currVersion = new javaxt.utils.Date(lastModified).toLong();
-                                javaxt.xml.DOM.setAttributeValue(node, "href" , href + "?v=" + currVersion);
-                                dates.add(lastModified);
+                                    try{
+                                        javaxt.io.File cssFile = new javaxt.io.File(htmlFile.MapPath(href));
+                                        if (cssFile.exists()){
+
+                                          //Append version number to the path
+                                            long lastModified = cssFile.getLastModifiedTime().getTime();
+                                            long currVersion = new javaxt.utils.Date(lastModified).toLong();
+                                            javaxt.xml.DOM.setAttributeValue(node, "href" , href + "?v=" + currVersion);
+                                            dates.add(lastModified);
+                                        }
+                                    }
+                                    catch(Exception e){
+                                        //System.out.println("Invalid path? " + href);
+                                    }
+                                }
                             }
                         }
-                        catch(Exception e){
-                            //System.out.println("Invalid path? " + href);
-                        }
+
+
+                    }.start();
+
+
+                  //Insert records
+                    for (org.w3c.dom.Node node : javaxt.xml.DOM.getElementsByTagName("script", xml)){
+                        pool.add(node);
                     }
+                    for (org.w3c.dom.Node node : javaxt.xml.DOM.getElementsByTagName("link", xml)){
+                        pool.add(node);
+                    }
+
+
+                  //Notify the pool that we have finished added records and Wait for threads to finish
+                    pool.done();
+                    pool.join();
+
                 }
+                catch(Exception e){
+                    throw new RuntimeException(e);
+                }
+
+
 
 
               //Replace all self enclosing tags
