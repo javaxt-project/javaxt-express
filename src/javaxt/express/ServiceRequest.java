@@ -647,31 +647,44 @@ public class ServiceRequest {
                         break;
                     default:
 
-
-                        String s = val.substring(0, 1);
-                        switch (s) {
-                            case "=":
-                                op = s;
-                                val = val.substring(1).trim();
-                                break;
-                            case ">":
-                                op = s;
-                                val = val.substring(1).trim();
-                                break;
-                            case "!":
-                                op = "<>";
-                                val = val.substring(1).trim();
-                                break;
-                            case "<":
-                                op = s;
-                                val = val.substring(1).trim();
-                                break;
-                            default:
-
-                                break;
+                        if (val.toLowerCase().startsWith("startswith(") && val.endsWith(")")){
+                            op = "LIKE";
+                            val = "'" + val.substring(11, val.length()-1).replace("'", "''") + "%'";
                         }
+                        else if (val.toLowerCase().startsWith("endswith(") && val.endsWith(")")){
+                            op = "LIKE";
+                            val = "'%" + val.substring(9, val.length()-1).replace("'", "''") + "'";
+                        }
+                        else if (val.toLowerCase().startsWith("contains(") && val.endsWith(")")){
+                            op = "LIKE";
+                            val = "'%" + val.substring(9, val.length()-1).replace("'", "''") + "%'";
+                        }
+                        else{
 
+                            String s = val.substring(0, 1);
+                            switch (s) {
+                                case "=":
+                                    op = s;
+                                    val = val.substring(1).trim();
+                                    break;
+                                case ">":
+                                    op = s;
+                                    val = val.substring(1).trim();
+                                    break;
+                                case "!":
+                                    op = "<>";
+                                    val = val.substring(1).trim();
+                                    break;
+                                case "<":
+                                    op = s;
+                                    val = val.substring(1).trim();
+                                    break;
+                                default:
 
+                                    break;
+                            }
+
+                        }
                         break;
                 }
             }

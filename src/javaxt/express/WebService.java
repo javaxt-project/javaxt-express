@@ -215,6 +215,7 @@ public abstract class WebService {
 
 
           //Apply filter
+            id = null;
             conn = database.getConnection();
             Recordset rs = getRecordset(request, "get", c, "select id from " +
             getTableName(obj) + " where id=" + getMethod("getID", c).invoke(obj), conn);
