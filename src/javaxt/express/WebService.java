@@ -448,7 +448,7 @@ public abstract class WebService {
 
 
           //Fire event
-            if (isNew) onCreate(obj); else onUpdate(obj);
+            if (isNew) onCreate(obj, request); else onUpdate(obj, request);
 
 
           //Return response
@@ -490,7 +490,7 @@ public abstract class WebService {
             delete.invoke(obj);
 
           //Fire event
-            onDelete(obj);
+            onDelete(obj, request);
 
           //Return response
             return new ServiceResponse(200);
@@ -502,9 +502,9 @@ public abstract class WebService {
     }
 
 
-    public void onCreate(Object obj){};
-    public void onUpdate(Object obj){};
-    public void onDelete(Object obj){};
+    public void onCreate(Object obj, ServiceRequest request){};
+    public void onUpdate(Object obj, ServiceRequest request){};
+    public void onDelete(Object obj, ServiceRequest request){};
 
 
   //**************************************************************************

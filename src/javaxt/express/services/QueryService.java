@@ -84,7 +84,7 @@ public class QueryService {
       //Spawn threads used to execute queries
         int numThreads = 1; //TODO: Make configurable...
         for (int i=0; i<numThreads; i++){
-            new Thread(new QueryProcessor(database)).start();
+            new Thread(new QueryProcessor(database, this)).start();
         }
     }
 
@@ -124,6 +124,12 @@ public class QueryService {
             return query(request, false);
         }
     }
+
+
+  //**************************************************************************
+  //** notify
+  //**************************************************************************
+    public void notify(QueryJob job){}
 
 
   //**************************************************************************
@@ -573,6 +579,7 @@ public class QueryService {
           //Update job status
             job.status = "canceled";
             job.updated = new javaxt.utils.Date();
+            notify(job);
 
 
           //Cancel the query in the database
@@ -742,6 +749,18 @@ public class QueryService {
             }
         }
 
+        public String getID(){
+            return id;
+        }
+
+        public long getUserID(){
+            return userID;
+        }
+
+        public String getStatus(){
+            return status;
+        }
+
         public void addTempTable(CreateTable stmt){
             tempTable = stmt;
         }
@@ -865,9 +884,11 @@ public class QueryService {
    */
     private class QueryProcessor implements Runnable {
         private Database database;
+        private QueryService queryService;
 
-        public QueryProcessor(Database database){
+        public QueryProcessor(Database database, QueryService queryService){
             this.database = database;
+            this.queryService = queryService;
         }
 
         public void run() {
@@ -906,6 +927,7 @@ public class QueryService {
                             job.status = "running";
                             job.updated = new javaxt.utils.Date();
                             long startTime = System.currentTimeMillis();
+                            queryService.notify(job);
 
 
                           //Open database connection
@@ -977,6 +999,7 @@ public class QueryService {
                           //Update job status
                             job.status = "complete";
                             job.updated = new javaxt.utils.Date();
+                            queryService.notify(job);
                         }
                         catch(Exception e){
                             if (conn!=null) conn.close();
@@ -987,6 +1010,7 @@ public class QueryService {
                             else{
                                 job.status = "failed";
                                 job.updated = new javaxt.utils.Date();
+                                queryService.notify(job);
 
 
                                 java.io.PrintStream ps = null;
