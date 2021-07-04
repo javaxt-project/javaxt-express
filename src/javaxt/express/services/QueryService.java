@@ -18,6 +18,7 @@ import net.sf.jsqlparser.statement.select.*;
 import net.sf.jsqlparser.statement.Statement;
 import net.sf.jsqlparser.statement.Statements;
 import net.sf.jsqlparser.statement.create.table.CreateTable;
+import net.sf.jsqlparser.expression.LongValue;
 
 //******************************************************************************
 //**  QueryService
@@ -221,6 +222,7 @@ public class QueryService {
             if (createTempTable!=null) job.addTempTable(createTempTable);
             String key = job.getKey();
             job.log();
+            notify(job);
 
 
           //Update list of jobs
@@ -711,7 +713,7 @@ public class QueryService {
         private long userID;
         private Select select;
         private Long offset;
-        private Long limit;
+        private LongValue limit;
         private javaxt.utils.Date created;
         private javaxt.utils.Date updated;
         private String status;
@@ -726,7 +728,7 @@ public class QueryService {
             this.userID = userID;
             this.select = select;
             this.offset = offset;
-            this.limit = limit;
+            this.limit = limit==null ? null : new LongValue(limit);
             this.created = new javaxt.utils.Date();
             this.updated = this.created.clone();
             this.status = "pending";
@@ -1015,12 +1017,14 @@ public class QueryService {
 
                                 java.io.PrintStream ps = null;
                                 try {
+                                    file.create();
                                     ps = new java.io.PrintStream(file.toFile());
                                     e.printStackTrace(ps);
                                     ps.close();
                                 }
                                 catch (Exception ex) {
                                     if (ps!=null) ps.close();
+                                    file.write(e.getMessage());
                                 }
                             }
                         }
