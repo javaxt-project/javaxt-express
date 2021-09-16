@@ -5,6 +5,7 @@ import javaxt.utils.ThreadPool;
 import java.io.IOException;
 import java.util.Calendar;
 import java.util.TimeZone;
+import java.util.concurrent.ConcurrentHashMap;
 
 //******************************************************************************
 //**  FileManager
@@ -180,8 +181,9 @@ public class FileManager {
                     xhtml = xhtml.substring(xhtml.indexOf(">")+1).trim();
                 }
                 org.w3c.dom.Document xml = javaxt.xml.DOM.createDocument(xhtml);
-                java.util.TreeSet<Long> dates = new java.util.TreeSet<Long>();
-                dates.add(file.lastModified());
+
+                ConcurrentHashMap<Long, Boolean> uniqueDates = new ConcurrentHashMap<>();
+                uniqueDates.put(file.lastModified(), true);
 
 
               //Update links to scripts and css files by appending a version
@@ -191,6 +193,8 @@ public class FileManager {
 
                   //Instantiate the ThreadPool
                     ThreadPool pool = new ThreadPool(4){
+                        private java.util.HashSet<Long> dates = new java.util.HashSet<>();
+
                         public void process(Object obj){
                             org.w3c.dom.Node node = (org.w3c.dom.Node) obj;
                             String nodeName = node.getNodeName().toLowerCase();
@@ -238,6 +242,18 @@ public class FileManager {
                                     catch(Exception e){
                                         //System.out.println("Invalid path? " + href);
                                     }
+                                }
+                            }
+                        }
+
+                        public void exit(){
+                            if (!dates.isEmpty()){
+                                synchronized(uniqueDates){
+                                    java.util.Iterator<Long> it = dates.iterator();
+                                    while (it.hasNext()){
+                                        uniqueDates.put(it.next(), true);
+                                    }
+                                    uniqueDates.notify();
                                 }
                             }
                         }
@@ -290,10 +306,15 @@ public class FileManager {
                 html = html.substring(html.indexOf(">")+1); //remove xml header
 
 
+              //Get most recent file date
+                java.util.TreeSet<Long> dates = new java.util.TreeSet<Long>();
+                dates.addAll(uniqueDates.keySet());
+                long lastUpdate = dates.last();
+
 
               //Set content type and send response
                 response.setContentType("text/html");
-                sendResponse(html, dates.last(), request, response);
+                sendResponse(html, lastUpdate, request, response);
                 return;
             }
             else if (ext.equals("xml")){
