@@ -177,7 +177,7 @@ public class ServiceRequest {
 
       //Get ID
         id = getPath(1).toLong();
-        if (id==null) id = new javaxt.utils.Value(request.getParameter("id")).toLong();
+        if (id==null) id = getParameter("id").toLong();
     }
 
 

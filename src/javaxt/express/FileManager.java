@@ -182,6 +182,8 @@ public class FileManager {
                 }
                 org.w3c.dom.Document xml = javaxt.xml.DOM.createDocument(xhtml);
 
+
+              //Start building unique list of file dates
                 ConcurrentHashMap<Long, Boolean> uniqueDates = new ConcurrentHashMap<>();
                 uniqueDates.put(file.lastModified(), true);
 
@@ -193,8 +195,6 @@ public class FileManager {
 
                   //Instantiate the ThreadPool
                     ThreadPool pool = new ThreadPool(4){
-                        private java.util.HashSet<Long> dates = new java.util.HashSet<>();
-
                         public void process(Object obj){
                             org.w3c.dom.Node node = (org.w3c.dom.Node) obj;
                             String nodeName = node.getNodeName().toLowerCase();
@@ -211,7 +211,7 @@ public class FileManager {
                                         long lastModified = jsFile.getLastModifiedTime().getTime();
                                         long currVersion = new javaxt.utils.Date(lastModified).toLong();
                                         javaxt.xml.DOM.setAttributeValue(node, "src" , src + "?v=" + currVersion);
-                                        dates.add(lastModified);
+                                        addDate(lastModified);
                                     }
                                 }
                                 catch(Exception e){
@@ -236,7 +236,7 @@ public class FileManager {
                                             long lastModified = cssFile.getLastModifiedTime().getTime();
                                             long currVersion = new javaxt.utils.Date(lastModified).toLong();
                                             javaxt.xml.DOM.setAttributeValue(node, "href" , href + "?v=" + currVersion);
-                                            dates.add(lastModified);
+                                            addDate(lastModified);
                                         }
                                     }
                                     catch(Exception e){
@@ -246,15 +246,24 @@ public class FileManager {
                             }
                         }
 
+                        private void addDate(long lastModified) throws Exception {
+                            java.util.HashSet<Long> dates = (java.util.HashSet<Long>) get("dates");
+                            if (dates==null){
+                                dates = new java.util.HashSet<>();
+                                set("dates", dates);
+                            }
+                            dates.add(lastModified);
+                        }
+
                         public void exit(){
-                            if (!dates.isEmpty()){
-                                synchronized(uniqueDates){
-                                    java.util.Iterator<Long> it = dates.iterator();
-                                    while (it.hasNext()){
-                                        uniqueDates.put(it.next(), true);
-                                    }
-                                    uniqueDates.notify();
+                            java.util.HashSet<Long> dates = (java.util.HashSet<Long>) get("dates");
+                            if (dates==null || dates.isEmpty()) return;
+                            synchronized(uniqueDates){
+                                java.util.Iterator<Long> it = dates.iterator();
+                                while (it.hasNext()){
+                                    uniqueDates.put(it.next(), true);
                                 }
+                                uniqueDates.notify();
                             }
                         }
 
