@@ -4,7 +4,6 @@ import javaxt.json.*;
 
 public class ServiceResponse {
 
-    //private String id;
     private String contentType = "text/plain";
     private String contentDisposition = null;
     private Long contentLength;
@@ -68,7 +67,8 @@ public class ServiceResponse {
     public ServiceResponse(Throwable e){
 
         this(500, (e.getMessage()==null || e.getMessage().trim().length()==0) ? "Unspecified Web Services Error" : e.getMessage());
-e.printStackTrace();
+        //e.printStackTrace();
+
         String s = e.getClass().getName();
         s = s.substring(s.lastIndexOf(".")+1);
         String message = e.getLocalizedMessage();
@@ -81,6 +81,7 @@ e.printStackTrace();
                 error+="\n"+x;
             }
         }
+        System.out.println(error);
         response = getBytes(error);
     }
 

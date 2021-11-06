@@ -168,6 +168,7 @@ public class Config {
                     db.set("name", database.getName());
                     db.set("username", database.getUserName());
                     db.set("password", database.getPassword());
+                    db.set("maxConnections", database.getConnectionPoolSize());
                     json.set(key, db);
                 }
                 else{
