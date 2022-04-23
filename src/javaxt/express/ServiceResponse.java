@@ -1,6 +1,6 @@
 package javaxt.express;
 import javaxt.json.*;
-
+import java.util.*;
 
 public class ServiceResponse {
 
@@ -13,6 +13,8 @@ public class ServiceResponse {
     private String cacheControl;
     private String authMessage;
     private Object response;
+    private HashMap<String, Object> properties = new HashMap<>();
+
 
     public ServiceResponse(byte[] response){
         this.response = response;
@@ -155,6 +157,14 @@ public class ServiceResponse {
         return authMessage;
     }
 
+    public void set(String key, Object val){
+        properties.put(key, val);
+    }
+
+    public Object get(String key){
+        return properties.get(key);
+    }
+    
 
     public Object getResponse() {
         return response;

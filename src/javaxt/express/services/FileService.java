@@ -22,6 +22,7 @@ import java.util.*;
 
 public class FileService {
 
+    private javaxt.io.Directory baseDir;
     private static int numDigits = (Long.MAX_VALUE+"").length();
     private static String zeros = getZeros();
     private static String getZeros(){
@@ -30,81 +31,45 @@ public class FileService {
         return str;
     }
 
-    private javaxt.io.Directory uploadDir;
 
   //**************************************************************************
-  //** setUploadDirectory
+  //** Constructor
   //**************************************************************************
-    public void setUploadDirectory(javaxt.io.Directory uploadDir){
-        this.uploadDir = uploadDir;
-    }
-
-  //**************************************************************************
-  //** getUploadDirectory
-  //**************************************************************************
-    public javaxt.io.Directory getUploadDirectory(){
-        return uploadDir;
-    }
-    
-
-  //**************************************************************************
-  //** getServiceResponse
-  //**************************************************************************
-    public ServiceResponse getServiceResponse(javaxt.express.ServiceRequest request) {
-
-        try{
-
-            String path = request.getPath(0).toString();
-            if (path==null || path.equals("")) path = "list";
-            else path = path.toLowerCase();
-            String method = request.getRequest().getMethod();
-
-
-            if (path.equals("list")){
-                if (method.equals("GET") || method.equals("POST")){
-                    return list(request);
-                }
-            }
-            else if (path.equals("upload")){
-                if (method.equals("POST")){
-                    return upload(request);
-                }
-            }
-
-            return new ServiceResponse(501, "Not Implemented");
-        }
-        catch(Exception e){
-            return new ServiceResponse(e);
-        }
+    public FileService(){
+        baseDir = null;
     }
 
 
   //**************************************************************************
-  //** list
+  //** Constructor
   //**************************************************************************
-    private ServiceResponse list(javaxt.express.ServiceRequest req) throws Exception {
-        ServiceRequest request = new ServiceRequest(req);
-        String path = request.getParameter("path").toString();
+    public FileService(javaxt.io.Directory baseDir){
+        this.baseDir = baseDir;
+    }
 
 
-        if (path==null) path = "";
-        else path = path.trim();
+  //**************************************************************************
+  //** getList
+  //**************************************************************************
+  /** Returns a ServiceResponse with JSON object representing files and
+   *  folders in a given path. Optional parameters include filter, sort,
+   *  hidden, offset, and limit.
+   */
+    public ServiceResponse getList(ServiceRequest request) throws Exception {
+
+      //Parse params
+        String path = getPath(request);
+        String filter = request.getParameter("filter").toString();
+
 
       //Get items
-        List list;
-        if (path.length()==0){
-            list = new LinkedList<>();
-            for (Directory dir : Directory.getRootDirectories()){
-                list.add(dir);
-            }
-        }
-        else{
-            Directory dir = new Directory(path);
-            path = dir.toString();
-            list = dir.getChildren();
-        }
+        List list = getList(path, filter);
 
 
+        boolean isDriveList = path.isEmpty() && baseDir==null;
+
+
+      //Get sort
         String sortBy = "name";
         String direction = "ASC";
         Sort sort = request.getSort();
@@ -115,7 +80,7 @@ public class FileService {
         }
 
 
-
+      //Check whether to show hidden files and folders
         Boolean showHidden = request.getParameter("hidden").toBoolean();
         if (showHidden==null) showHidden = false;
 
@@ -143,8 +108,8 @@ public class FileService {
             }
             else if (obj instanceof Directory){
                 Directory d = (Directory) obj;
-                boolean isDrive = path.length()==0;
-                if (isDrive){
+
+                if (isDriveList){
                     name = d.getPath();
                     date = null;
                     type = "Drive";
@@ -293,6 +258,7 @@ public class FileService {
         }
 
 
+      //Return json response
         JSONObject json = new JSONObject();
         json.set("dir", path);
         json.set("items", arr);
@@ -304,74 +270,189 @@ public class FileService {
 
 
   //**************************************************************************
-  //** upload
+  //** getList
   //**************************************************************************
-    private ServiceResponse upload(javaxt.express.ServiceRequest req) throws Exception {
-        if (uploadDir==null) return new ServiceResponse(501);
+    private List getList(String path, Object filter) throws Exception {
+        if (path==null) path = "";
+        else path = path.trim();
 
-        java.util.Iterator<FormInput> it = req.getRequest().getFormInputs();
-        while (it.hasNext()){
-            FormInput input = it.next();
-            if (input.isFile()){
-                String fileName = input.getFileName();
-                FormValue value = input.getValue();
-                value.toFile(new java.io.File(uploadDir.toFile(), fileName));
-            }
-        }
-
-        return new ServiceResponse(200);
-    }
-
-
-  //**************************************************************************
-  //** ServiceRequest
-  //**************************************************************************
-    private class ServiceRequest {
-        private javaxt.express.ServiceRequest request;
-
-        public ServiceRequest(javaxt.express.ServiceRequest request){
-            this.request = request;
-        }
-
-        public String getMethod(){
-            return request.getRequest().getMethod();
-        }
-
-        public Long getOffset(){
-            return request.getOffset();
-        }
-
-        public Long getLimit(){
-            return request.getLimit();
-        }
-
-        public Sort getSort(){
-            return request.getSort();
-        }
-
-        public javaxt.utils.Value getParameter(String name){
-            if (getMethod().equals("GET")){
-                return request.getParameter(name);
+        List list = new LinkedList<>();
+        if (path.isEmpty()){
+            if (baseDir==null){
+                for (Directory dir : Directory.getRootDirectories()){
+                    list.add(dir);
+                }
             }
             else{
-
-                if (request.hasParameter(name)){
-                    return request.getParameter(name);
-                }
-                else{
-                    try{
-                        JSONObject json = request.getJson();
-                        if (json.has(name)){
-                            return new javaxt.utils.Value(json.get(name).toObject());
-                        }
-                    }
-                    catch(Exception e){
-                        //Invalid JSON?
-                    }
-                    return new javaxt.utils.Value(null);
-                }
-
+                list = baseDir.getChildren(false, filter);
             }
         }
+        else{
+            Directory dir;
+            if (baseDir==null){
+                dir = new Directory(path);
+            }
+            else{
+                path = path.replace("\\", "/");
+                String[] arr = path.split("/");
+                path = baseDir.toString();
+
+                for (String str : arr){
+                    str = str.trim();
+                    if (str.equals(".") || str.equals("..")){
+                        throw new Exception("Illegal path");
+                    }
+                    path += str + "/";
+                }
+                dir = new Directory(path);
+            }
+            list = dir.getChildren(false, filter);
+        }
+        return list;
     }
+
+
+  //**************************************************************************
+  //** getFile
+  //**************************************************************************
+  /** Returns a ServiceResponse with an InputStream associated with a file.
+   *  Headers for the ServiceResponse are set with file metadata (e.g. content
+   *  type, file size, and date). Caller can add additional response headers
+   *  such as the content disposition to make the file "downloadable". See
+   *  setContentDisposition() for more information.
+   */
+    public ServiceResponse getFile(ServiceRequest request) throws Exception {
+
+        String path = getPath(request);
+        if (path.isEmpty()) return new ServiceResponse(400, "Path is required");
+
+
+        File file = getFile(path);
+        if (!file.exists()) return new ServiceResponse(404); //Not Found
+
+        try{
+            ServiceResponse response = new ServiceResponse(file.getInputStream());
+            //response.setContentDisposition(file.getName());
+            response.setContentLength(file.getSize());
+            response.setContentType(file.getContentType());
+            response.setDate(new javaxt.utils.Date(file.getDate()));
+            return response;
+        }
+        catch(Exception e){
+            return new ServiceResponse(e);
+        }
+    }
+
+
+  //**************************************************************************
+  //** getPhysicalFile
+  //**************************************************************************
+  /** Returns a File associated with a given ServiceRequest
+   */
+    public File getPhysicalFile(ServiceRequest request){
+        String path = getPath(request);
+        return getFile(path);
+    }
+
+
+//  //**************************************************************************
+//  //** moveFile
+//  //**************************************************************************
+//    public ServiceResponse moveFile(ServiceRequest request) throws Exception {
+//
+//      //Get source file
+//        String path = getPath(request);
+//        if (path.isEmpty()) return new ServiceResponse(400, "Path is required");
+//        File sourceFile = getFile(path);
+//        if (!sourceFile.exists()) return new ServiceResponse(404);
+//
+//      //Get destination file
+//        String destination = request.getParameter("destination").toString();
+//        if (destination==null) destination = "";
+//        else destination = destination.trim();
+//        if (destination.isEmpty()) return new ServiceResponse(400, "destination is required");
+//        File destinationFile = getFile(destination);
+//
+//      //Get overwrite flag
+//        Boolean overwrite = request.getParameter("overwrite").toBoolean();
+//        if (overwrite==null) overwrite = false;
+//        if (destinationFile.exists() && !overwrite){
+//            return new ServiceResponse(400, "Destination file exists");
+//        }
+//
+//      //Move file and return response
+//        File f = sourceFile.moveTo(destinationFile, overwrite);
+//        if (f.equals(destinationFile)){
+//            return new ServiceResponse(200, "Successfully moved file");
+//        }
+//        else{
+//            return new ServiceResponse(500, "Failed to move file");
+//        }
+//    }
+
+
+  //**************************************************************************
+  //** getFile
+  //**************************************************************************
+    private File getFile(String path){
+
+        File file;
+        if (baseDir==null){
+            file = new File(path);
+        }
+        else{
+            path = path.replace("\\", "/");
+            String[] arr = path.split("/");
+            path = baseDir.toString();
+
+            for (String str : arr){
+                str = str.trim();
+                if (str.equals("") || str.equals(".") || str.equals("..")){
+                    throw new RuntimeException("Illegal path");
+                }
+                path += str + "/";
+            }
+            if (path.endsWith("/")) path = path.substring(0, path.length()-1);
+
+            file = new File(path);
+        }
+        return file;
+    }
+
+
+  //**************************************************************************
+  //** getPath
+  //**************************************************************************
+    private String getPath(ServiceRequest request){
+
+        //TODO: check url path
+
+        String path = request.getParameter("path").toString();
+
+        if (path==null) path = "";
+        else path = path.trim();
+
+        return path;
+    }
+
+
+//  //**************************************************************************
+//  //** upload
+//  //**************************************************************************
+//    private ServiceResponse upload(ServiceRequest req) throws Exception {
+//        if (uploadDir==null) return new ServiceResponse(501);
+//
+//        java.util.Iterator<FormInput> it = req.getRequest().getFormInputs();
+//        while (it.hasNext()){
+//            FormInput input = it.next();
+//            if (input.isFile()){
+//                String fileName = input.getFileName();
+//                FormValue value = input.getValue();
+//                value.toFile(new java.io.File(uploadDir.toFile(), fileName));
+//            }
+//        }
+//
+//        return new ServiceResponse(200);
+//    }
+
 }
