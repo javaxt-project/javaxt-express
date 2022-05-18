@@ -98,18 +98,28 @@ public abstract class WebService {
                 if (m.getReturnType().equals(ServiceResponse.class)){
 
                     Class<?>[] params = m.getParameterTypes();
-                    if (params.length==2){
+                    if (params.length>1){
 
+                        if (ServiceRequest.class.isAssignableFrom(params[0])){
 
-                        if (ServiceRequest.class.isAssignableFrom(params[0]) &&
-                            Database.class.isAssignableFrom(params[1])
-                        ){
-                            try{
-                                m.setAccessible(true);
-                                return (ServiceResponse) m.invoke(this, new Object[]{request, database});
+                            Object[] inputs = null;
+                            if (params.length==1){
+                                inputs = new Object[]{request};
                             }
-                            catch(Exception e){
-                                return getServiceResponse(e);
+                            else if (params.length==2){
+                                if (Database.class.isAssignableFrom(params[1])){
+                                    inputs = new Object[]{request, database};
+                                }
+                            }
+
+                            if (inputs!=null){
+                                try{
+                                    m.setAccessible(true);
+                                    return (ServiceResponse) m.invoke(this, inputs);
+                                }
+                                catch(Exception e){
+                                    return getServiceResponse(e);
+                                }
                             }
                         }
                     }

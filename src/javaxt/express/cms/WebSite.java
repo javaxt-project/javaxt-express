@@ -78,6 +78,14 @@ public abstract class WebSite extends HttpServlet {
 
 
   //**************************************************************************
+  //** getFileManager
+  //**************************************************************************
+    public FileManager getFileManager(){
+        return fileManager;
+    }
+
+
+  //**************************************************************************
   //** setCompanyName
   //**************************************************************************
     public void setCompanyName(String companyName){
