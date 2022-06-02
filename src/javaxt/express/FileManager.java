@@ -341,7 +341,7 @@ public class FileManager {
 
       //Start building unique list of file dates
         ConcurrentHashMap<Long, Boolean> uniqueDates = new ConcurrentHashMap<>();
-        uniqueDates.put(xmlFile.getDate().getTime(), true);
+        if (xmlFile.exists()) uniqueDates.put(xmlFile.getDate().getTime(), true);
 
 
       //Instantiate the ThreadPool
