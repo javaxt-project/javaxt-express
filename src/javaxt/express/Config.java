@@ -47,6 +47,18 @@ public class Config {
 
 
   //**************************************************************************
+  //** get
+  //**************************************************************************
+  /** Returns a nested value associated with the given keys
+   */
+    public JSONValue get(String... path){
+        synchronized(config){
+            return config.get(0).get(path);
+        }
+    }
+
+
+  //**************************************************************************
   //** set
   //**************************************************************************
   /** Used to set the value for a given key.
