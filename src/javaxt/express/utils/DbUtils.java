@@ -61,7 +61,7 @@ public class DbUtils {
 
             String cmd = str.toString().trim();
             if (cmd.length()>0){
-                statements.add(rtrim(str.toString()) + ";");
+                statements.add(StringUtils.rtrim(str.toString()) + ";");
             }
         }
 
@@ -1253,14 +1253,5 @@ public class DbUtils {
             s = " " + s;
         }
         return s;
-    }
-
-
-    private static String rtrim(String s) {
-        int i = s.length()-1;
-        while (i >= 0 && Character.isWhitespace(s.charAt(i))) {
-            i--;
-        }
-        return s.substring(0,i+1);
     }
 }

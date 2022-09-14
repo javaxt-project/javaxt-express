@@ -82,4 +82,17 @@ public class StringUtils {
     public static String capitalize(String fieldName){
         return fieldName.substring(0, 1).toUpperCase() + fieldName.substring(1);
     }
+
+    
+  //**************************************************************************
+  //** rtrim
+  //**************************************************************************
+    public static String rtrim(String s) {
+        int i = s.length()-1;
+        while (i >= 0 && Character.isWhitespace(s.charAt(i))) {
+            i--;
+        }
+        return s.substring(0,i+1);
+    }
+
 }

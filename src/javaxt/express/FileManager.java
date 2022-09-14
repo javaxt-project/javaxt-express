@@ -171,20 +171,49 @@ public class FileManager {
             else if (ext.equals("htm") || ext.equals("html")){
 
 
-              //Convert html to xml. Assumes the html file is xhtml.
-              //Note that the parser will be extremely slow if there is
-              //a !DOCTYPE declaration.
+              //Extract html from file
                 javaxt.io.File htmlFile = new javaxt.io.File(file);
-                String xhtml = htmlFile.getText().trim();
-                idx = xhtml.toUpperCase().indexOf("<!DOCTYPE");
-                if (idx>-1){
-                    xhtml = xhtml.substring(idx+"<!DOCTYPE".length()).trim();
-                    xhtml = xhtml.substring(xhtml.indexOf(">")+1).trim();
+                String html = htmlFile.getText();
+
+
+
+              //Instantiate html parser and get header
+                javaxt.html.Parser parser = new javaxt.html.Parser(html);
+                javaxt.html.Element head = parser.getElementByTagName("head");
+                String header = head.getOuterHTML();
+
+
+
+              //Generate XML with scripts and links found in the header
+                ArrayList<String> headerNodes = new ArrayList<>();
+                HashMap<Integer, Integer> updates = new HashMap<>();
+                StringBuilder str = new StringBuilder();
+                str.append("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\r\n");
+                str.append("<links>\r\n");
+                for (javaxt.html.Element el : head.getChildNodes()){
+                    String tagName = el.getName();
+                    if (tagName==null) continue;
+
+                    tagName = tagName.toLowerCase();
+                    String url = null;
+                    if (tagName.equals("script")){
+                        url = el.getAttribute("src");
+                    }
+                    else if (tagName.equals("link")){
+                        url = el.getAttribute("href");
+                    }
+                    if (!(url==null || url.isBlank())){
+                        str.append(el.toString());
+                        updates.put(updates.size(), headerNodes.size());
+                    }
+                    headerNodes.add(el.toString());
                 }
-                org.w3c.dom.Document xml = javaxt.xml.DOM.createDocument(xhtml);
+                str.append("</links>");
+                org.w3c.dom.Document xml = javaxt.xml.DOM.createDocument(str.toString());
 
 
-              //Update links to scripts and css files
+
+              //Update links in the XML
                 long lastUpdate;
                 try{
                     lastUpdate = updateLinks(htmlFile, xml);
@@ -194,27 +223,37 @@ public class FileManager {
                 }
 
 
-              //Replace all self enclosing tags
-                try{
-                    Node outerNode = javaxt.xml.DOM.getOuterNode(xml);
-                    NodeList nodeList = outerNode.getChildNodes();
-                    for (int i=0; i<nodeList.getLength(); i++){
-                        Node node = nodeList.item(i);
-                        String nodeName = node.getNodeName().toLowerCase();
-                        if (nodeName.equals("head") || nodeName.equals("body")){
-                            updateNodes(node.getChildNodes(), xml);
-                        }
+
+              //Update header nodes
+                Node outerNode = javaxt.xml.DOM.getOuterNode(xml);
+                Node[] nodes = javaxt.xml.DOM.getNodes(outerNode.getChildNodes());
+                for (int i=0; i<nodes.length; i++){
+                    Node node = nodes[i];
+                    String nodeName = node.getNodeName().toLowerCase();
+
+                  //Replace any self-enclosing tags as needed
+                    String txt = javaxt.xml.DOM.getText(node);
+                    if (txt.endsWith("/>") && nodeName.equals("script")){
+                        txt = txt.substring(0, txt.length()-2);
+                        txt += "></" + nodeName + ">";
                     }
-                }
-                catch(Exception e){
-                    //e.printStackTrace();
+
+                  //Replace entry in headerNodes
+                    int x = updates.get(i);
+                    headerNodes.set(x, txt);
                 }
 
 
-              //Convert xml to string
-                String html = javaxt.xml.DOM.getText(xml);
-                html = html.replace("<!-- -->", ""); //replace empty comments
-                html = html.substring(html.indexOf(">")+1); //remove xml header
+
+              //Replace header in the html document
+                str = new StringBuilder("<head>");
+                for (String s : headerNodes){
+                    str.append("\r\n");
+                    str.append(s);
+
+                }
+                str.append("\r\n</head>");
+                html = html.replace(header, str.toString());
 
 
 

@@ -80,6 +80,32 @@ public class CSV {
 
 
   //**************************************************************************
+  //** readLine
+  //**************************************************************************
+  /** Returns a substring for the given data, ending at the first line break
+   *  that is not inside a quote
+   */
+    public static String readLine(String data){
+
+        StringBuilder str = new StringBuilder();
+        boolean insideDoubleQuotes = false;
+        for (int i=0; i<data.length(); i++){
+            char c = data.charAt(i);
+            if (c=='"'){
+                if (insideDoubleQuotes) insideDoubleQuotes = false;
+                else insideDoubleQuotes = true;
+            }
+
+            if (c=='\r' || c=='\n'){
+                if (!insideDoubleQuotes) break;
+            }
+            str.append(c);
+        }
+        return str.toString();
+    }
+
+
+  //**************************************************************************
   //** getValue
   //**************************************************************************
   /** Returns a value for a given column

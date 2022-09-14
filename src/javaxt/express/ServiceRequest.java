@@ -143,7 +143,7 @@ public class ServiceRequest {
         if (path!=null){
             path = path.substring(1);
             boolean addPath = service==null;
-            ArrayList<String> arr = new ArrayList<String>();
+            ArrayList<String> arr = new ArrayList<>();
             for (String str : path.split("/")){
                 if (addPath) arr.add(str);
 
@@ -351,6 +351,15 @@ public class ServiceRequest {
 
 
   //**************************************************************************
+  //** setPayload
+  //**************************************************************************
+    public void setPayload(byte[] payload){
+        this.payload = payload;
+        json = null;
+    }
+
+
+  //**************************************************************************
   //** getPayload
   //**************************************************************************
     public byte[] getPayload(){
@@ -369,10 +378,14 @@ public class ServiceRequest {
   //**************************************************************************
     public JSONObject getJson(){
         if (json==null){
-            try{
-                json = new JSONObject(new String(getPayload(), "UTF-8"));
-            }
+
+          //Get payload as string
+            String payload = null;
+            try{ payload = new String(getPayload(), "UTF-8"); }
             catch(java.io.UnsupportedEncodingException e){} //should never happen
+
+          //Parse JSON
+            if (payload!=null) json = new JSONObject(payload);
         }
         return json;
     }
