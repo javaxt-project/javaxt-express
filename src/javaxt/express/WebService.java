@@ -98,8 +98,7 @@ public abstract class WebService {
                 if (m.getReturnType().equals(ServiceResponse.class)){
 
                     Class<?>[] params = m.getParameterTypes();
-                    if (params.length>1){
-
+                    if (params.length>0){
                         if (ServiceRequest.class.isAssignableFrom(params[0])){
 
                             Object[] inputs = null;
