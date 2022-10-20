@@ -1,8 +1,17 @@
 package javaxt.express;
 import javaxt.express.cms.Content;
-import javaxt.express.cms.WebSite;
+
+import javaxt.http.servlet.HttpServlet;
 import javaxt.http.servlet.HttpServletRequest;
-import javaxt.utils.Console;
+import javaxt.http.servlet.HttpServletResponse;
+import javaxt.http.servlet.ServletException;
+
+import javaxt.io.Jar;
+import static javaxt.utils.Console.*;
+
+import java.util.*;
+import java.io.IOException;
+
 
 //******************************************************************************
 //**  Express Server
@@ -20,44 +29,73 @@ public class Server {
   /** Command line interface used to start the server.
    */
     public static void main(String[] arr) {
-        java.util.HashMap<String, String> args = Console.parseArgs(arr);
-        
-        
-        if (args.containsKey("-deploy")){
+        HashMap<String, String> args = console.parseArgs(arr);
+
+
+      //Get jar file
+        Jar jar = new Jar(Server.class);
+        javaxt.io.File jarFile = new javaxt.io.File(jar.getFile());
+        String version = jar.getVersion();
+
+
+
+      //Process command line args
+        if (args.containsKey("-version")){
+            if (version==null) version = "Unknown";
+            System.out.println(version);
+        }
+        else if (args.containsKey("-deploy")){
             Deploy.main(arr);
         }
-        else{
-            
-          //Get port
-            int port;
-            try{ port = Integer.parseInt(args.get("-p")); }
-            catch(Exception e){ 
-                System.err.println("Port (\"-p\") is required.");
-                return;
-            }
-        
-        
+        else if (args.containsKey("-start")){
+
+
           //Get directory
-            javaxt.io.Directory dir;
+            String dir = getValue(args, "-d", "-dir", "-directory", "-web").toString();
+            javaxt.io.Directory web;
             try{
-                dir = new javaxt.io.Directory(args.get("-d"));
-                if (!dir.exists()) throw new Exception();
+                if (dir.endsWith("\"")) dir = dir.substring(0, dir.length()-1);
+
+                java.io.File f = new java.io.File(dir);
+                if (f.isFile()) f = f.getParentFile();
+                web = new javaxt.io.Directory(f);
+                if (!web.exists()) throw new Exception();
             }
             catch(Exception e){
-                System.err.println("Directory (\"-d\") is required.");
+                System.err.println("Directory (\"-dir\") is required.");
                 return;
             }
-        
-        
-          //Get number of threads
-            int numThreads = 50;
-            try{ numThreads = Integer.parseInt(args.get("-t")); }
-            catch(Exception e){}
-        
-        
+
+
+          //Get config file
+            javaxt.io.File configFile = (args.containsKey("-config")) ?
+            getFile(args.get("-config"), jarFile) :
+            new javaxt.io.File(jar.getFile().getParentFile(), "config.json");
+
+
+          //Get servlet
+            HttpServlet servlet;
+            javaxt.utils.Value start = getValue(args, "-start");
+            if (start.equals("cms")) servlet = new WebSite(web, configFile);
+            else servlet = new WebApp(web);
+
+
+
+          //Get port (optional)
+            Integer port = getValue(args, "-p", "-port").toInteger();
+            if (port==null) port = 8080;
+
+
+
+          //Get number of threads (optional)
+            Integer numThreads = getValue(args, "-t", "-threads").toInteger();
+            if (numThreads==null) numThreads = 250;
+
+
+
           //Start server
             try {
-                javaxt.http.Server server = new javaxt.http.Server(port, numThreads, new Demo(dir));
+                javaxt.http.Server server = new javaxt.http.Server(port, numThreads, servlet);
                 server.start();
             }
             catch (Exception e) {
@@ -65,19 +103,21 @@ public class Server {
                 System.exit(1);
             }
         }
+        else{
+
+        }
     }
 
 
   //**************************************************************************
-  //** Demo WebSite
+  //** WebSite
   //**************************************************************************
-    private static class Demo extends WebSite {
-        private Demo(javaxt.io.Directory dir){
+    private static class WebSite extends javaxt.express.cms.WebSite {
+        private WebSite(javaxt.io.Directory dir, javaxt.io.File configFile){
             super(dir);
-            super.setAuthor("ACME Inc");
         }
-        
-      /** Returns an html snippet found in the given file. Overrides the native 
+
+      /** Returns an html snippet found in the given file. Overrides the native
        *  getContent method to support custom tags (e.g. "index").
        */
         public Content getContent(HttpServletRequest request, javaxt.io.File file){
@@ -94,7 +134,7 @@ public class Server {
           //Return content
             if (path.equals("wiki")){
                 String html = file.getText();
-                java.util.Date date = file.getDate();
+                Date date = file.getDate();
                 if (file.getName(false).equals("index")){
                     Content content = getIndex(file);
                     javaxt.utils.Date d = new javaxt.utils.Date(content.getDate());
@@ -110,5 +150,49 @@ public class Server {
                 return super.getContent(request, file);
             }
         }
+    }
+
+
+  //**************************************************************************
+  //** WebApp
+  //**************************************************************************
+    private static class WebApp extends HttpServlet {
+        private FileManager fileManager;
+        public WebApp(javaxt.io.Directory web){
+            fileManager = new FileManager(web);
+        }
+        public void processRequest(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
+            //response.setHeader("Server", server);
+            fileManager.sendFile(request, response);
+        }
+    }
+
+
+  //**************************************************************************
+  //** getValue
+  //**************************************************************************
+    private static javaxt.utils.Value getValue(HashMap<String, String> args, String ...keys){
+        for (String key : keys){
+            if (args.containsKey(key)){
+                return new javaxt.utils.Value(args.get(key));
+            }
+        }
+        return new javaxt.utils.Value(null);
+    }
+
+  //**************************************************************************
+  //** getFile
+  //**************************************************************************
+  /** Returns a File for a given path
+   *  @param path Full canonical path to a file or a relative path (relative
+   *  to the jarFile)
+   */
+    public static javaxt.io.File getFile(String path, javaxt.io.File jarFile){
+        javaxt.io.File file = new javaxt.io.File(path);
+        if (!file.exists()){
+            file = new javaxt.io.File(jarFile.MapPath(path));
+        }
+        return file;
     }
 }

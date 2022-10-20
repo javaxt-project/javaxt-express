@@ -4,6 +4,7 @@ import javaxt.express.utils.WebUtils;
 import javaxt.http.servlet.*;
 import javaxt.utils.Console;
 import java.io.IOException;
+import java.util.*;
 
 //******************************************************************************
 //**  WebSite Servlet
@@ -214,14 +215,14 @@ public abstract class WebSite extends HttpServlet {
         }
         else{
 
-          //Check whether the url path ends with a file extension. Return an error
-            int idx = path.lastIndexOf("/");
-            if (idx>-1) path = path.substring(idx);
-            idx = path.lastIndexOf(".");
-            if (idx>-1){
-                response.sendError(404);
-                return;
-            }
+//          //Check whether the url path ends with a file extension. Return an error
+//            int idx = path.lastIndexOf("/");
+//            if (idx>-1) path = path.substring(idx);
+//            idx = path.lastIndexOf(".");
+//            if (idx>-1){
+//                response.sendError(404);
+//                return;
+//            }
         }
 
 
@@ -319,7 +320,7 @@ public abstract class WebSite extends HttpServlet {
 
 
       //Construct a list of possible file paths
-        java.util.ArrayList<String> files = new java.util.ArrayList<>();
+        ArrayList<String> files = new ArrayList<>();
         files.add(path);
         files.add("downloads/" + path);
 
@@ -368,7 +369,7 @@ public abstract class WebSite extends HttpServlet {
 
 
       //Calculate last modified date and estimated file fize
-        java.util.TreeSet<Long> dates = new java.util.TreeSet<Long>();
+        TreeSet<Long> dates = new TreeSet<>();
         if (file!=null) dates.add(file.getDate().getTime());
         if (useTemplate){
             dates.add(template.getDate().getTime());
@@ -378,7 +379,7 @@ public abstract class WebSite extends HttpServlet {
 
 
 
-      //Get file content
+      //Get content
         Content content = getContent(request, file);
         dates.add(content.getDate().getTime());
         String html = content.getHTML();
@@ -461,12 +462,32 @@ public abstract class WebSite extends HttpServlet {
             html = html.replace("<%=description%>", description);
             html = html.replace("<%=keywords%>", keywords);
             html = html.replace("<%=author%>", author==null ? "" : author);
-            html = html.replace("<%=Path%>", servletPath);
+
             html = html.replace("<%=companyName%>", companyName==null ? "": companyName);
             html = html.replace("<%=year%>", getYear()+"");
             html = html.replace("<%=copyright%>", getCopyright());
-            html = html.replace("<%=navbar%>", getNavBar(request, file));
+
             html = html.replace("<%=tabs%>", getTabs(url.getPath(), tabs));
+            html = html.replace("<%=breadcrumbs%>", getBreadcrumbs(request));
+            html = html.replace("<%=sidebar%>", getSidebar(request));
+
+            html = html.replace("<%=Path%>", servletPath);
+        }
+
+
+      //Remove any orphan tags
+        if (html.contains("<%=") && html.contains("%>")){
+            StringBuilder str = new StringBuilder();
+            String[] arr = html.split("<%=");
+            for (int i=0; i<arr.length; i++){
+                String s = arr[i];
+                if (i>0){
+                    int idx = s.indexOf("%>");
+                    if (idx>-1) s = s.substring(idx+2);
+                }
+                str.append(s);
+            }
+            html = str.toString();
         }
 
 
@@ -568,7 +589,7 @@ public abstract class WebSite extends HttpServlet {
   /** Updates the given path with a querystring representing the last modified
    *  date of the file.
    */
-    private String getPath(String src, String ext, java.net.URL url, java.util.TreeSet<Long> dates){
+    private String getPath(String src, String ext, java.net.URL url, TreeSet<Long> dates){
         int idx = src.toLowerCase().indexOf("." + ext.toLowerCase());
         if (idx>0){
 
@@ -578,7 +599,7 @@ public abstract class WebSite extends HttpServlet {
 
             try{
                 javaxt.io.File f = getFile(getPath(new java.net.URL(p)));
-                java.util.Date d = f.getDate();
+                Date d = f.getDate();
                 dates.add(d.getTime());
                 long v = new javaxt.utils.Date(d).toLong();
 
@@ -602,7 +623,7 @@ public abstract class WebSite extends HttpServlet {
    */
     protected Content getContent(HttpServletRequest request, javaxt.io.File file){
         if (file==null || !file.exists()){
-            return new Content("404", new java.util.Date());
+            return new Content("404", new Date());
         }
         else{
             return new Content(file.getText("UTF-8"), file.getDate());
@@ -654,6 +675,9 @@ public abstract class WebSite extends HttpServlet {
     }
 
 
+  //**************************************************************************
+  //** getFile
+  //**************************************************************************
     private javaxt.io.File getFile(String path, String folderPath){
 
       //Check whether the url points directly to a file (minus the file extension)
@@ -689,6 +713,9 @@ public abstract class WebSite extends HttpServlet {
     }
 
 
+  //**************************************************************************
+  //** isSnippet
+  //**************************************************************************
     private boolean isSnippet(javaxt.io.File file){
         String str = file.getText("UTF-8").trim();
         return !str.endsWith("</html>");
@@ -717,8 +744,8 @@ public abstract class WebSite extends HttpServlet {
 
 
       //Generate list of files and dates
-        java.util.List<javaxt.io.File> files = new java.util.LinkedList<javaxt.io.File>();
-        java.util.TreeSet<Long> dates = new java.util.TreeSet<Long>();
+        List<javaxt.io.File> files = new LinkedList<>();
+        TreeSet<Long> dates = new TreeSet<>();
         dates.add(file.getDate().getTime());
         for (javaxt.io.File f : dir.getFiles(fileExtensions, true)){
             if (!f.equals(file)){
@@ -733,7 +760,7 @@ public abstract class WebSite extends HttpServlet {
         toc.append("<ul>\r\n");
         String prevPath = "";
         int len = dir.getPath().length();
-        java.util.Iterator<javaxt.io.File> it = files.iterator();
+        Iterator<javaxt.io.File> it = files.iterator();
         while (it.hasNext()){
 
             javaxt.io.File f = it.next();
@@ -859,7 +886,7 @@ public abstract class WebSite extends HttpServlet {
 
 
       //Update the date of the file to the most recent file in the directory
-        java.util.Date lastModified = new java.util.Date(dates.last());
+        Date lastModified = new Date(dates.last());
         //if (!lastModified.equals(file.getDate())) System.out.println("Update file date: " + lastModified);
         //file.setDate(lastModified);
 
@@ -877,15 +904,15 @@ public abstract class WebSite extends HttpServlet {
 
 
       //Get tab entries
-        java.util.LinkedHashMap<String, String> items = tabs.getItems();
-        java.util.Iterator<String> it = items.keySet().iterator();
+        LinkedHashMap<String, String> items = tabs.getItems();
+        Iterator<String> it = items.keySet().iterator();
 
 
         String servletPath = getServletPath();
         if (!servletPath.endsWith("/")) servletPath += "/";
 
       //Create html fragment
-        StringBuffer str = new StringBuffer();
+        StringBuilder str = new StringBuilder();
         while (it.hasNext()){
             String text = it.next();
             String link = items.get(text).replace("<%=Path%>", servletPath);
@@ -933,11 +960,53 @@ public abstract class WebSite extends HttpServlet {
 
 
   //**************************************************************************
-  //** getNavBar
+  //** getBreadcrumbs
   //**************************************************************************
-  /** Returns an html fragment used to render a navigation bar.
+  /** Returns an html fragment used to render breadcrumb navigation links.
+   *  Breadcrumb navigation helps the user to understand their location in the
+   *  website by providing a breadcrumb trail back to the start page.
    */
-    protected String getNavBar(HttpServletRequest request, javaxt.io.File file){
+    protected String getBreadcrumbs(HttpServletRequest request){
+        StringBuilder str = new StringBuilder();
+
+        String path = request.getPath();
+        if (path.contains("?")) path = path.substring(0, path.indexOf("?"));
+        if (!path.endsWith("/")) path += "/";
+
+        String servletPath = getServletPath();
+        if (!servletPath.endsWith("/")) servletPath += "/";
+
+        int idx = path.indexOf(servletPath);
+        if (idx>-1){
+            String[] arr = path.substring(idx + servletPath.length()).split("/");
+            for (int i=0; i<arr.length; i++){
+                String text = arr[i].replace("_", " ");
+                if (i<arr.length-1){
+                    String link = servletPath + String.join("/", Arrays.copyOfRange(arr, 0, i+1));
+                    str.append("<a href=\"" + link + "\">");
+                    str.append("<div>");
+                    str.append(text);
+                    str.append("</div>");
+                    str.append("</a>");
+                }
+                else{
+                    str.append("<div>");
+                    str.append(text);
+                    str.append("</div>");
+                }
+            }
+        }
+
+        return str.toString();
+    }
+
+
+  //**************************************************************************
+  //** getSidebar
+  //**************************************************************************
+  /** Returns an html fragment used to render a sidebar.
+   */
+    protected String getSidebar(HttpServletRequest request){
         return "";
     }
 

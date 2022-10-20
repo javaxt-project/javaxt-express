@@ -2,6 +2,7 @@ package javaxt.express.services;
 
 import javaxt.express.*;
 import javaxt.express.ServiceRequest.Sort;
+import javaxt.http.servlet.ServletException;
 import javaxt.http.servlet.FormInput;
 import javaxt.http.servlet.FormValue;
 
@@ -11,6 +12,7 @@ import javaxt.io.Directory;
 import static javaxt.utils.Console.console;
 
 import java.util.*;
+
 
 //******************************************************************************
 //**  FileService
@@ -55,18 +57,25 @@ public class FileService {
    *  folders in a given path. Optional parameters include filter, sort,
    *  hidden, offset, and limit.
    */
-    public ServiceResponse getList(ServiceRequest request) throws Exception {
+    public ServiceResponse getList(ServiceRequest request) throws ServletException {
 
       //Parse params
         String path = getPath(request);
         String filter = request.getParameter("filter").toString();
+        Boolean recursiveSearch = request.getParameter("recursiveSearch").toBoolean();
+        if (recursiveSearch==null) recursiveSearch = false;
+        if (recursiveSearch && filter==null) recursiveSearch = false;
+
+
+      //Get directory
+        Directory dir = getDirectory(path);
 
 
       //Get items
-        List list = getList(path, filter);
+        List list = getList(dir, filter, recursiveSearch);
 
 
-        boolean isDriveList = path.isEmpty() && baseDir==null;
+        boolean isDriveList = dir==null;
 
 
       //Get sort
@@ -140,6 +149,15 @@ public class FileService {
             item.add(type);
             item.add(date);
             item.add(size);
+            if (recursiveSearch){
+                if (isFolder){
+                    item.add(obj.toString());
+                }
+                else{
+                    File f = (File) obj;
+                    item.add(f.getDirectory().toString());
+                }
+            }
 
 
             String key = "";
@@ -260,7 +278,7 @@ public class FileService {
 
       //Return json response
         JSONObject json = new JSONObject();
-        json.set("dir", path);
+        json.set("dir", dir);
         json.set("items", arr);
         json.set("count", files.size()+folders.size());
         json.set("size", totalSize);
@@ -270,25 +288,23 @@ public class FileService {
 
 
   //**************************************************************************
-  //** getList
+  //** getDirectory
   //**************************************************************************
-    private List getList(String path, Object filter) throws Exception {
+    private Directory getDirectory(String path) throws ServletException{
+
+        Directory dir;
         if (path==null) path = "";
         else path = path.trim();
-
-        List list = new LinkedList<>();
         if (path.isEmpty()){
             if (baseDir==null){
-                for (Directory dir : Directory.getRootDirectories()){
-                    list.add(dir);
-                }
+                //isDriveList = true;
+                dir = null;
             }
             else{
-                list = baseDir.getChildren(false, filter);
+                dir = baseDir;
             }
         }
         else{
-            Directory dir;
             if (baseDir==null){
                 dir = new Directory(path);
             }
@@ -300,13 +316,46 @@ public class FileService {
                 for (String str : arr){
                     str = str.trim();
                     if (str.equals(".") || str.equals("..")){
-                        throw new Exception("Illegal path");
+                        throw new ServletException("Illegal path");
                     }
                     path += str + "/";
                 }
                 dir = new Directory(path);
             }
-            list = dir.getChildren(false, filter);
+        }
+        return dir;
+    }
+
+
+  //**************************************************************************
+  //** getList
+  //**************************************************************************
+    private List getList(Directory dir, Object filter, boolean recursiveSearch){
+
+        List list;
+        if (dir==null){
+            list = new LinkedList<>();
+            for (Directory d : Directory.getRootDirectories()){
+                if (recursiveSearch){
+                    for (File file : d.getFiles(filter, true)){
+                        list.add(file);
+                    }
+                }
+                else{
+                    list.add(d);
+                }
+            }
+        }
+        else{
+            if (recursiveSearch){
+                list = new LinkedList<>();
+                for (File file : dir.getFiles(filter, true)){
+                    list.add(file);
+                }
+            }
+            else{
+                list = dir.getChildren(false, filter);
+            }
         }
         return list;
     }

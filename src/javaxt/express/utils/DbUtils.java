@@ -1234,6 +1234,64 @@ public class DbUtils {
 
 
   //**************************************************************************
+  //** getJson
+  //**************************************************************************
+    public static String getJson(String sql, Connection conn, boolean separateRowsAndColumns) throws Exception {
+        long x = 0;
+        JSONArray cols = new JSONArray();
+        StringBuilder json = new StringBuilder();
+
+        if (separateRowsAndColumns){
+            json.append("{\"rows\":[");
+        }
+        else{
+            json.append("[");
+        }
+
+        Recordset rs = new Recordset();
+        rs.open(sql, conn);
+        while (rs.hasNext()){
+
+            JSONObject record = DbUtils.getJson(rs);
+
+            if (separateRowsAndColumns){
+                JSONArray row = new JSONArray();
+                for (javaxt.sql.Field field : rs.getFields()){
+                    String fieldName = field.getName().toLowerCase();
+                    fieldName = StringUtils.underscoreToCamelCase(fieldName);
+                    if (x==0) cols.add(fieldName);
+
+                    JSONValue val = record.get(fieldName);
+                    row.add(val);
+                }
+
+                if (x>0) json.append(",");
+                json.append(row.toString());
+
+            }
+            else{
+                if (x>0) json.append(",");
+                json.append(record.toString());
+            }
+
+            rs.moveNext();
+            x++;
+        }
+        conn.close();
+        json.append("]");
+
+
+        if (separateRowsAndColumns){
+            json.append(",\"cols\":");
+            json.append(cols.toString());
+            json.append("}");
+        }
+        return json.toString();
+    }
+
+
+
+  //**************************************************************************
   //** format
   //**************************************************************************
   /** Used to format a number with commas.
