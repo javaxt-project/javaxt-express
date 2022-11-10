@@ -1,12 +1,16 @@
 package javaxt.express;
 import javaxt.http.servlet.HttpServletRequest;
 import javaxt.http.servlet.HttpServletResponse;
+import static javaxt.utils.Console.console;
 import javaxt.utils.ThreadPool;
+
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
+
 
 //******************************************************************************
 //**  FileManager
@@ -38,6 +42,66 @@ public class FileManager {
 
 
   //**************************************************************************
+  //** getFile
+  //**************************************************************************
+  /** Returns a file that best matches the given HttpServletRequest. See the
+   *  other getFile() method for more information.
+   */
+    public java.io.File getFile(HttpServletRequest request){
+
+      //Get path from url, excluding servlet path and leading "/" character
+        String path = request.getPathInfo();
+        if (path!=null) path = path.substring(1);
+
+        return getFile(path);
+    }
+
+
+  //**************************************************************************
+  //** getFile
+  //**************************************************************************
+  /** Returns a file that best matches the given path. If the path represents
+   *  a directory, searches for welcome files in the directory (e.g.
+   *  "index.html"). Returns null if a file is not found.
+   */
+    public java.io.File getFile(String path){
+        if (path==null) path = "";
+
+
+      //Construct a list of possible file paths
+        ArrayList<String> files = new ArrayList<>();
+        files.add(web + path);
+        if (path.length()>0 && !path.endsWith("/")) path+="/";
+        for (String welcomeFile : welcomeFiles){
+            files.add(web + path + welcomeFile);
+        }
+
+
+
+      //Loop through all the possible file combinations
+        for (String str : files){
+
+          //Ensure that the path doesn't have any illegal directives
+            str = str.replace("\\", "/");
+            if (str.contains("..") || str.contains("/.") ||
+                str.toLowerCase().contains("/keystore")){
+                continue;
+            }
+
+
+
+          //Send file if it exists
+            java.io.File file = new java.io.File(str);
+            if (file.exists() && file.isFile() && !file.isHidden()){
+                return file;
+            }
+        }
+
+        return null;
+    }
+
+
+  //**************************************************************************
   //** sendFile
   //**************************************************************************
   /** Used to send a file to the client.
@@ -62,45 +126,9 @@ public class FileManager {
     public void sendFile(String path, HttpServletRequest request, HttpServletResponse response)
         throws IOException {
 
-
-        if (path==null) path = "";
-
-
-
-      //Construct a list of possible file paths
-        java.util.ArrayList<String> files = new java.util.ArrayList<String>();
-        files.add(web + path);
-        if (path.length()>0 && !path.endsWith("/")) path+="/";
-        for (String welcomeFile : welcomeFiles){
-            files.add(web + path + welcomeFile);
-        }
-
-
-
-      //Loop through all the possible file combinations
-        for (String str : files){
-
-          //Ensure that the path doesn't have any illegal directives
-            str = str.replace("\\", "/");
-            if (str.contains("..") || str.contains("/.") ||
-                str.toLowerCase().contains("/keystore")){
-                continue;
-            }
-
-
-
-          //Send file if it exists
-            java.io.File file = new java.io.File(str);
-            if (file.exists() && file.isFile() && !file.isHidden()){
-                _sendFile(file, request, response);
-                return;
-            }
-
-        }
-
-
-      //If we're still here, throw an error
-        response.setStatus(404);
+        java.io.File file = getFile(path);
+        if (file!=null) _sendFile(file, request, response);
+        else response.setStatus(404);
     }
 
 
@@ -191,6 +219,7 @@ public class FileManager {
                 str.append("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\r\n");
                 str.append("<links>\r\n");
                 for (javaxt.html.Element el : head.getChildNodes()){
+
                     String tagName = el.getName();
                     if (tagName==null) continue;
 
@@ -202,9 +231,21 @@ public class FileManager {
                     else if (tagName.equals("link")){
                         url = el.getAttribute("href");
                     }
+
                     if (!(url==null || url.isBlank())){
-                        str.append(el.toString());
-                        updates.put(updates.size(), headerNodes.size());
+
+                        String t = url.toLowerCase();
+                        if (!t.startsWith("http://") && !t.startsWith("https://") && !t.startsWith("//")){
+
+                            str.append("\r\n");
+                            str.append(el.toString());
+                            if (!el.isClosed()){
+                                str.append("</" + el.getName() + ">");
+                            }
+
+                            updates.put(updates.size(), headerNodes.size());
+                        }
+
                     }
                     headerNodes.add(el.toString());
                 }
@@ -392,9 +433,11 @@ public class FileManager {
 
                   //Update links to scripts
                     String src = javaxt.xml.DOM.getAttributeValue(node, "src");
+                    //console.log(src);
                     if (src.length()>0)
                     try{
-                        javaxt.io.File jsFile = new javaxt.io.File(xmlFile.MapPath(src));
+                        javaxt.io.File jsFile = new javaxt.io.File(getPath(src));
+                        //console.log(jsFile);
                         if (jsFile.exists()){
 
                           //Append version number to the path
@@ -420,7 +463,7 @@ public class FileManager {
                     if (href.length()>0 && isStyleSheet){
 
                         try{
-                            javaxt.io.File cssFile = new javaxt.io.File(xmlFile.MapPath(href));
+                            javaxt.io.File cssFile = new javaxt.io.File(getPath(href));
                             if (cssFile.exists()){
 
                               //Append version number to the path
@@ -435,6 +478,17 @@ public class FileManager {
                             //System.out.println("Invalid path? " + href);
                         }
                     }
+                }
+            }
+
+            private String getPath(String relPath){
+                if (relPath.startsWith("/")){
+                    relPath = relPath.substring(1);
+                    if (relPath.startsWith("/")) throw new RuntimeException();
+                    return web + relPath;
+                }
+                else{
+                    return xmlFile.MapPath(relPath);
                 }
             }
 

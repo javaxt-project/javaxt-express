@@ -44,6 +44,10 @@ public class ServiceResponse {
         this(200, str.toString());
     }
 
+    public ServiceResponse(StringBuilder str){
+        this(200, str.toString());
+    }
+
     public ServiceResponse(JSONObject json){
         this(200, json.toString());
         this.contentType = "application/json";

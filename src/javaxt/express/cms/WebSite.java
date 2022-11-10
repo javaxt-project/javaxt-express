@@ -19,7 +19,7 @@ import java.util.*;
 
 public abstract class WebSite extends HttpServlet {
 
-    protected Console console = new Console();
+    protected static Console console = new Console();
     private javaxt.io.Directory web;
     private FileManager fileManager;
     private javaxt.io.File template;
@@ -208,21 +208,21 @@ public abstract class WebSite extends HttpServlet {
             }
 
             if (sendFile){
-                //sendFile(file, request, response);
                 fileManager.sendFile(file, request, response);
                 return;
             }
         }
         else{
 
-//          //Check whether the url path ends with a file extension. Return an error
-//            int idx = path.lastIndexOf("/");
-//            if (idx>-1) path = path.substring(idx);
-//            idx = path.lastIndexOf(".");
-//            if (idx>-1){
-//                response.sendError(404);
-//                return;
-//            }
+          //Check whether the url path ends with a file extension. Return an error
+            int idx = path.lastIndexOf("/");
+            if (idx>-1) path = path.substring(idx);
+            idx = path.lastIndexOf(".");
+            if (idx>-1){
+                //console.log(path);
+                response.sendError(404);
+                return;
+            }
         }
 
 
@@ -302,21 +302,10 @@ public abstract class WebSite extends HttpServlet {
     private javaxt.io.File getFile(String path){
 
 
-      //Validate the filename/path
-        if (path.length()==0 || path.endsWith("/") || path.toLowerCase().startsWith("bin/")){
+      //Restrict access to the "bin" directory
+        if (path.toLowerCase().startsWith("bin/")){
             return null;
         }
-
-
-
-      //Make sure none of the directories/files in the path are "hidden".
-      //Any directory that statrs with a "." is considered hidden.
-        for (String p : path.split("/")){
-            if (p.startsWith(".")){
-                return null;
-            }
-        }
-
 
 
       //Construct a list of possible file paths
@@ -325,13 +314,10 @@ public abstract class WebSite extends HttpServlet {
         files.add("downloads/" + path);
 
 
-
-      //Loop through all the possible file combinations
+      //Loop through possible file combinations
         for (String str : files){
-            javaxt.io.File file = new javaxt.io.File(web + str);
-            if (file.exists() && !file.isHidden()){
-                return file;
-            }
+            java.io.File file = fileManager.getFile(path);
+            if (file!=null) return new javaxt.io.File(file);
         }
 
         return null;
