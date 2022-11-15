@@ -367,9 +367,14 @@ public abstract class WebSite extends HttpServlet {
 
       //Get content
         Content content = getContent(request, file);
+        if (content==null){
+            content = new Content("404", new Date());
+            content.setStatusCode(404);
+        }
         dates.add(content.getDate().getTime());
         String html = content.getHTML();
         html = html.replace("<%=Path%>", servletPath);
+        html = updateLinks(html, dates, file);
 
 
 
@@ -458,6 +463,7 @@ public abstract class WebSite extends HttpServlet {
             html = html.replace("<%=sidebar%>", getSidebar(request));
 
             html = html.replace("<%=Path%>", servletPath);
+            html = updateLinks(html, dates, template);
         }
 
 
@@ -476,32 +482,6 @@ public abstract class WebSite extends HttpServlet {
             html = str.toString();
         }
 
-
-
-      //Update links to scripts
-        javaxt.html.Parser document = new javaxt.html.Parser(html);
-        for (javaxt.html.Element script : document.getElementsByTagName("script")){
-            String src = script.getAttribute("src");
-            if (src.length()>0){
-                String newSrc = getPath(src, "js", url, dates);
-                if (!src.equals(newSrc)){
-                    String newScript = script.getOuterHTML().replace(src, newSrc);
-                    html = html.replace(script.getOuterHTML(), newScript);
-                }
-            }
-        }
-
-      //Update links to stylesheets
-        for (javaxt.html.Element link : document.getElementsByTagName("link")){
-            String href = link.getAttribute("href");
-            if (href.length()>0){
-                String newHref = getPath(href, "css", url, dates);
-                if (!href.equals(newHref)){
-                    String newScript = link.getOuterHTML().replace(href, newHref);
-                    html = html.replace(link.getOuterHTML(), newScript);
-                }
-            }
-        }
 
 
       //Trim the html
@@ -557,6 +537,7 @@ public abstract class WebSite extends HttpServlet {
 
 
       //Set response headers
+        response.setStatus(content.getStatusCode());
         response.setCharacterEncoding("UTF-8");
         response.setContentType("text/html");
         response.setContentLength(rsp.length);
@@ -570,34 +551,89 @@ public abstract class WebSite extends HttpServlet {
 
 
   //**************************************************************************
-  //** getPath
+  //** updateLinks
   //**************************************************************************
-  /** Updates the given path with a querystring representing the last modified
-   *  date of the file.
+  /** Updates links in "script" and "link" tags with a querystring representing
+   *  the last modified date of the file.
    */
-    private String getPath(String src, String ext, java.net.URL url, TreeSet<Long> dates){
-        int idx = src.toLowerCase().indexOf("." + ext.toLowerCase());
-        if (idx>0){
+    private String updateLinks(String html, TreeSet<Long> dates, javaxt.io.File htmlFile){
 
-            String a = src.substring(0, idx);
-            String b = src.substring(idx, idx+ext.length()+1);
-            String p = javaxt.html.Parser.MapPath(src, url);
+      //Generate a list of supported tags
+        HashMap<String, String> tagsWithLinks = new HashMap();
+        tagsWithLinks.put("script", "src");
+        tagsWithLinks.put("link", "href");
 
-            try{
-                javaxt.io.File f = getFile(getPath(new java.net.URL(p)));
-                Date d = f.getDate();
-                dates.add(d.getTime());
-                long v = new javaxt.utils.Date(d).toLong();
 
-                javaxt.utils.URL u = new javaxt.utils.URL(p);
-                u.setParameter("v", v+"");
-                src = a + b + "?" + u.getQueryString();
+      //Get elements that match the supported tags
+        ArrayList<javaxt.html.Element> elements = new ArrayList<>();
+        javaxt.html.Parser document = new javaxt.html.Parser(html);
+        Iterator<String> it = tagsWithLinks.keySet().iterator();
+        while (it.hasNext()){
+            String tagName = it.next();
+            String linkAttr = tagsWithLinks.get(tagName);
 
-            }
-            catch(Exception e){
+            for (javaxt.html.Element el : document.getElementsByTagName(tagName)){
+                String url = el.getAttribute(linkAttr);
+
+                if (!(url==null || url.isBlank())){
+                    String t = url.toLowerCase();
+                    if (!t.startsWith("http://") && !t.startsWith("https://") && !t.startsWith("//")){
+                        elements.add(el);
+                    }
+                }
+
             }
         }
-        return src;
+        if (elements.isEmpty()) return html;
+
+
+      //Generate an XML document
+        StringBuilder str = new StringBuilder();
+        str.append("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\r\n");
+        str.append("<links>");
+        for (javaxt.html.Element el : elements){
+            str.append("\r\n");
+            str.append(el.toString());
+            if (!el.isClosed()){
+                str.append("</" + el.getName() + ">");
+            }
+        }
+        str.append("\r\n</links>");
+        org.w3c.dom.Document xml = javaxt.xml.DOM.createDocument(str.toString());
+
+
+      //Update links in the XML
+        try{
+            long lastUpdate = fileManager.updateLinks(htmlFile, xml);
+            dates.add(lastUpdate);
+        }
+        catch(Exception e){
+            throw new RuntimeException(e);
+        }
+
+
+
+      //Update html document
+        org.w3c.dom.Node outerNode = javaxt.xml.DOM.getOuterNode(xml);
+        org.w3c.dom.Node[] nodes = javaxt.xml.DOM.getNodes(outerNode.getChildNodes());
+        for (int i=0; i<nodes.length; i++){
+            org.w3c.dom.Node node = nodes[i];
+            String orgTag = elements.get(i).getOuterHTML();
+            String newTag = javaxt.xml.DOM.getText(node);
+
+
+          //Replace any self-enclosing script tags as needed
+            String nodeName = node.getNodeName().toLowerCase();
+            if (newTag.endsWith("/>") && nodeName.equals("script")){
+                newTag = newTag.substring(0, newTag.length()-2);
+                newTag += "></" + nodeName + ">";
+            }
+
+
+            html = html.replace(orgTag, newTag);
+
+        }
+        return html;
     }
 
 
@@ -609,7 +645,7 @@ public abstract class WebSite extends HttpServlet {
    */
     protected Content getContent(HttpServletRequest request, javaxt.io.File file){
         if (file==null || !file.exists()){
-            return new Content("404", new Date());
+            return null;
         }
         else{
             return new Content(file.getText("UTF-8"), file.getDate());

@@ -34,8 +34,8 @@ public class Logger implements Runnable {
     public Logger(File logDir) {
         this(logDir, null, "UTC");
     }
-    
-    
+
+
   //**************************************************************************
   //** Constructor
   //**************************************************************************
@@ -51,13 +51,13 @@ public class Logger implements Runnable {
   //**************************************************************************
   //** log
   //**************************************************************************
-  /** Used to log web requests 
+  /** Used to log web requests
    */
     public void log(HttpServletRequest request) {
-        
+
         String clientIP = request.getRemoteAddr();
         if (clientIP.startsWith("/") && clientIP.length()>1) clientIP = clientIP.substring(1);
-        
+
         StringBuffer str = new StringBuffer();
         str.append("New Request From: " + clientIP + "\r\n");
         str.append(request.getMethod() + ": " + request.getURL() + "\r\n");
@@ -81,11 +81,11 @@ public class Logger implements Runnable {
 //        log(error);
 //    }
 
-    
+
   //**************************************************************************
   //** log
   //**************************************************************************
-  /** Used to add a string to the log file. The string will be terminated with 
+  /** Used to add a string to the log file. The string will be terminated with
    *  a line break.
    */
     public void log(String str){
@@ -122,9 +122,9 @@ public class Logger implements Runnable {
 
 
 
-            try{                
+            try{
                 byte[] b = request.getBytes();
-                if (b.length>8*1024){ 
+                if (b.length>8*1024){
                     if (request.length()>250) request = request.substring(0, 250);
                     request += "...\r\n";
                     b = request.getBytes();
@@ -143,24 +143,31 @@ public class Logger implements Runnable {
 
 
     private FileChannel getFileChannel() throws Exception {
-        
-        int date = Integer.parseInt(new SimpleDateFormat("yyyyMMdd").format(new java.util.Date()));
+
+        javaxt.utils.Date d = getDate();
+        int date = Integer.parseInt(d.toString("yyyyMMdd"));
+        int year = d.getYear();
+
+        File dir = new File(logDir, year+"");
+        if (!dir.exists()) dir.mkdirs();
+
+
         if (date>this.date){
             this.date = date;
 
             if (outputFile!=null) outputFile.close();
             if (outChannel!=null) outChannel.close();
 
-            File file = new File(logDir, this.date + ".log");
+            File file = new File(dir, this.date + ".log");
             outputFile = new FileOutputStream(file, true);
             outChannel = outputFile.getChannel();
         }
         else{
-            File file = new File(logDir, this.date + ".log");
+            File file = new File(dir, this.date + ".log");
             if (maxFileSize!=null){
-                if (file.length()>maxFileSize){ 
+                if (file.length()>maxFileSize){
                     if (outputFile!=null) outputFile.close();
-                    if (outChannel!=null) outChannel.close();                
+                    if (outChannel!=null) outChannel.close();
                     throw new Exception("Log file too big: " + file.length() + " vs " + maxFileSize);
                 }
             }
@@ -168,7 +175,7 @@ public class Logger implements Runnable {
         return outChannel;
     }
 
-    
+
     public javaxt.utils.Date getDate(){
         javaxt.utils.Date d = new javaxt.utils.Date();
         d.setTimeZone(tz);
