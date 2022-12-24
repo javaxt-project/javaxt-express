@@ -107,7 +107,6 @@ public abstract class WebSite extends HttpServlet {
     }
 
 
-
   //**************************************************************************
   //** getCopyright
   //**************************************************************************
@@ -119,6 +118,9 @@ public abstract class WebSite extends HttpServlet {
     }
 
 
+  //**************************************************************************
+  //** getYear
+  //**************************************************************************
     protected int getYear(){
         return new javaxt.utils.Date().getYear();
     }
@@ -208,7 +210,7 @@ public abstract class WebSite extends HttpServlet {
             }
 
             if (sendFile){
-                fileManager.sendFile(file, request, response);
+                sendFile(file, fileManager, request, response);
                 return;
             }
         }
@@ -233,48 +235,23 @@ public abstract class WebSite extends HttpServlet {
     }
 
 
-
   //**************************************************************************
   //** sendFile
   //**************************************************************************
   /** Used to send a static file to the client (e.g. css, javascript, images,
-   *  zip files, etc).
+   *  zip files, etc). By default, this method simple calls the following:
+      <pre>
+        fileManager.sendFile(file, request, response);
+      </pre>
+   *
+   *  Callers can override this method and add additional logic (e.g. auditing,
+   *  authorization, logging, etc).
    */
-    protected void sendFile(javaxt.io.File file, HttpServletRequest request, HttpServletResponse response)
-    throws ServletException, IOException {
+    protected void sendFile(javaxt.io.File file, FileManager fileManager,
+        HttpServletRequest request, HttpServletResponse response)
+        throws ServletException, java.io.IOException {
 
-
-        String contentType = file.getContentType();
-        String ext = file.getExtension().toLowerCase();
-
-
-        if (ext.equals("js") || ext.equals("css")){
-            javaxt.utils.URL url = new javaxt.utils.URL(request.getURL());
-
-          //Add version number to javascript and css files to ensure
-          //proper caching. Otherwise, browsers like Chrome may not
-          //return the correct file to the client.
-            long currVersion = new javaxt.utils.Date(file.getLastModifiedTime()).toLong();
-            long requestedVersion = 0;
-            try{ requestedVersion = Long.parseLong(url.getParameter("v")); }
-            catch(Exception e){}
-
-            if (requestedVersion<currVersion){
-                url.setParameter("v", currVersion+"");
-                response.sendRedirect(url.toString(), true);
-                return;
-            }
-        }
-        else if (ext.equals("xml")){
-
-          //Update contentType. javaxt.io.File returns "application/xml"
-          //which is not ideal for web applications.
-            contentType = "text/xml";
-        }
-
-
-
-        response.write(file.toFile(), contentType, true);
+        fileManager.sendFile(file, request, response);
     }
 
 
