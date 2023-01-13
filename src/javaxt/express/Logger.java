@@ -176,7 +176,7 @@ public class Logger implements Runnable {
     }
 
 
-    public javaxt.utils.Date getDate(){
+    private javaxt.utils.Date getDate(){
         javaxt.utils.Date d = new javaxt.utils.Date();
         d.setTimeZone(tz);
         return d;
