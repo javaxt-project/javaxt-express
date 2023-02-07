@@ -1,7 +1,6 @@
 package javaxt.express;
 import java.util.List;
 import java.util.LinkedList;
-import java.text.SimpleDateFormat;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.nio.ByteBuffer;
@@ -141,7 +140,10 @@ public class Logger implements Runnable {
         }
     }
 
-
+    
+  //**************************************************************************
+  //** getFileChannel
+  //**************************************************************************
     private FileChannel getFileChannel() throws Exception {
 
         javaxt.utils.Date d = getDate();
@@ -176,7 +178,14 @@ public class Logger implements Runnable {
     }
 
 
-    private javaxt.utils.Date getDate(){
+  //**************************************************************************
+  //** getDate
+  //**************************************************************************
+  /** Returns a new Date object with the current time. The date will be set
+   *  to whatever time zone was used to instantiate this class (default is
+   *  UTC).
+   */
+    public javaxt.utils.Date getDate(){
         javaxt.utils.Date d = new javaxt.utils.Date();
         d.setTimeZone(tz);
         return d;

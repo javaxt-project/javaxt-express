@@ -132,7 +132,8 @@ public abstract class WebSite extends HttpServlet {
     public void processRequest(HttpServletRequest request, HttpServletResponse response)
     throws ServletException, IOException {
 
-
+        long t = System.currentTimeMillis();
+        
 
       //Redirect as needed
         java.net.URL url = request.getURL();
@@ -232,6 +233,7 @@ public abstract class WebSite extends HttpServlet {
 
       //If we're still here, generate html response
         sendHTML(request, response);
+        //console.log("processRequest", System.currentTimeMillis()-t);
     }
 
 
@@ -309,6 +311,7 @@ public abstract class WebSite extends HttpServlet {
     private void sendHTML(HttpServletRequest request, HttpServletResponse response)
     throws ServletException, IOException {
 
+        long t = System.currentTimeMillis();
         String servletPath = getServletPath();
         if (!servletPath.endsWith("/")) servletPath += "/";
 
@@ -350,17 +353,19 @@ public abstract class WebSite extends HttpServlet {
         }
         dates.add(content.getDate().getTime());
         String html = content.getHTML();
-        html = html.replace("<%=Path%>", servletPath);
-        html = updateLinks(html, dates, file);
 
 
 
 
-      //Wrap content in a template
+      //Update HTML. Note that there are currently two major bottlenecks here:
+      //(1) html parser in "useTemplate" block and (2) the updateLinks method
+      //Both can be mitigated with some simple caching
+        long t0 = System.currentTimeMillis();
         if (useTemplate){
 
 
           //Instantiate html parser
+            long t1 = System.currentTimeMillis();
             javaxt.html.Parser document = new javaxt.html.Parser(html);
 
 
@@ -422,7 +427,7 @@ public abstract class WebSite extends HttpServlet {
             catch(Exception e){}
             if (keywords==null) keywords = this.keywords;
             if (keywords==null) keywords = "";
-
+            //console.log("parser", System.currentTimeMillis()-t1);
 
 
             html = template.getText().replace("<%=content%>", html);
@@ -441,7 +446,17 @@ public abstract class WebSite extends HttpServlet {
 
             html = html.replace("<%=Path%>", servletPath);
             html = updateLinks(html, dates, template);
+
+            //console.log("useTemplate", System.currentTimeMillis()-t0);
         }
+        else{
+
+            html = html.replace("<%=Path%>", servletPath);
+            html = updateLinks(html, dates, file);
+            //console.log("updateLinks", System.currentTimeMillis()-t0);
+        }
+
+
 
 
       //Remove any orphan tags
@@ -463,6 +478,7 @@ public abstract class WebSite extends HttpServlet {
 
       //Trim the html
         html = html.trim();
+        //console.log("html", System.currentTimeMillis()-t);
 
 
 
@@ -524,6 +540,9 @@ public abstract class WebSite extends HttpServlet {
 
       //Send response
         response.write(rsp);
+
+
+        //console.log("sendHTML", System.currentTimeMillis()-t);
     }
 
 
