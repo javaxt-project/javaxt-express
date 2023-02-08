@@ -101,6 +101,9 @@ public abstract class WebService {
                     if (params.length>0){
                         if (ServiceRequest.class.isAssignableFrom(params[0])){
 
+
+                          //Check whether the method accepts a ServiceRequest
+                          //or ServiceRequest + Database as inputs
                             Object[] inputs = null;
                             if (params.length==1){
                                 inputs = new Object[]{request};
@@ -112,6 +115,23 @@ public abstract class WebService {
                             }
 
                             if (inputs!=null){
+
+
+                              //Ensure that we don't want to invoke this function!
+                              //For example, the caller might want to call
+                              //super.getServiceResponse(request, database);
+                              //If so, we would end up in a recursion causing a
+                              //stack overflow. Instead of calling getServiceResponse()
+                              //let's just flow down to the CRUD handlers below.
+                                StackTraceElement[] stackTrace = new Exception().getStackTrace();
+                                StackTraceElement el = stackTrace[1];
+                                if (m.getName().equals(el.getMethodName())){
+                                    break;
+                                }
+
+
+                              //If we're still here, call the requested method
+                              //and return the response
                                 try{
                                     m.setAccessible(true);
                                     return (ServiceResponse) m.invoke(this, inputs);
