@@ -886,11 +886,16 @@ public class ServiceRequest {
         }
 
         public void set(String col, String op, Object val){
-            items.put(
-                col.toLowerCase(),
-                new Item(col, op, (val instanceof javaxt.utils.Value) ?
-                    (javaxt.utils.Value) val : new javaxt.utils.Value(val))
-            );
+            String key = col.toLowerCase();
+            javaxt.utils.Value v = (val instanceof javaxt.utils.Value) ?
+                    (javaxt.utils.Value) val : new javaxt.utils.Value(val);
+
+            if (v.isNull()){
+                items.remove(key);
+            }
+            else{
+                items.put(key, new Item(col, op, v));
+            }
         }
 
 
