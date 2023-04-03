@@ -91,9 +91,8 @@ public class Config {
     public ArrayList<String> getKeys(){
         ArrayList<String> keys = new ArrayList<String>();
         synchronized(config){
-            Iterator<String> it = config.get(0).keys();
-            while (it.hasNext()){
-                keys.add(it.next());
+            for (String key : config.get(0).keySet()){
+                keys.add(key);
             }
         }
         return keys;
@@ -163,9 +162,7 @@ public class Config {
         JSONObject json = new JSONObject();
         synchronized(config){
             JSONObject currConfig = config.get(0);
-            Iterator<String> it = currConfig.keys();
-            while (it.hasNext()){
-                String key = it.next();
+            for (String key : currConfig.keySet()){
                 JSONValue val = currConfig.get(key);
                 Object obj = val.toObject();
                 if (obj instanceof javaxt.sql.Database){

@@ -550,9 +550,7 @@ public class ServiceRequest {
             String str = getParameter("filter").toString();
             if (str.startsWith("{") && str.endsWith("}")){
                 JSONObject json = new JSONObject(str);
-                Iterator<String> it = json.keys();
-                while (it.hasNext()){
-                    String key = it.next();
+                for (String key : json.keySet()){
                     params.put(key, json.get(key));
                 }
             }
