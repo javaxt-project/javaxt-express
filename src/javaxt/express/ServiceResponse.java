@@ -78,17 +78,18 @@ public class ServiceResponse {
         String s = e.getClass().getName();
         s = s.substring(s.lastIndexOf(".")+1);
         String message = e.getLocalizedMessage();
-        String error = (message != null) ? (s + ": " + message) : s;
+        StringBuilder error = new StringBuilder((message != null) ? (s + ": " + message) : s);
 
-        if (error.equalsIgnoreCase("NullPointerException")){
-            for (StackTraceElement x : e.getStackTrace()){
-                String err = x.toString();
-                if (err.trim().startsWith("org.eclipse.jetty")) break;
-                error+="\n"+x;
-            }
+        //if (error.equalsIgnoreCase("NullPointerException")){
+        for (StackTraceElement x : e.getStackTrace()){
+            String err = x.toString();
+            if (err.trim().startsWith("org.eclipse.jetty")) break;
+            error.append("\r\n");
+            error.append(x);
         }
+
         System.out.println(error);
-        response = getBytes(error);
+        response = getBytes(error.toString());
     }
 
 

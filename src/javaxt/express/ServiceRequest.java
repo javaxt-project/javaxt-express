@@ -4,7 +4,7 @@ import java.util.*;
 import javaxt.http.servlet.HttpServletRequest;
 import javaxt.http.servlet.ServletException;
 import javaxt.json.*;
-import javaxt.utils.Console;
+import static javaxt.utils.Console.console;
 import javaxt.express.utils.StringUtils;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.Function;
@@ -15,7 +15,8 @@ import net.sf.jsqlparser.statement.select.*;
 //**  ServiceRequest
 //******************************************************************************
 /**
- *   Used to represent an HTTP request
+ *   Used to encapsulate an HttpServletRequest and simplify the
+ *   parsing/extracting of parameters from the raw HTTP request.
  *
  ******************************************************************************/
 
@@ -36,10 +37,11 @@ public class ServiceRequest {
     private Long limit;
     private Long offset;
     private Long id;
+    private boolean readOnly = false;
+    private boolean parseJson = false;
     private static String[] approvedFunctions = new String[]{
         "min", "max", "count", "avg", "sum"
     };
-    private Console console = new Console();
 
 
   //**************************************************************************
@@ -76,8 +78,8 @@ public class ServiceRequest {
   //**************************************************************************
   /** Returns the service name from the http request. Service requests follow
    *  the convention: "http://localhost/servlet/service/path". For example
-   *  "http://localhost/photos/config/user". In this example, the servlet path
-   *  is "photos" and the service name is "config". Note that the servlet path
+   *  "http://localhost/myapp/admin/user". In this example, the servlet path
+   *  is "myapp" and the service name is "admin". Note that the servlet path
    *  is optional and may include multiple "directories". This method makes it
    *  easier to find the service name from the url.
    */
@@ -89,17 +91,52 @@ public class ServiceRequest {
   //**************************************************************************
   //** getMethod
   //**************************************************************************
-  /** Returns the method name from the http request. Service requests may
-   *  include object/entity name in the path using the following convention:
-   *  "http://localhost/servlet/service/object". For example
-   *  "http://localhost/photos/config/user". In this example, the service name
-   *  is "config" and the object/entity name is "user". If the http request
-   *  method is "GET" then the method name is "getUser". If the http request
-   *  method is "DELETE" then the method name is "deleteUser". If the http
-   *  request method is "PUT" or "POST" then the method name is "saveUser".
+  /** Returns a method name for the HTTP request. Examples:
+   *  <ul>
+   *  <li>GET "http://localhost/user" returns "getUser"</li>
+   *  <li>DELETE "http://localhost/user" returns "deleteUser"</li>
+   *  <li>POST or PUT "http://localhost/user" returns "saveUser"</li>
+   *  </ul>
+   *
+   *  If the request is read-only, "POST", "PUT", and "DELETE" requests will
+   *  be re-mapped to "GET".
+   *
+   *  <p>
+   *  If the URL contains a "servlet" path or a "service" path, will return
+   *  the first object in the path after the servlet and/or service. Consider
+   *  this example: "http://localhost/myapp/admin/user" In this example, the
+   *  servlet path is "myapp" and the service path is "admin" and and so the
+   *  method name is derived from "user".
+   *  </p>
+   *
+   *  Note that this method is used by the WebService class to map service
+   *  requests to REST service endpoints and execute CRUD operations.
    */
     public String getMethod(){
         return method;
+    }
+
+
+  //**************************************************************************
+  //** setReadOnly
+  //**************************************************************************
+  /** Used to disable CRUD operations by mapping "POST", "PUT", and "DELETE"
+   *  requests to "GET".
+   */
+    public void setReadOnly(boolean readOnly){
+        if (readOnly==this.readOnly) return;
+        this.readOnly = readOnly;
+        setPath(request.getPathInfo());
+    }
+
+
+  //**************************************************************************
+  //** isReadOnly
+  //**************************************************************************
+  /** Returns true if CRUD operations have been disabled. Default is false.
+   */
+    public boolean isReadOnly(){
+        return readOnly;
     }
 
 
@@ -136,8 +173,11 @@ public class ServiceRequest {
   //**************************************************************************
   //** setPath
   //**************************************************************************
-  /** Used to set the url path
-   *  @param path URL path, excluding servlet and service path
+  /** Used to update the path of the current URL. This method can be used to
+   *  coerce a request to route to different web methods (see getMethod).
+   *  @param path URL path, excluding servlet and service path. For example,
+   *  if a URL follows the follows a pattern like
+   *  "http://localhost/servlet/service/a/b/c" the path is "/a/b/c".
    */
     public void setPath(String path){
         if (path!=null){
@@ -162,15 +202,20 @@ public class ServiceRequest {
         if (name!=null){
             name = name.substring(0, 1).toUpperCase() + name.substring(1);
 
-            String method = request.getMethod();
-            if (method.equals("GET")){
+            if (readOnly){
                 this.method = "get" + name;
             }
-            else if (method.equals("PUT") || method.equals("POST")){
-                this.method = "save" + name;
-            }
-            else if (method.equals("DELETE")){
-                this.method = "delete" + name;
+            else{
+                String method = request.getMethod();
+                if (method.equals("GET")){
+                    this.method = "get" + name;
+                }
+                else if (method.equals("PUT") || method.equals("POST")){
+                    this.method = "save" + name;
+                }
+                else if (method.equals("DELETE")){
+                    this.method = "delete" + name;
+                }
             }
         }
 
@@ -208,33 +253,57 @@ public class ServiceRequest {
   //**************************************************************************
   //** getParameter
   //**************************************************************************
-  /** Returns the value of a specific variable supplied in the query string.
+  /** Returns the value associated with a parameter in the request. Performs a
+   *  case insensitive search for the keyword in the query string. In addition,
+   *  will search the JSON payload of the request if parseJson is set to true.
    *  If the value is "null" then a null value is returned.
    *  @param key Query string parameter name. Performs a case insensitive
    *  search for the keyword.
    */
     public javaxt.utils.Value getParameter(String key){
+        String val = null;
         if (key!=null){
             List<String> parameters = getParameter(key, this.parameters);
             if (parameters!=null){
-                String val = parameters.get(0).trim();
+                val = parameters.get(0).trim();
                 if (val.length()>0){
                     if (val.equalsIgnoreCase("null")) val = null;
-                    return new javaxt.utils.Value(val);
+                }
+                else{
+                    val = null;
                 }
             }
+
+            if (val==null && parseJson){ //&& !getRequest().getMethod().equals("GET")
+                JSONObject json = getJson();
+                if (json!=null && json.has(key)){
+                    return new javaxt.utils.Value(json.get(key).toObject());
+                }
+            }
+
         }
-        return new javaxt.utils.Value(null);
+        return new javaxt.utils.Value(val);
     }
 
 
   //**************************************************************************
   //** hasParameter
   //**************************************************************************
+  /** Returns true if the request contains a given parameter in the request.
+   *  Performs a case insensitive search for the keyword in the query string.
+   *  In addition, will search the JSON payload of the request if parseJson is
+   *  set to true.
+   */
     public boolean hasParameter(String key){
         if (key!=null){
             List<String> parameters = getParameter(key, this.parameters);
             if (parameters!=null) return true;
+            if (parseJson){ //&& !getRequest().getMethod().equals("GET")
+                JSONObject json = getJson();
+                if (json!=null && json.has(key)){
+                    return true;
+                }
+            }
         }
         return false;
     }
@@ -243,6 +312,9 @@ public class ServiceRequest {
   //**************************************************************************
   //** setParameter
   //**************************************************************************
+  /** Used to update a parameter extracted from the original request. Performs
+   *  a case insensitive search for the keyword in the query string.
+   */
     public void setParameter(String key, String val){
         if (key!=null){
 
@@ -259,7 +331,7 @@ public class ServiceRequest {
           //Special case for classes that override the hasParameter and
           //getParameter methods.
             if (parameters==null && hasParameter(key)){
-                parameters = new ArrayList<String>();
+                parameters = new ArrayList<>();
                 parameters.add(getParameter(key).toString());
                 setParameter(key, parameters, this.parameters);
             }
@@ -269,7 +341,7 @@ public class ServiceRequest {
           //Add or update value
             if (parameters==null){
                 if (val!=null){
-                    parameters = new ArrayList<String>();
+                    parameters = new ArrayList<>();
                     parameters.add(val);
                     setParameter(key, parameters, this.parameters);
                 }
@@ -291,11 +363,21 @@ public class ServiceRequest {
   //**************************************************************************
   //** getParameterNames
   //**************************************************************************
+  /** Returns a list of all the parameter keywords found in this request.
+   */
     public String[] getParameterNames(){
-        ArrayList<String> arr = new ArrayList<>();
+        HashSet<String> keys = new HashSet<>();
         Iterator<String> it = this.parameters.keySet().iterator();
-        while (it.hasNext()) arr.add(it.next());
-        return arr.toArray(new String[arr.size()]);
+        while (it.hasNext()) keys.add(it.next());
+        if (parseJson){
+            JSONObject json = getJson();
+            if (json!=null){
+                for (String key : json.keySet()){
+                    keys.add(key);
+                }
+            }
+        }
+        return keys.toArray(new String[keys.size()]);
     }
 
 
@@ -329,6 +411,10 @@ public class ServiceRequest {
   //**************************************************************************
   //** getOffset
   //**************************************************************************
+  /** Returns the value of the "offset" parameter in the request as a number.
+   *  This parameter is used by the WebService class to paginate through list
+   *  requests.
+   */
     public Long getOffset(){
         return offset;
     }
@@ -337,6 +423,10 @@ public class ServiceRequest {
   //**************************************************************************
   //** getLimit
   //**************************************************************************
+  /** Returns the value of the "limit" parameter in the request as a number.
+   *  This parameter is used by the WebService class to paginate through list
+   *  requests.
+   */
     public Long getLimit(){
         return limit;
     }
@@ -345,6 +435,9 @@ public class ServiceRequest {
   //**************************************************************************
   //** getRequest
   //**************************************************************************
+  /** Returns the original, unmodified HTTP request used to instantiate this
+   *  class.
+   */
     public HttpServletRequest getRequest(){
         return request;
     }
@@ -353,6 +446,8 @@ public class ServiceRequest {
   //**************************************************************************
   //** setPayload
   //**************************************************************************
+  /** Used to update the raw bytes representing the payload of the request
+   */
     public void setPayload(byte[] payload){
         this.payload = payload;
         json = null;
@@ -362,6 +457,8 @@ public class ServiceRequest {
   //**************************************************************************
   //** getPayload
   //**************************************************************************
+  /** Returns the raw bytes from the payload of the request
+   */
     public byte[] getPayload(){
         if (payload==null){
             try{
@@ -376,18 +473,34 @@ public class ServiceRequest {
   //**************************************************************************
   //** getJson
   //**************************************************************************
+  /** Returns the payload of the request as a JSON object
+   */
     public JSONObject getJson(){
         if (json==null){
 
-          //Get payload as string
-            String payload = null;
-            try{ payload = new String(getPayload(), "UTF-8"); }
-            catch(java.io.UnsupportedEncodingException e){} //should never happen
+            byte[] b = getPayload();
+            if (b!=null && b.length>0){
+                try{
+                    json = new JSONObject(new String(getPayload(), "UTF-8"));
+                }
+                catch(Exception e){}
+            }
 
-          //Parse JSON
-            if (payload!=null) json = new JSONObject(payload);
         }
         return json;
+    }
+
+
+  //**************************************************************************
+  //** parseJson
+  //**************************************************************************
+  /** Calling this method will expand parameter searches into the payload of
+   *  the request. See getParameter() for more info.
+   */
+    public void parseJson(){
+        parseJson = true;
+        if (id==null) id = getParameter("id").toLong();
+        updateOffsetLimit();
     }
 
 
@@ -402,6 +515,7 @@ public class ServiceRequest {
         }
         return user;
     }
+
 
   //**************************************************************************
   //** getCredentials
@@ -501,15 +615,9 @@ public class ServiceRequest {
             this.fields = arr.toArray(new Field[arr.size()]);
 
         }
-//        catch(net.sf.jsqlparser.JSQLParserException e){
-//            //JSQLParser doesn't like one of the fields
-//            this.fields = getFields(fields);
-//        }
-//        catch(Exception e){
-//            e.printStackTrace();
-//        }
         catch(Throwable e){
-//            System.err.println("Missing JSqlParser!");
+          //JSQLParser doesn't like one of the fields or JSqlParser is missing
+          //from the class path. If so, fallback to the JavaXT SQL parser.
             this.fields = getFields(fields);
         }
 

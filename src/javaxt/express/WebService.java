@@ -20,15 +20,14 @@ import java.lang.reflect.Parameter;
 //**  WebService
 //******************************************************************************
 /**
- *   Implementations of this class are used to generate responses to web
- *   service requests.
+ *   Abstract class used to map HTTP requests to either virtual or concrete
+ *   methods found in the extending class.
  *
  ******************************************************************************/
 
 public abstract class WebService {
 
-    private ConcurrentHashMap<String, DomainClass> classes =
-        new ConcurrentHashMap<String, DomainClass>();
+    private ConcurrentHashMap<String, DomainClass> classes = new ConcurrentHashMap<>();
 
 
     public static Console console = new Console(); //do not replace with static import!
@@ -77,6 +76,19 @@ public abstract class WebService {
   //**************************************************************************
   //** getServiceResponse
   //**************************************************************************
+  /** Returns a ServiceResponse for a given request.
+   */
+    public ServiceResponse getServiceResponse(ServiceRequest request)
+        throws ServletException {
+        return getServiceResponse(request, null);
+    }
+
+
+  //**************************************************************************
+  //** getServiceResponse
+  //**************************************************************************
+  /** Returns a ServiceResponse for a given request and database.
+   */
     public ServiceResponse getServiceResponse(ServiceRequest request, Database database)
         throws ServletException {
 
@@ -299,124 +311,190 @@ public abstract class WebService {
         }
 
 
+      //Build sql string
+        StringBuilder sql = new StringBuilder("select ");
+        Field[] fields = request.getFields();
+        if (fields==null) sql.append(" * ");
+        else{
+            for (int i=0; i<fields.length; i++){
+                if (i>0) sql.append(",");
+                Field field = fields[i];
+                String fieldName = field.toString();
+                if (field.isFunction()){
+                    sql.append(fieldName);
+                }
+                else{
+                    fieldName = StringUtils.camelCaseToUnderScore(fieldName);
+                    sql.append(fieldName);
+                }
+            }
+        }
+
+        sql.append(" from ");
+        sql.append(tableName);
+
+
+        Filter filter = request.getFilter();
+        if (!filter.isEmpty()){
+            //System.out.println(filter.toJson().toString(4));
+            sql.append(" where ");
+            Filter.Item[] items = filter.getItems();
+            for (int i=0; i<items.length; i++){
+                if (i>0) sql.append(" and ");
+                sql.append("(");
+                sql.append(items[i].toString());
+                sql.append(")");
+            }
+        }
+        else{
+            String where = request.getWhere();
+            if (where!=null){
+                sql.append(" where ");
+                sql.append(where);
+            }
+        }
+
+
+        Sort sort = request.getSort();
+        if (!sort.isEmpty()){
+            sql.append(" order by ");
+            java.util.Iterator<String> it = sort.getKeySet().iterator();
+            while (it.hasNext()){
+                String colName = it.next();
+                String direction = sort.get(colName);
+                sql.append(colName);
+                sql.append(" ");
+                sql.append(direction);
+                if (it.hasNext()) sql.append(",");
+            }
+        }
+
+        Long offset = request.getOffset();
+        if (offset!=null){
+            sql.append(" offset ");
+            sql.append(offset);
+        }
+
+        Long limit = request.getLimit();
+        //if (limit==null) limit = 100L;
+        if (limit!=null){
+            sql.append(" limit ");
+            sql.append(limit);
+        }
+
+
+        String format = "";
+
+
+
       //Excute query and generate response
         Connection conn = null;
         try{
 
-
-          //Build sql string
-            StringBuilder str = new StringBuilder("select ");
-            Field[] fields = request.getFields();
-            if (fields==null) str.append(" * ");
-            else{
-                for (int i=0; i<fields.length; i++){
-                    if (i>0) str.append(",");
-                    Field field = fields[i];
-                    String fieldName = field.toString();
-                    if (field.isFunction()){
-                        str.append(fieldName);
-                    }
-                    else{
-                        fieldName = StringUtils.camelCaseToUnderScore(fieldName);
-                        str.append(fieldName);
-                    }
-                }
-            }
-
-            str.append(" from ");
-            str.append(tableName);
-
-
-            Filter filter = request.getFilter();
-            if (!filter.isEmpty()){
-                //System.out.println(filter.toJson().toString(4));
-                str.append(" where ");
-                Filter.Item[] items = filter.getItems();
-                for (int i=0; i<items.length; i++){
-                    if (i>0) str.append(" and ");
-                    str.append("(");
-                    str.append(items[i].toString());
-                    str.append(")");
-                }
-            }
-            else{
-                String where = request.getWhere();
-                if (where!=null){
-                    str.append(" where ");
-                    str.append(where);
-                }
-            }
-
-
-            Sort sort = request.getSort();
-            if (!sort.isEmpty()){
-                str.append(" order by ");
-                java.util.Iterator<String> it = sort.getKeySet().iterator();
-                while (it.hasNext()){
-                    String colName = it.next();
-                    String direction = sort.get(colName);
-                    str.append(colName);
-                    str.append(" ");
-                    str.append(direction);
-                    if (it.hasNext()) str.append(",");
-                }
-            }
-
-            Long offset = request.getOffset();
-            if (offset!=null){
-                str.append(" offset ");
-                str.append(offset);
-            }
-
-            Long limit = request.getLimit();
-            if (limit==null) limit = 100L;
-            if (limit!=null){
-                str.append(" limit ");
-                str.append(limit);
-            }
-
-
-            long x = 0;
-            JSONArray cols = new JSONArray();
-            StringBuilder json = new StringBuilder("{\"rows\":[");
-
             conn = database.getConnection();
-            Recordset rs = getRecordset(request, "list", c, str.toString(), conn);
-            while (rs.hasNext()){
-                JSONArray row = new JSONArray();
+            Recordset rs = getRecordset(request, "list", c, sql.toString(), conn);
 
-                JSONObject record = DbUtils.getJson(rs);
-                for (javaxt.sql.Field field : rs.getFields()){
-                    String fieldName = field.getName().toLowerCase();
-                    fieldName = StringUtils.underscoreToCamelCase(fieldName);
-                    if (x==0) cols.add(fieldName);
 
-                    JSONValue val = record.get(fieldName);
-                    if (!val.isNull()){
-                        if (spatialFields.contains(fieldName)){
-                            if (database.getDriver().equals("PostgreSQL")){
-                                val = new JSONValue(createGeom(val.toString()));
-                            }
+            ServiceResponse response;
+            if (format.equals("csv")){
+
+                StringBuilder csv = new StringBuilder();
+                long x = 0;
+                while (rs.next()){
+                    if (x>0) csv.append("\r\n");
+
+                    if (x==0){
+                        int i = 0;
+                        for (javaxt.sql.Field field : rs.getFields()){
+                            if (i>0) csv.append(",");
+                            csv.append(field.getName());
+                            i++;
                         }
                     }
-                    row.add(val);
+
+                    int i = 0;
+                    for (javaxt.sql.Field field : rs.getFields()){
+                        if (i>0) csv.append(",");
+                        javaxt.sql.Value value = field.getValue();
+                        if (!value.isNull()){
+                            String val = value.toString();
+                            if (val.contains("\"")) val = "\"" + val + "\"";
+                            csv.append(val);
+                        }
+                        i++;
+                    }
+
+
+                    x++;
                 }
 
-                if (x>0) json.append(",");
-                json.append(row.toString());
-                rs.moveNext();
-                x++;
+
+                response = new ServiceResponse(csv);
+                response.setContentType("text/csv");
+
             }
+            else if (format.equals("json")){
+
+                StringBuilder json = new StringBuilder("[");
+
+                long x = 0;
+                while (rs.next()){
+                    if (x>0) json.append(",");
+                    json.append(new JSONObject(rs.getRecord()));
+                    x++;
+                }
+                json.append("]");
+
+                response = new ServiceResponse(json.toString());
+                response.setContentType("application/json");
+
+            }
+            else {
+
+                long x = 0;
+                JSONArray cols = new JSONArray();
+                StringBuilder json = new StringBuilder("{\"rows\":[");
+
+                while (rs.next()){
+                    JSONArray row = new JSONArray();
+
+                    JSONObject record = DbUtils.getJson(rs);
+                    for (javaxt.sql.Field field : rs.getFields()){
+                        String fieldName = field.getName().toLowerCase();
+                        fieldName = StringUtils.underscoreToCamelCase(fieldName);
+                        if (x==0) cols.add(fieldName);
+
+                        JSONValue val = record.get(fieldName);
+                        if (!val.isNull()){
+                            if (spatialFields.contains(fieldName)){
+                                if (database.getDriver().equals("PostgreSQL")){
+                                    val = new JSONValue(createGeom(val.toString()));
+                                }
+                            }
+                        }
+                        row.add(val);
+                    }
+
+                    if (x>0) json.append(",");
+                    json.append(row.toString());
+                    x++;
+                }
+                rs.close();
+                conn.close();
+                json.append("]");
+
+
+                json.append(",\"cols\":");
+                json.append(cols.toString());
+                json.append("}");
+                response = new ServiceResponse(json.toString());
+                response.setContentType("application/json");
+
+            }
+
             rs.close();
             conn.close();
-            json.append("]");
 
-
-            json.append(",\"cols\":");
-            json.append(cols.toString());
-            json.append("}");
-            ServiceResponse response = new ServiceResponse(json.toString());
-            response.setContentType("application/json");
             return response;
         }
         catch(Exception e){
