@@ -1,7 +1,14 @@
 package javaxt.express.utils;
 
+import java.math.BigDecimal;
+import java.text.DecimalFormat;
+
 public class StringUtils {
     private StringUtils(){}
+
+    private static DecimalFormat df = new DecimalFormat("#.##");
+    static { df.setMaximumFractionDigits(8); }
+
 
   //**************************************************************************
   //** camelCaseToUnderScore
@@ -83,7 +90,7 @@ public class StringUtils {
         return fieldName.substring(0, 1).toUpperCase() + fieldName.substring(1);
     }
 
-    
+
   //**************************************************************************
   //** rtrim
   //**************************************************************************
@@ -94,5 +101,66 @@ public class StringUtils {
         }
         return s.substring(0,i+1);
     }
+
+
+  //**************************************************************************
+  //** getElapsedTime
+  //**************************************************************************
+  /** Computes elapsed time between a given startTime and now. Returns a
+   *  human-readable string representing the elapsed time.
+   */
+    public static String getElapsedTime(long startTime){
+        long t = System.currentTimeMillis()-startTime;
+        if (t<1000) return t + "ms";
+        long s = Math.round(t/1000);
+        if (s<60) return s + "s";
+        long m = Math.round(s/60);
+        return m + "m";
+    }
+
+
+  //**************************************************************************
+  //** format
+  //**************************************************************************
+    public static String format(double d){
+        return df.format(d);
+    }
+
+
+  //**************************************************************************
+  //** format
+  //**************************************************************************
+    public static String format(double value, int precision) {
+        int scale = (int) Math.pow(10, precision);
+        double d = (double) Math.round(value * scale) / scale;
+        DecimalFormat df = new DecimalFormat("#.##");
+        df.setMaximumFractionDigits(precision);
+        return df.format(d);
+    }
+
+
+  //**************************************************************************
+  //** format
+  //**************************************************************************
+    public static String format(BigDecimal value, int precision) {
+        BigDecimal bd = value.add(BigDecimal.ZERO);
+        bd = bd.setScale(precision, BigDecimal.ROUND_DOWN);
+        DecimalFormat df = new DecimalFormat();
+        df.setMaximumFractionDigits(precision);
+        df.setMinimumFractionDigits(0);
+        df.setGroupingUsed(false);
+        return df.format(bd);
+    }
+
+
+  //**************************************************************************
+  //** format
+  //**************************************************************************
+  /** Used to format a number with commas.
+   */
+    public static String format(long l){
+        return java.text.NumberFormat.getNumberInstance(java.util.Locale.US).format(l);
+    }
+
 
 }

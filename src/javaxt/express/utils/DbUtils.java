@@ -1182,8 +1182,14 @@ public class DbUtils {
   /** Returns a JSON representation of a record in a Recordset
    */
     public static JSONObject getJson(Recordset rs){
+        return getJson(rs.getFields());
+    }
+    public static JSONObject getJson(javaxt.sql.Record record){
+        return getJson(record.getFields());
+    }
+    public static JSONObject getJson(javaxt.sql.Field[] fields){
         JSONObject json = new JSONObject();
-        for (javaxt.sql.Field field : rs.getFields()){
+        for (javaxt.sql.Field field : fields){
 
             String fieldName = field.getName().toLowerCase();
             fieldName = StringUtils.underscoreToCamelCase(fieldName);

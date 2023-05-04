@@ -46,15 +46,25 @@ public abstract class WebService {
 
 
   //**************************************************************************
-  //** addClass
+  //** addModel
   //**************************************************************************
-  /** Adds a class to the list of classes that support CRUD operations.
+  /** Register model that this service will support
+   *  @param c A Java class that extends the javaxt.sql.Model abstract class.
    */
-    public void addClass(Class c){
-        addClass(c, false);
+    public void addModel(Class c){
+        addModel(c, false);
     }
 
-    public void addClass(Class c, boolean readOnly){
+
+  //**************************************************************************
+  //** addModel
+  //**************************************************************************
+  /** Register model that this service will support
+   *  @param c A Java class that extends the javaxt.sql.Model abstract class.
+   *  @param readOnly If true, the CRUD operations will be disabled. PUT,
+   *  POST, and DELETE requests will be handled the same as GET requests.
+   */
+    public void addModel(Class c, boolean readOnly){
         if (!Model.class.isAssignableFrom(c)){
             throw new IllegalArgumentException();
         }
@@ -70,6 +80,26 @@ public abstract class WebService {
             classes.put(name, new DomainClass(c, readOnly));
             classes.notify();
         }
+    }
+
+
+  //**************************************************************************
+  //** addClass
+  //**************************************************************************
+  /** @deprecated Use addModel instead
+   */
+    public void addClass(Class c){
+        addModel(c);
+    }
+
+
+  //**************************************************************************
+  //** addClass
+  //**************************************************************************
+  /** @deprecated Use addModel instead
+   */
+    public void addClass(Class c, boolean readOnly){
+        addModel(c, readOnly);
     }
 
 
@@ -230,8 +260,7 @@ public abstract class WebService {
   /** Used to retrieve an object from the database. Returns a JSON object.
    */
     private ServiceResponse get(Class c, ServiceRequest request, Database database) {
-        Connection conn = null;
-        try{
+        try (Connection conn = database.getConnection()){
 
           //Get model
             Object obj;
@@ -257,12 +286,10 @@ public abstract class WebService {
 
           //Apply filter
             id = null;
-            conn = database.getConnection();
             Recordset rs = getRecordset(request, "get", c, "select id from " +
             getTableName(obj) + " where id=" + getMethod("getID", c).invoke(obj), conn);
             if (!rs.EOF) id = rs.getValue(0).toLong();
             rs.close();
-            conn.close();
             if (id==null) return new ServiceResponse(404);
 
 
@@ -388,10 +415,7 @@ public abstract class WebService {
 
 
       //Excute query and generate response
-        Connection conn = null;
-        try{
-
-            conn = database.getConnection();
+        try (Connection conn = database.getConnection()){
             Recordset rs = getRecordset(request, "list", c, sql.toString(), conn);
 
 
@@ -440,7 +464,7 @@ public abstract class WebService {
                 long x = 0;
                 while (rs.next()){
                     if (x>0) json.append(",");
-                    json.append(new JSONObject(rs.getRecord()));
+                    json.append(DbUtils.getJson(rs));
                     x++;
                 }
                 json.append("]");
@@ -480,7 +504,6 @@ public abstract class WebService {
                     x++;
                 }
                 rs.close();
-                conn.close();
                 json.append("]");
 
 
@@ -493,12 +516,10 @@ public abstract class WebService {
             }
 
             rs.close();
-            conn.close();
 
             return response;
         }
         catch(Exception e){
-            if (conn!=null) conn.close();
             return getServiceResponse(e);
         }
     }
@@ -575,17 +596,14 @@ public abstract class WebService {
    *  the object was successfully deleted.
    */
     private ServiceResponse delete(Class c, ServiceRequest request, Database database) {
-        Connection conn = null;
-        try{
+        try (Connection conn = database.getConnection()){
 
           //Apply filter
             Long id = null;
-            conn = database.getConnection();
             Recordset rs = getRecordset(request, "delete", c, "select id from " +
             getTableName(c.newInstance()) + " where id=" + request.getID(), conn);
             if (!rs.EOF) id = rs.getValue(0).toLong();
             rs.close();
-            conn.close();
             if (id==null) return new ServiceResponse(404);
 
 
@@ -603,7 +621,6 @@ public abstract class WebService {
             return new ServiceResponse(200);
         }
         catch(Exception e){
-            if (conn!=null) conn.close();
             return getServiceResponse(e);
         }
     }
