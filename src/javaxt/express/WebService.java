@@ -42,6 +42,9 @@ public abstract class WebService {
         public boolean isReadOnly(){
             return readOnly;
         }
+        public String toString(){
+            return c.toString() + (readOnly ? " (readonly)" : "");
+        }
     }
 
 
@@ -193,11 +196,13 @@ public abstract class WebService {
       //standard CRUD operation.
         if (method.startsWith("get")){
 
+          //Find and return model
             String className = method.substring(3);
             DomainClass c = getClass(className);
             if (c!=null) return get(c.c, request, database);
 
 
+          //Special case for plural-form of a model. Return list of models.
             if (className.endsWith("ies")){ //Categories == Category
                 c = getClass(className.substring(0, className.length()-3) + "y");
             }
@@ -211,16 +216,39 @@ public abstract class WebService {
 
         }
         else if (method.startsWith("save")){
+
+          //Find model and save
             String className = method.substring(4);
             DomainClass c = getClass(className);
             if (c!=null){
                 if (c.isReadOnly()){
-                    return new ServiceResponse(403, "Write access forbidden.");
+                    return get(c.c, request, database);
                 }
                 else{
                     return save(c.c, request, database);
                 }
             }
+
+
+          //Special case for plural-form of a model
+            if (className.endsWith("ies")){ //Categories == Category
+                c = getClass(className.substring(0, className.length()-3) + "y");
+            }
+            else if (className.endsWith("ses")){ //Classes == Class
+                c = getClass(className.substring(0, className.length()-2));
+            }
+            else if (className.endsWith("s")){ //Sources == Source
+                c = getClass(className.substring(0, className.length()-1));
+            }
+            if (c!=null){
+                if (c.isReadOnly()){
+                    return list(c.c, request, database);
+                }
+                else{
+                    return new ServiceResponse(501, "Not Implemented.");
+                }
+            }
+
         }
         else if (method.startsWith("delete")){
             String className = method.substring(6);
