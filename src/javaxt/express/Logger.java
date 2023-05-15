@@ -57,7 +57,7 @@ public class Logger implements Runnable {
         String clientIP = request.getRemoteAddr();
         if (clientIP.startsWith("/") && clientIP.length()>1) clientIP = clientIP.substring(1);
 
-        StringBuffer str = new StringBuffer();
+        StringBuilder str = new StringBuilder();
         str.append("New Request From: " + clientIP + "\r\n");
         str.append(request.getMethod() + ": " + request.getURL() + "\r\n");
         str.append("TimeStamp: " + getDate().toString("yyyy-MM-dd HH:mm a") + "\r\n");
@@ -106,7 +106,7 @@ public class Logger implements Runnable {
     public void run() {
         while (true) {
 
-            String request = null;
+            String request;
             synchronized (pool) {
                 while (pool.isEmpty()) {
                   try {
@@ -140,7 +140,7 @@ public class Logger implements Runnable {
         }
     }
 
-    
+
   //**************************************************************************
   //** getFileChannel
   //**************************************************************************
@@ -186,8 +186,6 @@ public class Logger implements Runnable {
    *  UTC).
    */
     public javaxt.utils.Date getDate(){
-        javaxt.utils.Date d = new javaxt.utils.Date();
-        d.setTimeZone(tz);
-        return d;
+        return new javaxt.utils.Date().setTimeZone(tz);
     }
 }

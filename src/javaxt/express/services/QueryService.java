@@ -11,7 +11,7 @@ import java.math.BigDecimal;
 
 import javaxt.sql.*;
 import javaxt.json.*;
-import javaxt.utils.Console;
+//import javaxt.utils.Console;
 
 import net.sf.jsqlparser.parser.*;
 import net.sf.jsqlparser.statement.select.*;
@@ -37,7 +37,7 @@ public class QueryService {
     private List<String> pendingJobs = new LinkedList<>();
     private List<String> completedJobs = new LinkedList<>();
     private java.util.List<SelectItem> selectCount;
-    public static Console console = Console.console;
+    //public static Console console = Console.console;
 
 
   //**************************************************************************
@@ -93,6 +93,16 @@ public class QueryService {
   //**************************************************************************
   //** getServiceResponse
   //**************************************************************************
+  /** Used to generate a response to an HTTP request. The default routes are
+   *  as follows:
+   *  <ul>
+   *  <li>POST /job - Used to create a new query job and return a jobID</li>
+   *  <li>GET /job/{jobID} - Returns query results or job status for a given jobID</li>
+   *  <li>DELETE /job/{jobID} - Used to cancel query for a given jobID </li>
+   *  <li>GET /jobs - Returns a list of all query jobs associated with the user</li>
+   *  <li>GET /tables - Returns a list of all the tables in the database</li>
+   *  </ul>
+   */
     public ServiceResponse getServiceResponse(ServiceRequest request, Database database) {
         String path = request.getPath(0).toString();
         if (path!=null){
@@ -575,8 +585,7 @@ public class QueryService {
 
 
 
-        Connection conn = null;
-        try{
+        try (Connection conn = database.getConnection()) {
 
           //Update job status
             job.status = "canceled";
@@ -585,20 +594,16 @@ public class QueryService {
 
 
           //Cancel the query in the database
-            conn = database.getConnection();
             Integer pid = getPid(job.getKey(), conn);
             if (pid!=null){
                 boolean jobCanceled = false;
 
-                Recordset rs = new Recordset();
-                rs.open("SELECT pg_cancel_backend(" + pid + ")", conn);
-                if (!rs.EOF) jobCanceled = rs.getValue(0).toBoolean();
-                rs.close();
+                javaxt.sql.Record record = conn.getRecord("SELECT pg_cancel_backend(" + pid + ")");
+                if (record!=null) jobCanceled = record.get(0).toBoolean();
 
                 if (!jobCanceled){
-                    rs.open("SELECT pg_terminate_backend(" + pid + ")", conn);
-                    if (!rs.EOF) jobCanceled = rs.getValue(0).toBoolean();
-                    rs.close();
+                    record = conn.getRecord("SELECT pg_terminate_backend(" + pid + ")");
+                    if (record!=null) jobCanceled = record.get(0).toBoolean();
                 }
 
 
@@ -606,8 +611,6 @@ public class QueryService {
                     throw new Exception();
                 }
             }
-            conn.close();
-
 
           //Update queue
             deleteJob(job);
@@ -617,7 +620,6 @@ public class QueryService {
             return new ServiceResponse(job.toJson());
         }
         catch(Exception e){
-            if (conn!=null) conn.close();
             return new ServiceResponse(500, "failed to cancel query");
         }
     }
@@ -629,12 +631,9 @@ public class QueryService {
   /** Returns process id for a given jobId
    */
     private Integer getPid(String key, Connection conn) throws SQLException {
-        Integer pid = null;
-        Recordset rs = new Recordset();
-        rs.open("SELECT pid from pg_stat_activity where query like '--" + key + "%'", conn);
-        if (!rs.EOF) pid = rs.getValue(0).toInteger();
-        rs.close();
-        return pid;
+        javaxt.sql.Record record = conn.getRecord(
+        "SELECT pid from pg_stat_activity where query like '--" + key + "%'");
+        return record==null ? null : record.get(0).toInteger();
     }
 
 
@@ -644,12 +643,9 @@ public class QueryService {
   /** Returns a list of tables and columns
    */
     public ServiceResponse getTables(ServiceRequest request, Database database) {
-        Connection conn = null;
-        try{
-
+        try {
             JSONArray arr = new JSONArray();
-            conn = database.getConnection();
-            for (Table table : Database.getTables(conn)){
+            for (Table table : database.getTables()){
                 JSONArray columns = new JSONArray();
                 for (Column column : table.getColumns()){
 
@@ -668,7 +664,6 @@ public class QueryService {
                 json.set("columns", columns);
                 arr.add(json);
             }
-            conn.close();
 
 
             JSONObject json = new JSONObject();
@@ -676,7 +671,6 @@ public class QueryService {
             return new ServiceResponse(json);
         }
         catch(Exception e){
-            if (conn!=null) conn.close();
             return new ServiceResponse(e);
         }
     }
@@ -950,12 +944,9 @@ public class QueryService {
                           //Execute query and generate response
                             String query = job.getQuery();
                             Writer writer = new Writer(job.getOutputFormat(), job.addMetadata());
-                            Recordset rs = new Recordset();
-                            rs.setFetchSize(1000);
-                            rs.open("--" + job.getKey() + "\n" + query, conn);
-                            while (rs.hasNext()){
+                            Recordset rs = conn.getRecordset("--" + job.getKey() + "\n" + query);
+                            while (rs.next()){
                                 writer.write(rs);
-                                rs.moveNext();
                             }
                             rs.close();
                             if (job.isCanceled()) throw new Exception();
@@ -963,15 +954,13 @@ public class QueryService {
 
                           //Count total records as needed
                             if (job.countTotal()){
-                                rs = new Recordset();
-                                rs.open(job.getCountQuery(), conn);
-                                if (!rs.EOF){
-                                    Long ttl = rs.getValue(0).toLong();
+                                javaxt.sql.Record record = conn.getRecord(job.getCountQuery());
+                                if (record!=null){
+                                    Long ttl = record.get(0).toLong();
                                     if (ttl!=null){
                                         writer.setCount(ttl);
                                     }
                                 }
-                                rs.close();
                             }
                             if (job.isCanceled()) throw new Exception();
 
