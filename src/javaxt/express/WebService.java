@@ -126,65 +126,109 @@ public abstract class WebService {
         throws ServletException {
 
 
+      //Get requested method. Note that the ServiceRequest typically prepends a
+      //keyword to the request path (e.g. get, save, delete) depending on the
+      //HTTP request method (e.g. GET, POST, PUT, DELETE)
+        String methodName = request.getMethod();
 
-      //Get requested method
-        String method = request.getMethod().toLowerCase();
+
+      //Find a concrete implementation of the requested method in the subclass
+        {
+
+            boolean strictLookup = false;
+            if (!strictLookup) methodName = methodName.toLowerCase();
 
 
 
-      //Check if the subclass has implemented the requested method. Note that
-      //the getDeclaredMethod will only find methods declared in the current
-      //Class, not inherited from supertypes. So we may need to traverse up the
-      //concrete class hierarchy if necessary.
-        for (Method m : this.getClass().getDeclaredMethods()){
-            if (Modifier.isPrivate(m.getModifiers())) continue;
+          //Generate a list of all the service methods in the subclass. Service
+          //methods are public methods that accept a ServiceRequest parameter
+          //and return a ServiceResponse object. Implementation note: the
+          //getDeclaredMethod() method will only find methods declared in the
+          //current Class, not inherited from supertypes. So we may need to
+          //traverse up the concrete class hierarchy if this becomes a requirement.
+            LinkedHashMap<String, ArrayList<Method>> serviceMethods = new LinkedHashMap<>();
+            for (Method m : this.getClass().getDeclaredMethods()){
+                if (Modifier.isPrivate(m.getModifiers())) continue;
 
-            if (m.getName().equalsIgnoreCase(method)){
                 if (m.getReturnType().equals(ServiceResponse.class)){
 
                     Class<?>[] params = m.getParameterTypes();
                     if (params.length>0){
                         if (ServiceRequest.class.isAssignableFrom(params[0])){
-
-
-                          //Check whether the method accepts a ServiceRequest
-                          //or ServiceRequest + Database as inputs
-                            Object[] inputs = null;
-                            if (params.length==1){
-                                inputs = new Object[]{request};
+                            String key = m.getName();
+                            if (!strictLookup) key = key.toLowerCase();
+                            ArrayList<Method> methods = serviceMethods.get(key);
+                            if (methods==null){
+                                methods = new ArrayList<>();
+                                serviceMethods.put(key, methods);
                             }
-                            else if (params.length==2){
-                                if (Database.class.isAssignableFrom(params[1])){
-                                    inputs = new Object[]{request, database};
-                                }
-                            }
-
-                            if (inputs!=null){
+                            methods.add(m);
+                        }
+                    }
+                }
+            }
 
 
-                              //Ensure that we don't want to invoke this function!
-                              //For example, the caller might want to call
-                              //super.getServiceResponse(request, database);
-                              //If so, we would end up in a recursion causing a
-                              //stack overflow. Instead of calling getServiceResponse()
-                              //let's just flow down to the CRUD handlers below.
-                                StackTraceElement[] stackTrace = new Exception().getStackTrace();
-                                StackTraceElement el = stackTrace[1];
-                                if (m.getName().equals(el.getMethodName())){
-                                    break;
-                                }
+          //Find service methods that implement the requested method
+            ArrayList<Method> methods = null;
+            if (serviceMethods.containsKey(methodName)){
+                methods = serviceMethods.get(methodName);
+            }
+            else{
+                int i = 0;
+                if (methodName.startsWith("get")) i = 4;
+                if (methodName.startsWith("save")) i = 5;
+                if (methodName.startsWith("delete")) i = 6;
+
+                if (i>0){
+                    methodName = methodName.substring(i-1, i).toLowerCase() + methodName.substring(i);
+                    methods = serviceMethods.get(methodName);
+                }
+            }
 
 
-                              //If we're still here, call the requested method
-                              //and return the response
-                                try{
-                                    m.setAccessible(true);
-                                    return (ServiceResponse) m.invoke(this, inputs);
-                                }
-                                catch(Exception e){
-                                    return getServiceResponse(e);
-                                }
-                            }
+          //Return ServiceResponse
+            if (methods!=null){
+                for (Method m : methods){
+                    Class<?>[] params = m.getParameterTypes();
+
+
+                  //Check whether the method accepts a ServiceRequest
+                  //or ServiceRequest + Database as inputs
+                    Object[] inputs = null;
+                    if (params.length==1){
+                        inputs = new Object[]{request};
+                    }
+                    else if (params.length==2){
+                        if (Database.class.isAssignableFrom(params[1])){
+                            inputs = new Object[]{request, database};
+                        }
+                    }
+
+                    if (inputs!=null){
+
+
+                      //Ensure that we don't want to invoke this function!
+                      //For example, the caller might want to call
+                      //super.getServiceResponse(request, database);
+                      //If so, we would end up in a recursion causing a
+                      //stack overflow. Instead of calling getServiceResponse()
+                      //let's just flow down to the CRUD handlers below.
+                        StackTraceElement[] stackTrace = new Exception().getStackTrace();
+                        StackTraceElement el = stackTrace[1];
+                        if (m.getName().equals(el.getMethodName())){
+                            break;
+                        }
+
+
+                      //If we're still here, call the requested method
+                      //and return the response
+                        try{
+                            m.setAccessible(true);
+                            return (ServiceResponse) m.invoke(this, inputs);
+                        }
+                        catch(Exception e){
+                            return getServiceResponse(e);
                         }
                     }
                 }
@@ -194,6 +238,7 @@ public abstract class WebService {
 
       //If we're still here, see if the requested method corresponds to a
       //standard CRUD operation.
+        String method = request.getMethod().toLowerCase(); //don't use methodName!
         if (method.startsWith("get")){
 
           //Find and return model
