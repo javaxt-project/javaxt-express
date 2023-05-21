@@ -133,7 +133,7 @@ public abstract class WebSite extends HttpServlet {
     throws ServletException, IOException {
 
         long t = System.currentTimeMillis();
-        
+
 
       //Redirect as needed
         java.net.URL url = request.getURL();
@@ -571,7 +571,7 @@ public abstract class WebSite extends HttpServlet {
             for (javaxt.html.Element el : document.getElementsByTagName(tagName)){
                 String url = el.getAttribute(linkAttr);
 
-                if (!(url==null || url.isBlank())){
+                if (!(url==null || url.isEmpty())){
                     String t = url.toLowerCase();
                     if (!t.startsWith("http://") && !t.startsWith("https://") && !t.startsWith("//")){
                         elements.add(el);

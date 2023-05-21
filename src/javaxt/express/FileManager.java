@@ -232,7 +232,7 @@ public class FileManager {
                         url = el.getAttribute("href");
                     }
 
-                    if (!(url==null || url.isBlank())){
+                    if (!(url==null || url.isEmpty())){
 
                         String t = url.toLowerCase();
                         if (!t.startsWith("http://") && !t.startsWith("https://") && !t.startsWith("//")){
