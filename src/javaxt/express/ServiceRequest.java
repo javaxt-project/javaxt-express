@@ -973,6 +973,15 @@ public class ServiceRequest {
                 this.op = op;
                 this.val = val;
             }
+            public String getField(){
+                return col;
+            }
+            public String getOperation(){
+                return op;
+            }
+            public javaxt.utils.Value getValue(){
+                return val;
+            }
             public String toString(){
                 return StringUtils.camelCaseToUnderScore(col) + " " + op + " " + val;
             }
