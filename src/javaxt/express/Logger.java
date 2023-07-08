@@ -18,7 +18,7 @@ import javaxt.http.servlet.HttpServletRequest;
 
 public class Logger implements Runnable {
 
-    private static List pool = new LinkedList();
+    private List pool;
     private File logDir;
     private FileChannel outChannel;
     private FileOutputStream outputFile;
@@ -44,6 +44,7 @@ public class Logger implements Runnable {
         this.date = -1;
         this.maxFileSize = maxFileSize;
         this.tz = javaxt.utils.Date.getTimeZone(timezone);
+        this.pool = new LinkedList();
     }
 
 
