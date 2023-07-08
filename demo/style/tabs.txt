@@ -1,3 +1,0 @@
-Home		<%=Path%>
-Wiki		<%=Path%>wiki/
-About		<%=Path%>about/
