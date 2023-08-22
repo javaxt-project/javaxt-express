@@ -45,7 +45,7 @@ javaxt.express.FileBrowser = function(parent, config) {
       //Column config
         columns: [
             { header: "Name", field: "name", width: "100%", sortable: true },
-            { header: "Date", field: "date", width: "125px", align: "left", sortable: true },
+            { header: "Date", field: "date", width: "135px", align: "left", sortable: true },
             { header: "Type", field: "type", width: "100px", sortable: true },
             { header: "Size", field: "size", width: "80px", align: "right", sortable: true }
         ],
@@ -176,17 +176,14 @@ javaxt.express.FileBrowser = function(parent, config) {
 
       //Create main table
         var table = createTable();
-        var tr, td;
+        var td;
 
-        tr = table.addRow();
-        td = tr.addColumn();
-        createHeader(td);
+        td = table.addRow().addColumn();
+        createNavbar(td);
 
-
-        tr = table.addRow();
-        td = tr.addColumn();
+        td = table.addRow().addColumn();
         td.style.height = "100%";
-        createBody(td);
+        createGrid(td);
 
 
         if (parent===document.body){
@@ -264,7 +261,7 @@ javaxt.express.FileBrowser = function(parent, config) {
   //**************************************************************************
     this.getDirectory = function(){
         var path = params.path;
-        if (path.length>0){
+        if (path && path.length>0){
             var s = "/";
             if (path.indexOf("\\")>-1) s = "\\";
             if (path.substring(path.length-1)!=s) path+=s;
@@ -310,22 +307,15 @@ javaxt.express.FileBrowser = function(parent, config) {
 
 
   //**************************************************************************
-  //** createHeader
+  //** createNavbar
   //**************************************************************************
-    var createHeader = function(parent){
-
+    var createNavbar = function(parent){
         setStyle(parent, config.style.toolbar.panel);
-
-        var table = createTable(parent);
-        var tr, td;
-
-        tr = table.addRow();
-        td = tr.addColumn();
-        createToolbar(td);
-
-        td = tr.addColumn();
-        td.style.width = "100%";
-        createAddressBar(td);
+        var tr = createTable(parent).addRow();
+        createToolbar(tr.addColumn());
+        createAddressBar(tr.addColumn({
+            width: "100%"
+        }));
     };
 
 
@@ -334,10 +324,8 @@ javaxt.express.FileBrowser = function(parent, config) {
   //**************************************************************************
     var createToolbar = function(parent){
 
-        var table = createTable(parent);
-        var tr = table.addRow();
+        var tr = createTable(parent).addRow();
         var td;
-
 
 
       //Back button
@@ -398,38 +386,31 @@ javaxt.express.FileBrowser = function(parent, config) {
   //**************************************************************************
     var createAddressBar = function(parent){
 
-        var table = createTable();
-        var tbody = table.firstChild;
-        var tr, td;
-
-        tr = document.createElement("tr");
-        tbody.appendChild(tr);
-
-
-        td = document.createElement("td");
+        var tr = createTable(parent).addRow();
+        var td = tr.addColumn();
         td.style.width = "100%";
-        tr.appendChild(td);
 
-        var div = document.createElement("div");
+
+        var div = createElement("div", td);
         setStyle(div, config.style.toolbar.path);
         div.style.position = "relative";
         div.style.width = "100%";
-        td.appendChild(div);
 
-        var outerDiv = document.createElement("div");
+
+        var outerDiv = createElement("div", div);
         outerDiv.style.position = "absolute";
         outerDiv.style.width = "100%";
         outerDiv.style.height = "100%";
         outerDiv.style.overflow = "hidden";
         outerDiv.style.whiteSpace = "nowrap";
-        div.appendChild(outerDiv);
 
-        var innerDiv = document.createElement("div");
+
+        var innerDiv = createElement("div", outerDiv);
         innerDiv.style.position = "absolute";
         innerDiv.style.height = "100%";
         innerDiv.style.overflow = "hidden";
         innerDiv.style.whiteSpace = "nowrap";
-        outerDiv.appendChild(innerDiv);
+
 
 
         addressBar = {
@@ -442,11 +423,10 @@ javaxt.express.FileBrowser = function(parent, config) {
                 if (path.length==0) return;
                 var arr = path.split("/");
                 for (var i=0; i<arr.length; i++){
-                    var div = document.createElement("div");
+                    var div = createElement("div", innerDiv);
                     setStyle(div, config.style.addressBarItem);
                     div.style.display = "inline-block";
                     div.innerHTML = arr[i] + pathSeparator;
-                    innerDiv.appendChild(div);
                     outerDiv.scrollLeft = innerDiv.clientWidth;
 
                     div.onclick = function(){
@@ -468,9 +448,7 @@ javaxt.express.FileBrowser = function(parent, config) {
 
 
       //Refresh button
-        td = document.createElement("td");
-        tr.appendChild(td);
-        var refreshButton = createButton(td, {
+        var refreshButton = createButton(tr.addColumn(), {
             label: "",
             icon: config.style.toolbar.icons.refresh,
             disabled: false
@@ -479,41 +457,6 @@ javaxt.express.FileBrowser = function(parent, config) {
             grid.refresh();
         };
 
-        parent.appendChild(table);
-
-    };
-
-
-  //**************************************************************************
-  //** createBody
-  //**************************************************************************
-    var createBody = function(parent){
-
-        var table = createTable();
-        var tbody = table.firstChild;
-        var tr, td;
-
-        tr = document.createElement("tr");
-        tbody.appendChild(tr);
-
-        td = document.createElement("td");
-        tr.appendChild(td);
-        createNav(td);
-
-        td = document.createElement("td");
-        td.style.width = "100%";
-        tr.appendChild(td);
-        createGrid(td);
-
-        parent.appendChild(table);
-    };
-
-
-  //**************************************************************************
-  //** createNav
-  //**************************************************************************
-    var createNav = function(parent){
-
     };
 
 
@@ -521,26 +464,16 @@ javaxt.express.FileBrowser = function(parent, config) {
   //** createGrid
   //**************************************************************************
     var createGrid = function(parent){
-
-        var table = createTable();
-        var tbody = table.firstChild;
-        var tr, td;
-
-        tr = document.createElement("tr");
-        tbody.appendChild(tr);
-
-        td = document.createElement("td");
-        setStyle(td, config.style.centerPanel);
-        tr.appendChild(td);
+        var table = createTable(parent);
+        var td;
 
 
       //Create grid
-        var columns = config.columns;
-        if (typeof IScroll !== 'undefined'){
-            columns.push({ header: "", width: "10px", sortable: false });
-        }
+        td = table.addRow().addColumn();
+        setStyle(td, config.style.centerPanel);
+
         grid = new javaxt.dhtml.DataGrid(td, {
-            columns: columns,
+            columns: config.columns,
             style: config.style.table,
             url: config.fileService,
             limit: config.pageSize,
@@ -574,30 +507,31 @@ javaxt.express.FileBrowser = function(parent, config) {
 
 
       //Create footer
-        tr = document.createElement("tr");
-        tbody.appendChild(tr);
-        td = document.createElement("td");
+        td = table.addRow().addColumn();
         setStyle(td, config.style.info);
-        tr.appendChild(td);
 
-        var countInfo = document.createElement("div");
+        var info = createElement("div", td, {
+            position: "absolute"
+        });
+
+        var countInfo = createElement("div", info);
         countInfo.style.display = "inline-block";
-        td.appendChild(countInfo);
 
-        var sizeInfo = document.createElement("div");
+        var sizeInfo = createElement("div", info);
         sizeInfo.style.display = "inline-block";
         sizeInfo.style.marginLeft = "7px";
-        td.appendChild(sizeInfo);
 
+        var waitmask;
         grid.beforeLoad = function(page){
             //me.onSelectionChange();
-            //mainMask.show();
+            if (!waitmask) waitmask = new javaxt.express.WaitMask(table);
+            waitmask.show(500);
             countInfo.innerHTML = "";
             sizeInfo.innerHTML = "";
         };
 
         grid.onLoad = function(){
-            //mainMask.hide();
+            waitmask.hide();
             countInfo.innerHTML = totalCount + " items";
             if (totalSize>0) sizeInfo.innerHTML = formatSize(totalSize);
         };
@@ -619,9 +553,6 @@ javaxt.express.FileBrowser = function(parent, config) {
                 me.onClick(item, path, row, e);
             }
         };
-
-
-        parent.appendChild(table);
     };
 
 
@@ -666,16 +597,14 @@ javaxt.express.FileBrowser = function(parent, config) {
         var icon = getIcon(item);
         if (icon){
 
-            var outerDiv = document.createElement("div");
+            var outerDiv = createElement("div");
 
-            var div = document.createElement("div");
+            var div = createElement("div", outerDiv);
             div.style.display = "inline-block";
-            outerDiv.appendChild(div);
             setContent(icon, div);
 
-            var div = document.createElement("div");
+            var div = createElement("div", outerDiv);
             div.style.display = "inline-block";
-            outerDiv.appendChild(div);
             setContent(name, div);
 
             return outerDiv;
@@ -846,6 +775,7 @@ javaxt.express.FileBrowser = function(parent, config) {
     var clone = javaxt.dhtml.utils.clone;
     var merge = javaxt.dhtml.utils.merge;
     var setStyle = javaxt.dhtml.utils.setStyle;
+    var createElement = javaxt.dhtml.utils.createElement;
     var createTable = javaxt.dhtml.utils.createTable;
 
     init();
