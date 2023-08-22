@@ -11,6 +11,8 @@ import java.util.ArrayList;
 
 public class CSV {
 
+    public static final String TAB_DELIMITER = "\t";
+    public static final String COMMA_DELIMITER = ",";
     //public static final String UTF8_BOM = "\uFEFF";
 
   //**************************************************************************
