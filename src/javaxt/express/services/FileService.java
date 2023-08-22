@@ -61,7 +61,21 @@ public class FileService {
 
       //Parse params
         String path = getPath(request);
-        String filter = request.getParameter("filter").toString();
+        Object filter = null;
+        String _filter = request.getParameter("filter").toString();
+        if (_filter!=null){
+            try{
+                JSONArray arr = new JSONArray(_filter);
+                String[] filters = new String[arr.length()];
+                for (int i=0; i<arr.length(); i++){
+                    filters[i] = arr.get(i).toString();
+                }
+                filter = filters;
+            }
+            catch(Exception e){
+                filter = _filter;
+            }
+        }
         Boolean recursiveSearch = request.getParameter("recursiveSearch").toBoolean();
         if (recursiveSearch==null) recursiveSearch = false;
         if (recursiveSearch && filter==null) recursiveSearch = false;
