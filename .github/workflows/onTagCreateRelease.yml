@@ -81,7 +81,7 @@ jobs:
     ### Create zip file
 
       - name: Copy jar file from the dist to the release directory
-        run: cp dist/javaxt-express.jar release
+        run: cp dist/javaxt-express*.jar release
 
 
       - name: Copy release assets to the release directory
