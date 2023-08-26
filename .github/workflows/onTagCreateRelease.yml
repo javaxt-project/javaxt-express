@@ -40,7 +40,7 @@ jobs:
 
 
       - name: Combine javascript files into a single file
-        run: find ./ui/javascript -name '*.js' -exec cat {} \; > ./temp/javaxt-webcontrols.js
+        run: find ./ui/javascript -name '*.js' -exec cat {} \; > ./temp/javaxt-express.js
 
 
       - name: Minify the combined file
@@ -54,7 +54,7 @@ jobs:
       - name: Insert release info into the minified file
         run: |
              sudo chmod 777 ./release/javaxt-express.js
-             printf '%s\n%s\n' "//javaxt-express ${{ env.releaseLabel }}" "$(cat ./release/javaxt-express.js)" >./release/javaxt-webcontrols.js
+             printf '%s\n%s\n' "//javaxt-express ${{ env.releaseLabel }}" "$(cat ./release/javaxt-express.js)" >./release/javaxt-express.js
 
 
     ### Generate jar file
@@ -85,7 +85,7 @@ jobs:
 
 
       - name: Copy release assets to the release directory
-        run: cp -r src ui demos LICENSE.TXT release
+        run: cp -r src ui LICENSE.TXT release
 
 
       - name: Create zip file
