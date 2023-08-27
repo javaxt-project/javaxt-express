@@ -9,6 +9,10 @@
         <!-- Ant-style directory layout -->
         <src.dir>src</src.dir>
 
+
+        <maven.build.timestamp.format>yyyy-MM-dd HH:mm:ss z</maven.build.timestamp.format>
+        <buildDate>${maven.build.timestamp}</buildDate>
+
     </properties>
 
   <!-- =========================================================== -->
@@ -16,7 +20,7 @@
   <!-- =========================================================== -->
     <groupId>javaxt</groupId>
     <artifactId>javaxt-express</artifactId>
-    <version>dev</version>
+    <version>1.2.6</version>
     <packaging>jar</packaging>
 
 
@@ -103,6 +107,15 @@
                             <classpathPrefix>lib/</classpathPrefix>
                             <mainClass>javaxt.express.Server</mainClass>
                         </manifest>
+                        <manifestEntries>
+                          <Built-By>JavaXT</Built-By>
+                          <Bundle-Name>JavaXT Express</Bundle-Name>
+                          <Bundle-Version>${project.version}</Bundle-Version>
+                          <Bundle-Date>${buildDate}</Bundle-Date>
+                          <Implementation-Title>JavaXT Express</Implementation-Title>
+                          <Implementation-Version>${project.version}</Implementation-Version>
+                          <Implementation-URL>http://javaxt.com</Implementation-URL>
+                        </manifestEntries>
                     </archive>
                 </configuration>
             </plugin>
