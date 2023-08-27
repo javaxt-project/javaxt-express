@@ -30,7 +30,7 @@ jobs:
 
 
       - name: Create release directory
-        run: mkdir release
+        run: mkdir -p release/bin
 
 
     ### Generate minified javascript file
@@ -47,14 +47,14 @@ jobs:
         uses: nizarmah/auto-minify@v2.1
         with:
           directory: ./temp
-          output: ./release
+          output: ./release/bin
           overwrite: true
 
 
       - name: Insert release info into the minified file
         run: |
-             sudo chmod 777 ./release/javaxt-express.js
-             printf '%s\n%s\n' "//javaxt-express ${{ env.releaseLabel }}" "$(cat ./release/javaxt-express.js)" >./release/javaxt-express.js
+             sudo chmod 777 ./release/bin/javaxt-express.js
+             printf '%s\n%s\n' "//javaxt-express ${{ env.releaseLabel }}" "$(cat ./release/bin/javaxt-express.js)" >./release/bin/javaxt-express.js
 
 
     ### Generate jar file
@@ -81,7 +81,7 @@ jobs:
     ### Create zip file
 
       - name: Copy jar file from the dist to the release directory
-        run: cp dist/javaxt-express*.jar release/javaxt-express.jar
+        run: cp dist/javaxt-express*.jar release/bin/javaxt-express.jar
 
 
       - name: Copy release assets to the release directory
