@@ -49,10 +49,10 @@ public class DbUtils {
         boolean schemaInitialized = false;
 
       //Split schema into individual statements
-        ArrayList<String> statements = new ArrayList<String>();
+        ArrayList<String> statements = new ArrayList<>();
         for (String s : schema.split(";")){
 
-            StringBuffer str = new StringBuffer();
+            StringBuilder str = new StringBuilder();
             for (String i : s.split("\r\n")){
                 if (!i.trim().startsWith("--") && !i.trim().startsWith("COMMENT ")){
                     str.append(i + "\r\n");
@@ -68,14 +68,18 @@ public class DbUtils {
 
 
       //Create database
-        if (database.getDriver().equals("H2")){
+        Driver driver = database.getDriver();
+        if (driver.equals("H2")){
 
             javaxt.io.File db = new javaxt.io.File(database.getHost() + ".mv.db");
             if (!db.exists()){
 
               //Set H2 to PostgreSQL mode
-                java.util.Properties properties = new java.util.Properties();
+                java.util.Properties properties = database.getProperties();
+                if (properties==null) properties = new java.util.Properties();
                 properties.setProperty("MODE", "PostgreSQL");
+                properties.setProperty("DATABASE_TO_LOWER", "TRUE");
+                properties.setProperty("DEFAULT_NULL_ORDERING", "HIGH");
                 database.setProperties(properties);
 
 
@@ -84,7 +88,7 @@ public class DbUtils {
                     String str = statement.trim().toUpperCase();
                     if (arr==null){
                         if (str.startsWith("CREATE TABLE") || str.startsWith("CREATE SCHEMA")){
-                            arr = new ArrayList<String>();
+                            arr = new ArrayList<>();
                         }
                     }
 
@@ -110,40 +114,36 @@ public class DbUtils {
                 }
 
 
-                Connection conn = null;
-                try{
-                    conn = database.getConnection();
+
+                try (Connection conn = database.getConnection()){
                     conn.execute("CREATE domain IF NOT EXISTS text AS varchar");
                     conn.execute("CREATE domain IF NOT EXISTS jsonb AS varchar");
                     schemaInitialized = initSchema(arr, conn);
-                    conn.close();
                 }
-                catch(java.sql.SQLException e){
-                    if (conn!=null) conn.close();
+                catch(Exception e){
+                    e.printStackTrace();
                     String fileName = db.getName();
                     fileName = fileName.substring(0, fileName.indexOf("."));
                     for (javaxt.io.File file : db.getParentDirectory().getFiles(fileName + ".*.db")){
                         file.delete();
                     }
-                    throw new Exception(e.getMessage());
+                    throw e;
                 }
-
             }
-
         }
-        else if (database.getDriver().equals("PostgreSQL")){
+        else if (driver.equals("PostgreSQL")){
 
           //Connect to the database
-            Connection conn = null;
+            Connection conn;
             try{ conn = database.getConnection(); }
             catch(Exception e){
 
-              //Try to connect to the postgres database
+              //Try to connect a new database. First, we'll try to connect to
+              //a database called "postgres" on the PostgreSQL server. This is
+              //the default database in most installations.
                 Database db = database.clone();
                 db.setName("postgres");
-                Connection c2 = null;
-                try{
-                    c2 = db.getConnection();
+                try (Connection c2 = db.getConnection()) {
 
 
                   //Check if database exists
@@ -161,22 +161,19 @@ public class DbUtils {
                         c2.execute("CREATE DATABASE " + database.getName());
                     }
 
-                    c2.close();
-
-
-                    conn = database.getConnection();
                 }
                 catch(Exception ex){
                     ex.printStackTrace();
-                    if (c2!=null) c2.close();
                     throw new Exception("Failed to connect to the database");
                 }
+
+                conn = database.getConnection();
             }
 
 
 
           //Generate list of SQL statements
-            ArrayList<String> arr = new ArrayList<String>();
+            ArrayList<String> arr = new ArrayList<>();
             if (tableSpace!=null) arr.add("SET default_tablespace = " + tableSpace + ";");
             for (int i=0; i<statements.size(); i++){
                 String statement = statements.get(i);
@@ -268,19 +265,19 @@ public class DbUtils {
 
 
       //Execute statments
-        java.sql.Statement stmt = conn.getConnection().createStatement();
-        for (String cmd : statements){
-            //String tableName = getTableName(cmd);
-            //if (tableName!=null) console.log(tableName);
-            try{
-                stmt.execute(cmd);
-            }
-            catch(java.sql.SQLException e){
-                System.out.println(cmd);
-                throw e;
+        try (java.sql.Statement stmt = conn.getConnection().createStatement()){
+            for (String cmd : statements){
+                //String tableName = getTableName(cmd);
+                //if (tableName!=null) console.log(tableName);
+                try{
+                    stmt.execute(cmd);
+                }
+                catch(java.sql.SQLException e){
+                    System.out.println(cmd);
+                    throw e;
+                }
             }
         }
-        stmt.close();
         return true;
     }
 
@@ -408,9 +405,8 @@ public class DbUtils {
 
 
       //Get min/max row ID
-        Connection conn = null;
-        try{
-            conn = sourceDB.getConnection();
+
+        try (Connection conn = sourceDB.getConnection()) {
             Recordset rs = new Recordset();
             rs.open("select min(id), max(id) from " + t + (where==null ? "" : " where " + where), conn);
             if (!rs.EOF){
@@ -418,13 +414,11 @@ public class DbUtils {
                 maxID = rs.getValue(1).toLong();
             }
             rs.close();
-            conn.close();
 
             //Long id = getLastRowID(tableName, where, destDB);
             //if (id!=null && id>minID) minID = id;
         }
         catch(Exception e){
-            if (conn!=null) conn.close();
             e.printStackTrace();
         }
 
@@ -493,13 +487,10 @@ public class DbUtils {
 
       //Update sequence
         if (destDB.getDriver().equals("PostgreSQL")){
-            try{
-                conn = destDB.getConnection();
+            try (Connection conn = destDB.getConnection()) {
                 conn.execute("SELECT setval('" + tableName + "_id_seq', (SELECT MAX(id) FROM " + t + "));");
-                conn.close();
             }
             catch(Exception e){
-                if (conn!=null) conn.close();
                 e.printStackTrace();
             }
         }
