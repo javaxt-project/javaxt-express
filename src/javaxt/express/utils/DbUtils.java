@@ -6,7 +6,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.*;
 import javaxt.sql.*;
 import javaxt.json.*;
-import javaxt.utils.Console;
+import static javaxt.utils.Console.console;
 
 
 //******************************************************************************
@@ -19,8 +19,6 @@ import javaxt.utils.Console;
  ******************************************************************************/
 
 public class DbUtils {
-
-    private static Console console = new Console();
 
 
   //**************************************************************************
@@ -74,13 +72,6 @@ public class DbUtils {
             javaxt.io.File db = new javaxt.io.File(database.getHost() + ".mv.db");
             if (!db.exists()){
 
-              //Set H2 to PostgreSQL mode
-                java.util.Properties properties = database.getProperties();
-                if (properties==null) properties = new java.util.Properties();
-                properties.setProperty("MODE", "PostgreSQL");
-                properties.setProperty("DATABASE_TO_LOWER", "TRUE");
-                properties.setProperty("DEFAULT_NULL_ORDERING", "HIGH");
-                database.setProperties(properties);
 
 
                 ArrayList<String> arr = null;
@@ -216,6 +207,7 @@ public class DbUtils {
                 throw e;
             }
         }
+
         return schemaInitialized;
     }
 
