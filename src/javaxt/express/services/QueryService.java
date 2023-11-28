@@ -37,7 +37,6 @@ public class QueryService {
     private List<String> pendingJobs = new LinkedList<>();
     private List<String> completedJobs = new LinkedList<>();
     private java.util.List<SelectItem> selectCount;
-    //public static Console console = Console.console;
 
 
   //**************************************************************************
@@ -325,7 +324,7 @@ public class QueryService {
                     json.set("name", field.getName());
                     json.set("type", field.getType());
                     json.set("class", field.getClassName());
-                    json.set("table", field.getTable());
+                    json.set("table", field.getTableName());
                     metadata.add(json);
                     count++;
                 }
@@ -464,14 +463,9 @@ public class QueryService {
             while (it.hasNext()){
                 String key = it.next();
                 QueryJob job = jobs.get(key);
-                long userID = job.userID;
-
-              //Prevent non-admins seeing other user jobs
-                if (user.getAccessLevel()<5){
-                    if (userID!=user.getID()) continue;
+                if (job.userID==user.getID()){
+                    arr.add(job.toJson());
                 }
-
-                arr.add(job.toJson());
             }
         }
 
