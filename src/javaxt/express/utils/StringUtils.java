@@ -94,6 +94,8 @@ public class StringUtils {
   //**************************************************************************
   //** rtrim
   //**************************************************************************
+  /** Used to remove whitespaces at the end of a given string
+   */
     public static String rtrim(String s) {
         int i = s.length()-1;
         while (i >= 0 && Character.isWhitespace(s.charAt(i))) {
@@ -117,6 +119,25 @@ public class StringUtils {
         long m = Math.round(s/60);
         return m + "m";
     }
+
+
+  //**************************************************************************
+  //** formatFileSize
+  //**************************************************************************
+    public static String formatFileSize(long size){
+        if (size>0){
+            size = size/1024;
+            if (size<=1) return "1 KB";
+            else{
+                size = size/1024;
+                if (size<=1) return "1 MB";
+                else{
+                    return format(Math.round(size)) + " MB";
+                }
+            }
+        }
+        return "";
+    };
 
 
   //**************************************************************************
