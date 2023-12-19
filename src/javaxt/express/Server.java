@@ -92,12 +92,24 @@ public class Server {
    */
     private static class WebSite extends javaxt.express.cms.WebSite {
         private WebSite(Config config, HashMap<String, String> args){
-            super((javaxt.io.Directory)
-                config.get("webserver").get("web").toObject());
+            super(getDirectory(config));
         }
 
-      /** Returns an html snippet found in the given file. Overrides the native
-       *  getContent method to support custom tags (e.g. "index").
+        private static javaxt.io.Directory getDirectory(Config config){
+            javaxt.io.Directory web = null;
+            try{
+                web = (javaxt.io.Directory)
+                config.get("webserver").get("webDir").toObject();
+            }
+            catch(Exception e){}
+            if (web==null) throw new IllegalArgumentException(
+            "Invalid directory. Use the -dir argument to specify a path to a CMS folder.");
+            return web;
+        }
+
+
+      /* Override the native getContent method to generate custom HTML for wiki
+       * pages. Performs custom keyword substitution for the "<%=index%>" tag.
        */
         public Content getContent(HttpServletRequest request, javaxt.io.File file){
 
