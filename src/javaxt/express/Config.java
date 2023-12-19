@@ -14,6 +14,10 @@ public class Config {
 
     private List<JSONObject> config;
 
+
+  //**************************************************************************
+  //** Constructor
+  //**************************************************************************
     public Config(){
         config = new LinkedList<>();
         config.add(new JSONObject());
@@ -89,7 +93,7 @@ public class Config {
   /** Returns a list of keys found in the config.
    */
     public ArrayList<String> getKeys(){
-        ArrayList<String> keys = new ArrayList<String>();
+        ArrayList<String> keys = new ArrayList<>();
         synchronized(config){
             for (String key : config.get(0).keySet()){
                 keys.add(key);
@@ -112,6 +116,8 @@ public class Config {
   //**************************************************************************
   //** getDatabase
   //**************************************************************************
+  /** Returns a Database assigned to a "database" key.
+   */
     public javaxt.sql.Database getDatabase(){
         JSONValue val = get("database");
         if (val==null) return null;
@@ -125,11 +131,35 @@ public class Config {
         }
     }
 
-    public javaxt.sql.Database getDatabase(JSONValue val){
+
+  //**************************************************************************
+  //** getDatabase
+  //**************************************************************************
+  /** Used to parse database connection information found in a given JSONValue
+   *  and returns a Database object.
+   */
+    public static javaxt.sql.Database getDatabase(JSONValue val){
         return getDatabase(val.toJSONObject());
     }
 
-    public javaxt.sql.Database getDatabase(JSONObject json){
+
+  //**************************************************************************
+  //** getDatabase
+  //**************************************************************************
+  /** Used to parse database connection information found in a given JSONObject
+   *  and returns a Database object. Example:
+   <pre>
+    {
+        "driver": "PostgreSQL",
+        "host": "localhost:5432",
+        "name": "test",
+        "username": "postgres",
+        "password": "xxxxxxxx",
+        "maxConnections": 35
+    }
+   </pre>
+   */
+    public static javaxt.sql.Database getDatabase(JSONObject json){
         if (json==null) return null;
         javaxt.sql.Database database = new javaxt.sql.Database();
         database.setDriver(json.get("driver").toString());
@@ -140,7 +170,6 @@ public class Config {
         if (json.has("maxConnections")){
             database.setConnectionPoolSize(json.get("maxConnections").toInteger());
         }
-        setDatabase(database);
         return database;
     }
 
@@ -148,6 +177,8 @@ public class Config {
   //**************************************************************************
   //** setDatabase
   //**************************************************************************
+  /** Used to assign a Database to a "database" key.
+   */
     public void setDatabase(javaxt.sql.Database database){
         set("database", database);
     }
