@@ -70,7 +70,7 @@ public class Server {
                 int numThreads = config.get("webserver").get("numThreads").toInteger();
                 javaxt.http.Server server = new javaxt.http.Server(port, numThreads, servlet);
                 server.start();
-                
+
             }
             catch (Exception e) {
                 System.out.println("Server could not start because of an " +
@@ -399,18 +399,6 @@ public class Server {
         return config;
     }
 
-
-  //**************************************************************************
-  //** getValue
-  //**************************************************************************
-    private static javaxt.utils.Value getValue(HashMap<String, String> args, String ...keys){
-        for (String key : keys){
-            if (args.containsKey(key)){
-                return new javaxt.utils.Value(args.get(key));
-            }
-        }
-        return new javaxt.utils.Value(null);
-    }
 
   //**************************************************************************
   //** getFile
