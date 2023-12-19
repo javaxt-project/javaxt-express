@@ -70,56 +70,56 @@ public class DbUtils {
         if (driver.equals("H2")){
 
             javaxt.io.File db = new javaxt.io.File(database.getHost() + ".mv.db");
-            if (!db.exists()){
+            boolean deleteOnError = !db.exists();
 
 
-
-                ArrayList<String> arr = null;
-                for (String statement : statements){
-                    String str = statement.trim().toUpperCase();
-                    if (arr==null){
-                        if (str.startsWith("CREATE TABLE") || str.startsWith("CREATE SCHEMA")){
-                            arr = new ArrayList<>();
-                        }
-                    }
-
-
-                    if (arr!=null){
-
-                      //Replace trigger functions
-                        if (str.startsWith("CREATE TRIGGER")){
-                            statement = "";
-                        }
-
-
-                      //Replace geometry types
-                        int idx = statement.toUpperCase().indexOf("geometry(Geometry,4326)".toUpperCase());
-                        if (idx>0){
-                            String a = statement.substring(0, idx) + "geometry";
-                            String b = statement.substring(idx + "geometry(Geometry,4326)".length());
-                            statement = a + b;
-                        }
-
-                        arr.add(statement);
+            ArrayList<String> arr = null;
+            for (String statement : statements){
+                String str = statement.trim().toUpperCase();
+                if (arr==null){
+                    if (str.startsWith("CREATE TABLE") || str.startsWith("CREATE SCHEMA")){
+                        arr = new ArrayList<>();
                     }
                 }
 
 
+                if (arr!=null){
 
-                try (Connection conn = database.getConnection()){
-                    conn.execute("CREATE domain IF NOT EXISTS text AS varchar");
-                    conn.execute("CREATE domain IF NOT EXISTS jsonb AS varchar");
-                    schemaInitialized = initSchema(arr, conn);
+                  //Replace trigger functions
+                    if (str.startsWith("CREATE TRIGGER")){
+                        statement = "";
+                    }
+
+
+                  //Replace geometry types
+                    int idx = statement.toUpperCase().indexOf("geometry(Geometry,4326)".toUpperCase());
+                    if (idx>0){
+                        String a = statement.substring(0, idx) + "geometry";
+                        String b = statement.substring(idx + "geometry(Geometry,4326)".length());
+                        statement = a + b;
+                    }
+
+                    arr.add(statement);
                 }
-                catch(Exception e){
-                    e.printStackTrace();
+            }
+
+
+
+            try (Connection conn = database.getConnection()){
+                conn.execute("CREATE domain IF NOT EXISTS text AS varchar");
+                conn.execute("CREATE domain IF NOT EXISTS jsonb AS varchar");
+                schemaInitialized = initSchema(arr, conn);
+            }
+            catch(Exception e){
+                e.printStackTrace();
+                if (deleteOnError){
                     String fileName = db.getName();
                     fileName = fileName.substring(0, fileName.indexOf("."));
                     for (javaxt.io.File file : db.getParentDirectory().getFiles(fileName + ".*.db")){
                         file.delete();
                     }
-                    throw e;
                 }
+                throw e;
             }
         }
         else if (driver.equals("PostgreSQL")){
