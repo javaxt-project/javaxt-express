@@ -1,6 +1,20 @@
 package javaxt.express;
-import javaxt.json.*;
+
 import java.util.*;
+import java.io.IOException;
+
+import javaxt.json.*;
+import javaxt.http.servlet.HttpServletRequest;
+import javaxt.http.servlet.HttpServletResponse;
+
+
+//******************************************************************************
+//**  ServiceResponse
+//******************************************************************************
+/**
+ *   Used to encapsulate a response to a ServiceRequest
+ *
+ ******************************************************************************/
 
 public class ServiceResponse {
 
@@ -131,7 +145,7 @@ public class ServiceResponse {
     public void setCacheControl(String cacheControl){
         this.cacheControl = cacheControl;
     }
-
+    //e.g. "no-cache, no-transform"
     public String getCacheControl(){
         return cacheControl;
     }
@@ -176,7 +190,117 @@ public class ServiceResponse {
     }
 
 
+  //**************************************************************************
+  //** send
+  //**************************************************************************
+  /** Used to send the response to a client by generating an
+   *  HttpServletResponse
+   *  @param response An HttpServletResponse to write to
+   */
+    public void send(HttpServletResponse response) throws IOException {
+        send(response, null);
+    }
 
+
+  //**************************************************************************
+  //** send
+  //**************************************************************************
+  /** Used to send the response to a client by generating an
+   *  HttpServletResponse
+   *  @param response An HttpServletResponse to write to
+   *  @param req The ServiceRequest associated with this response
+   */
+    public void send(HttpServletResponse response, ServiceRequest req) throws IOException {
+
+        HttpServletRequest request = req==null ? null : req.getRequest();
+
+        if (status==304){
+            response.setStatus(304);
+        }
+        else if (status==307){
+            response.setStatus(307);
+            String location = new String((byte[]) this.getResponse());
+            response.setHeader("Location", location);
+            String msg =
+            "<head>" +
+            "<title>Document Moved</title>" +
+            "</head>" +
+            "<body>" +
+            "<h1>Object Moved</h1>" +
+            "This document may be found <a href=\"" + location + "\">here</a>" +
+            "</body>";
+            response.write(msg);
+        }
+        else{
+
+          //Set general response headers
+            response.setContentType(this.getContentType());
+            response.setStatus(status);
+            if (cacheControl!=null) response.setHeader("Cache-Control", cacheControl);
+
+
+
+          //Set authentication header as needed
+            String authType = request==null ? null : request.getAuthType();
+            if (authMessage!=null && authType!=null){
+                //"WWW-Authenticate", "Basic realm=\"Access Denied\""
+                if (authType.equalsIgnoreCase("BASIC")){
+                    response.setHeader("WWW-Authenticate", "Basic realm=\"" + authMessage + "\"");
+                }
+            }
+
+
+          //Send body
+            Object obj = this.getResponse();
+            if (obj instanceof javaxt.io.File){
+                javaxt.io.File file = (javaxt.io.File) obj;
+                if (date!=null && request!=null){
+                    javaxt.utils.URL url = new javaxt.utils.URL(request.getURL());
+                    long currVersion = date.toLong();
+                    long requestedVersion = 0;
+                    try{ requestedVersion = Long.parseLong(url.getParameter("v")); }
+                    catch(Exception e){}
+
+                    if (requestedVersion < currVersion){
+                        url.setParameter("v", currVersion+"");
+                        response.sendRedirect(url.toString(), true);
+                        return;
+                    }
+                    else if (requestedVersion==currVersion){
+                        response.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+                    }
+                }
+
+
+              //Set fileName and contentType. Note that when a fileName is
+              //provided, the server responds with an attachment. Example:
+              //Content-Disposition: attachment;filename=...
+                String contentType = file.getContentType();
+                String fileName = null;
+
+                response.write(file.toFile(), fileName, contentType, true);
+            }
+            else if (obj instanceof java.io.InputStream){
+              //Set Content-Length response header
+                if (contentLength!=null){
+                    response.setHeader("Content-Length", contentLength+"");
+                }
+
+                java.io.InputStream inputStream = (java.io.InputStream) obj;
+                response.write(inputStream, true);
+                inputStream.close();
+            }
+            else{
+                response.write((byte[]) obj, true);
+            }
+
+        }
+    }
+
+
+  //**************************************************************************
+  //** getBytes
+  //**************************************************************************
     private static byte[] getBytes(String str){
         try{
             return str.getBytes("UTF-8");
