@@ -396,14 +396,31 @@ public abstract class WebService {
 
       //Get tableName and spatial fields associated with the Model
         String tableName;
+        HashMap<String, String> fieldMap = new HashMap<>();
         HashSet<String> spatialFields = new HashSet<>();
         try{
             Object obj = c.newInstance();
+
+          //Get tableName
             java.lang.reflect.Field field = obj.getClass().getSuperclass().getDeclaredField("tableName");
             field.setAccessible(true);
             tableName = (String) field.get(obj);
 
 
+          //Get fieldMap
+            field = obj.getClass().getSuperclass().getDeclaredField("fieldMap");
+            field.setAccessible(true);
+            HashMap<String, String> map = (HashMap<String, String>) field.get(obj);
+            Iterator<String> it = map.keySet().iterator();
+            while (it.hasNext()){
+                String fieldName = it.next();
+                String columnName = map.get(fieldName);
+                fieldMap.put(fieldName, columnName);
+            }
+            fieldMap.put("id", "id");
+
+
+          //Get spatial fields
             for (java.lang.reflect.Field f : obj.getClass().getDeclaredFields()){
                 Class fieldType = f.getType();
                 String packageName = fieldType.getPackage()==null ? "" :
@@ -444,24 +461,36 @@ public abstract class WebService {
         sql.append(tableName);
 
 
+        String where = null;
         Filter filter = request.getFilter();
         if (!filter.isEmpty()){
             //System.out.println(filter.toJson().toString(4));
-            sql.append(" where ");
-            Filter.Item[] items = filter.getItems();
-            for (int i=0; i<items.length; i++){
-                if (i>0) sql.append(" and ");
-                sql.append("(");
-                sql.append(items[i].toString());
-                sql.append(")");
+            ArrayList<String> arr = new ArrayList<>();
+            for (Filter.Item item : filter.getItems()){
+                String name = item.getField();
+                Iterator<String> it = fieldMap.keySet().iterator();
+                while (it.hasNext()){
+                    String fieldName = it.next();
+                    String columnName = fieldMap.get(fieldName);
+                    if (name.equalsIgnoreCase(fieldName) || name.equalsIgnoreCase(columnName)){
+                        String op = item.getOperation();
+                        javaxt.utils.Value v = item.getValue();
+                        arr.add("(" + columnName + " " + op + " " + v + ")");
+                        break;
+                    }
+                }
+            }
+            if (!arr.isEmpty()){
+                where = String.join(" and ", arr);
+                //console.log(where);
             }
         }
         else{
-            String where = request.getWhere();
-            if (where!=null){
-                sql.append(" where ");
-                sql.append(where);
-            }
+            where = request.getWhere();
+        }
+        if (where!=null){
+            sql.append(" where ");
+            sql.append(where);
         }
 
 
@@ -493,8 +522,8 @@ public abstract class WebService {
         }
 
 
-        String format = "";
-
+        String format = request.getParameter("format").toString();
+        if (format==null) format = ""; else format = format.toLowerCase();
 
 
       //Excute query and generate response
@@ -517,6 +546,7 @@ public abstract class WebService {
                                 csv.append(field.getName());
                                 i++;
                             }
+                            csv.append("\r\n");
                         }
 
                         int i = 0;
@@ -655,7 +685,7 @@ public abstract class WebService {
           //Get id
             Method getID = getMethod("getID", c);
             id = (Long) getID.invoke(obj);
-            if (id==null) throw new Exception("Save failed");
+            if (id==null) return new ServiceResponse(500, "Failed to retrieve ID on save");
 
 
           //Fire event
