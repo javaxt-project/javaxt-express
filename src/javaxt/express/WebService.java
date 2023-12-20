@@ -315,11 +315,20 @@ public abstract class WebService {
   //**************************************************************************
   //** getRecordset
   //**************************************************************************
-  /** Protected method that subclasses can override to apply filters or add
-   *  constraints when retrieving objects from the database. This method is
-   *  called before "get", "create", "update", "delete" requests.
+  /** Returns a Recordset that is used fetch records from the database and
+   *  support CRUD operations. This is a protected method that extending
+   *  classes can override to apply custom filters or add constraints when
+   *  retrieving objects from the database. This method is called whenever an
+   *  HTTP GET, POST, or DELETE request is made for a Model.
+   *  @param op Operation that is requesting the Recordset. Options include
+   *  "list, "get", "save", and "delete".
+   *  @param c The Model (Java class) associated with the request.
+   *  @param sql The default SQL statement generated for the request.
+   *  @param conn A database connection used to open the Recordset.
    */
-    protected Recordset getRecordset(ServiceRequest request, String op, Class c, String sql, Connection conn) throws Exception {
+    protected Recordset getRecordset(ServiceRequest request, String op, Class c,
+        String sql, Connection conn) throws Exception {
+
         Recordset rs = new Recordset();
         if (op.equals("list")) rs.setFetchSize(1000);
         rs.open(sql, conn);
@@ -359,10 +368,11 @@ public abstract class WebService {
 
           //Apply filter
             id = null;
-            Recordset rs = getRecordset(request, "get", c, "select id from " +
-            getTableName(obj) + " where id=" + getMethod("getID", c).invoke(obj), conn);
-            if (!rs.EOF) id = rs.getValue(0).toLong();
-            rs.close();
+            try (Recordset rs = getRecordset(request, "get", c,
+                "select id from " +  getTableName(obj) +
+                " where id=" + getMethod("getID", c).invoke(obj), conn)){
+                if (!rs.EOF) id = rs.getValue(0).toLong();
+            }
             if (id==null) return new ServiceResponse(404);
 
 
@@ -489,108 +499,107 @@ public abstract class WebService {
 
       //Excute query and generate response
         try (Connection conn = database.getConnection()){
-            Recordset rs = getRecordset(request, "list", c, sql.toString(), conn);
+            try (Recordset rs = getRecordset(request, "list", c, sql.toString(), conn)){
 
 
-            ServiceResponse response;
-            if (format.equals("csv")){
+                ServiceResponse response;
+                if (format.equals("csv")){
 
-                StringBuilder csv = new StringBuilder();
-                long x = 0;
-                while (rs.next()){
-                    if (x>0) csv.append("\r\n");
+                    StringBuilder csv = new StringBuilder();
+                    long x = 0;
+                    while (rs.next()){
+                        if (x>0) csv.append("\r\n");
 
-                    if (x==0){
+                        if (x==0){
+                            int i = 0;
+                            for (javaxt.sql.Field field : rs.getFields()){
+                                if (i>0) csv.append(",");
+                                csv.append(field.getName());
+                                i++;
+                            }
+                        }
+
                         int i = 0;
                         for (javaxt.sql.Field field : rs.getFields()){
                             if (i>0) csv.append(",");
-                            csv.append(field.getName());
+                            javaxt.sql.Value value = field.getValue();
+                            if (!value.isNull()){
+                                String val = value.toString();
+                                if (val.contains("\"")) val = "\"" + val + "\"";
+                                csv.append(val);
+                            }
                             i++;
                         }
-                    }
 
-                    int i = 0;
-                    for (javaxt.sql.Field field : rs.getFields()){
-                        if (i>0) csv.append(",");
-                        javaxt.sql.Value value = field.getValue();
-                        if (!value.isNull()){
-                            String val = value.toString();
-                            if (val.contains("\"")) val = "\"" + val + "\"";
-                            csv.append(val);
-                        }
-                        i++;
+
+                        x++;
                     }
 
 
-                    x++;
+                    response = new ServiceResponse(csv);
+                    response.setContentType("text/csv");
+
                 }
+                else if (format.equals("json")){
 
+                    StringBuilder json = new StringBuilder("[");
 
-                response = new ServiceResponse(csv);
-                response.setContentType("text/csv");
+                    long x = 0;
+                    while (rs.next()){
+                        if (x>0) json.append(",");
+                        json.append(DbUtils.getJson(rs));
+                        x++;
+                    }
+                    json.append("]");
 
-            }
-            else if (format.equals("json")){
+                    response = new ServiceResponse(json.toString());
+                    response.setContentType("application/json");
 
-                StringBuilder json = new StringBuilder("[");
-
-                long x = 0;
-                while (rs.next()){
-                    if (x>0) json.append(",");
-                    json.append(DbUtils.getJson(rs));
-                    x++;
                 }
-                json.append("]");
+                else {
 
-                response = new ServiceResponse(json.toString());
-                response.setContentType("application/json");
+                    long x = 0;
+                    JSONArray cols = new JSONArray();
+                    StringBuilder json = new StringBuilder("{\"rows\":[");
 
-            }
-            else {
+                    while (rs.next()){
+                        JSONArray row = new JSONArray();
 
-                long x = 0;
-                JSONArray cols = new JSONArray();
-                StringBuilder json = new StringBuilder("{\"rows\":[");
+                        JSONObject record = DbUtils.getJson(rs);
+                        for (javaxt.sql.Field field : rs.getFields()){
+                            String fieldName = field.getName().toLowerCase();
+                            fieldName = StringUtils.underscoreToCamelCase(fieldName);
+                            if (x==0) cols.add(fieldName);
 
-                while (rs.next()){
-                    JSONArray row = new JSONArray();
-
-                    JSONObject record = DbUtils.getJson(rs);
-                    for (javaxt.sql.Field field : rs.getFields()){
-                        String fieldName = field.getName().toLowerCase();
-                        fieldName = StringUtils.underscoreToCamelCase(fieldName);
-                        if (x==0) cols.add(fieldName);
-
-                        JSONValue val = record.get(fieldName);
-                        if (!val.isNull()){
-                            if (spatialFields.contains(fieldName)){
-                                if (database.getDriver().equals("PostgreSQL")){
-                                    val = new JSONValue(createGeom(val.toString()));
+                            JSONValue val = record.get(fieldName);
+                            if (!val.isNull()){
+                                if (spatialFields.contains(fieldName)){
+                                    if (database.getDriver().equals("PostgreSQL")){
+                                        val = new JSONValue(createGeom(val.toString()));
+                                    }
                                 }
                             }
+                            row.add(val);
                         }
-                        row.add(val);
+
+                        if (x>0) json.append(",");
+                        json.append(row.toString());
+                        x++;
                     }
 
-                    if (x>0) json.append(",");
-                    json.append(row.toString());
-                    x++;
+                    json.append("]");
+
+
+                    json.append(",\"cols\":");
+                    json.append(cols.toString());
+                    json.append("}");
+                    response = new ServiceResponse(json.toString());
+                    response.setContentType("application/json");
+
                 }
-                rs.close();
-                json.append("]");
 
-
-                json.append(",\"cols\":");
-                json.append(cols.toString());
-                json.append("}");
-                response = new ServiceResponse(json.toString());
-                response.setContentType("application/json");
-
+                return response;
             }
-
-            rs.close();
-
-            return response;
         }
         catch(Exception e){
             return getServiceResponse(e);
@@ -605,10 +614,9 @@ public abstract class WebService {
    *  ID.
    */
     private ServiceResponse save(Class c, ServiceRequest request, Database database) {
-        Connection conn = null;
         try{
-            JSONObject json = new JSONObject(new String(request.getPayload(), "UTF-8"));
-            if (json.isEmpty()) throw new Exception("JSON is empty.");
+            JSONObject json = request.getJson();
+            if (json==null || json.isEmpty()) throw new Exception("JSON is empty.");
 
 
           //Create new instance of the class
@@ -628,12 +636,13 @@ public abstract class WebService {
 
           //Apply filter
             if (!isNew){
-                conn = database.getConnection();
-                Recordset rs = getRecordset(request, "save", c, "select id from " +
-                getTableName(obj) + " where id=" + getMethod("getID", c).invoke(obj), conn);
-                if (!rs.EOF) id = rs.getValue(0).toLong();
-                rs.close();
-                conn.close();
+                try (Connection conn = database.getConnection()){
+                    try (Recordset rs = getRecordset(request, "save", c,
+                        "select id from " + getTableName(obj) +
+                        " where id=" + getMethod("getID", c).invoke(obj), conn)){
+                        if (!rs.EOF) id = rs.getValue(0).toLong();
+                    }
+                }
                 if (id==null) return new ServiceResponse(404);
             }
 
@@ -646,6 +655,7 @@ public abstract class WebService {
           //Get id
             Method getID = getMethod("getID", c);
             id = (Long) getID.invoke(obj);
+            if (id==null) throw new Exception("Save failed");
 
 
           //Fire event
@@ -656,7 +666,6 @@ public abstract class WebService {
             return new ServiceResponse(id+"");
         }
         catch(Exception e){
-            if (conn!=null) conn.close();
             return getServiceResponse(e);
         }
     }
@@ -673,10 +682,11 @@ public abstract class WebService {
 
           //Apply filter
             Long id = null;
-            Recordset rs = getRecordset(request, "delete", c, "select id from " +
-            getTableName(c.newInstance()) + " where id=" + request.getID(), conn);
-            if (!rs.EOF) id = rs.getValue(0).toLong();
-            rs.close();
+            try (Recordset rs = getRecordset(request, "delete", c,
+                "select id from " + getTableName(c.newInstance()) +
+                " where id=" + request.getID(), conn)){
+                if (!rs.EOF) id = rs.getValue(0).toLong();
+            }
             if (id==null) return new ServiceResponse(404);
 
 
