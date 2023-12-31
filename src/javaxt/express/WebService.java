@@ -494,6 +494,7 @@ public abstract class WebService {
         }
 
 
+      //Add order by clause
         Sort sort = request.getSort();
         if (!sort.isEmpty()){
             sql.append(" order by ");
@@ -508,17 +509,31 @@ public abstract class WebService {
             }
         }
 
+
+      //Add offset
         Long offset = request.getOffset();
         if (offset!=null){
             sql.append(" offset ");
             sql.append(offset);
+
+            if (database.getDriver().equals("Oracle")){
+                sql.append(" rows"); //OFFSET 20 ROWS
+            }
         }
 
+
+      //Add limit
         Long limit = request.getLimit();
-        //if (limit==null) limit = 100L;
         if (limit!=null){
-            sql.append(" limit ");
-            sql.append(limit);
+            if (database.getDriver().equals("Oracle")){
+                sql.append(" fetch next ");
+                sql.append(limit);
+                sql.append(" only");
+            }
+            else { //PostgreSQL and H2
+                sql.append(" limit ");
+                sql.append(limit);
+            }
         }
 
 
