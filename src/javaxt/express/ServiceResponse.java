@@ -214,10 +214,9 @@ public class ServiceResponse {
 
         HttpServletRequest request = req==null ? null : req.getRequest();
 
-        if (status==304){
-            response.setStatus(304);
-        }
-        else if (status==307){
+
+
+        if (status==307){
             response.setStatus(307);
             String location = new String((byte[]) this.getResponse());
             response.setHeader("Location", location);
@@ -236,7 +235,16 @@ public class ServiceResponse {
           //Set general response headers
             response.setContentType(this.getContentType());
             response.setStatus(status);
+
+
+          //Set cache directives
+            String eTag = (String) properties.get("ETag");
+            if (eTag!=null) response.setHeader("ETag", eTag);
+            String lastModified = (String) properties.get("Last-Modified");
+            if (lastModified!=null) response.setHeader("Last-Modified", lastModified);
+            //this.setHeader("Expires", "Sun, 30 Sep 2018 16:23:15 GMT  ");
             if (cacheControl!=null) response.setHeader("Cache-Control", cacheControl);
+            if (status==304) return;
 
 
 
