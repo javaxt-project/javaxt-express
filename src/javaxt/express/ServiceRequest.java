@@ -536,6 +536,50 @@ public class ServiceRequest {
 
 
   //**************************************************************************
+  //** isCacheable
+  //**************************************************************************
+  /** Returns true if a given eTag matches the "if-none-match" request header.
+   *  Additional checks are performed against other cache related headers
+   *  (e.g. "cache-control" and "if-modified-since"). If true is returned,
+   *  the corresponding HTTP response can be set to a 304 "Not Modified".
+   *  @param eTag A custom string that acts as a unique identifier (including
+   *  version) for an HTTP response. ETags are frequently used when sending
+   *  static data such as files. In the context of dynamic web services, the
+   *  same concept can be applied for static, or semi-static responses (e.g.
+   *  static keywords, images in a database, etc).
+   *  @param date A date associated with the HTTP response. The date should be
+   *  in GMT and in "EEE, dd MMM yyyy HH:mm:ss zzz" format (e.g.
+   *  "Sat, 23 Oct 2010 13:04:28 GMT").
+   */
+    public boolean isCacheable(String eTag, String date){
+
+        String matchTag = request.getHeader("if-none-match");
+        String cacheControl = request.getHeader("cache-control");
+        if (matchTag==null) matchTag = "";
+        if (cacheControl==null) cacheControl = "";
+        if (cacheControl.equalsIgnoreCase("no-cache")==false){
+            if (eTag.equalsIgnoreCase(matchTag)){
+                return true;
+            }
+            else{
+              //Internet Explorer 6 uses "if-modified-since" instead of "if-none-match"
+                matchTag = request.getHeader("if-modified-since");
+                if (matchTag!=null){
+                    for (String tag: matchTag.split(";")){
+                        if (tag.trim().equalsIgnoreCase(date)){
+                            return true;
+                        }
+                    }
+                }
+
+            }
+        }
+
+        return false;
+    }
+
+
+  //**************************************************************************
   //** getFields
   //**************************************************************************
   /** Returns an array of ServiceRequest.Fields by parsing the "fields"
