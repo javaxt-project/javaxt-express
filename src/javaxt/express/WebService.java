@@ -441,7 +441,7 @@ public abstract class WebService {
       //Build sql string
         StringBuilder sql = new StringBuilder("select ");
         Field[] fields = request.getFields();
-        if (fields==null) sql.append(" * ");
+        if (fields==null || fields.length==0) sql.append(" * ");
         else{
             for (int i=0; i<fields.length; i++){
                 if (i>0) sql.append(",");
