@@ -441,7 +441,7 @@ public abstract class WebService {
       //Build sql string
         StringBuilder sql = new StringBuilder("select ");
         Field[] fields = request.getFields();
-        if (fields==null || fields.length==0) sql.append(" * ");
+        if (fields==null || fields.length==0) sql.append("*");
         else{
             for (int i=0; i<fields.length; i++){
                 if (i>0) sql.append(",");
@@ -510,30 +510,53 @@ public abstract class WebService {
         }
 
 
-      //Add offset
-        Long offset = request.getOffset();
+      //Get offset
+        Object offset = request.getOffset();
         if (offset!=null){
-            sql.append(" offset ");
-            sql.append(offset);
+            StringBuilder str = new StringBuilder();
+            str.append(" offset ");
+            str.append(offset);
 
             if (database.getDriver().equals("Oracle")){
-                sql.append(" rows"); //OFFSET 20 ROWS
+                str.append(" rows"); //OFFSET 20 ROWS
             }
+
+            offset = str.toString();
+        }
+        else{
+            offset = "";
         }
 
 
-      //Add limit
-        Long limit = request.getLimit();
+      //Get limit
+        Object limit = request.getLimit();
         if (limit!=null){
+            StringBuilder str = new StringBuilder();
             if (database.getDriver().equals("Oracle")){
-                sql.append(" fetch next ");
-                sql.append(limit);
-                sql.append(" only");
+                str.append(" fetch next ");
+                str.append(limit);
+                str.append(" only");
             }
             else { //PostgreSQL and H2
-                sql.append(" limit ");
-                sql.append(limit);
+                str.append(" limit ");
+                str.append(limit);
             }
+
+            limit = str.toString();
+        }
+        else{
+            limit = "";
+        }
+
+
+      //Append offset and limit
+        if (database.getDriver().equals("H2")){
+            sql.append(limit);
+            sql.append(offset);
+        }
+        else{
+            sql.append(offset);
+            sql.append(limit);
         }
 
 
