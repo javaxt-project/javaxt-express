@@ -342,41 +342,37 @@ public abstract class WebService {
   /** Used to retrieve an object from the database. Returns a JSON object.
    */
     private ServiceResponse get(Class c, ServiceRequest request, Database database) {
-        try (Connection conn = database.getConnection()){
+        try{
 
-          //Get model
-            Object obj;
+          //Compile sql statement
+            HashMap<String, Object> tablesAndFields = getTableAndFields(c);
+            String tableName = (String) tablesAndFields.get("tableName");
+            String sql = "select " + tableName + ".id from " +  tableName +
+            " where ";
+
+
             Long id = request.getID();
             if (id==null){
-                Method get = getMethod("get", c);
-                String[] keys = request.getParameterNames();
-                ArrayList<Object> params = new ArrayList<>();
-                for (String key : keys){
-                    if (key.equals("_")) continue;
-                    params.add(key + "=");
-                    params.add(request.getParameter(key).toString());
-                }
-                Object[] arr = params.toArray(new Object[params.size()]);
-                obj = get.invoke(null, new Object[]{arr});
+                String where = getWhere(request, tablesAndFields);
+                if (where==null) return new ServiceResponse(404);
+                else sql += where;
             }
             else{
-                obj = newInstance(c, id);
+                sql += tableName + ".id=" + id;
             }
-            if (obj==null) return new ServiceResponse(404);
-
 
 
           //Apply filter
-            id = null;
-            try (Recordset rs = getRecordset(request, "get", c,
-                "select id from " +  getTableName(obj) +
-                " where id=" + getMethod("getID", c).invoke(obj), conn)){
-                if (!rs.EOF) id = rs.getValue(0).toLong();
+            try (Connection conn = database.getConnection()){
+                try (Recordset rs = getRecordset(request, "get", c, sql, conn)){
+                    if (rs.EOF) id = null;
+                    else id = rs.getValue("id").toLong();
+                }
             }
             if (id==null) return new ServiceResponse(404);
 
 
-          //Return response
+            Object obj = newInstance(c, id);
             Method toJson = getMethod("toJson", c);
             return new ServiceResponse((JSONObject) toJson.invoke(obj));
         }
@@ -394,44 +390,14 @@ public abstract class WebService {
     private ServiceResponse list(Class c, ServiceRequest request, Database database){
 
 
-      //Get tableName and spatial fields associated with the Model
+      //Get tableName and fields associated with the Model
+        HashMap<String, Object> tablesAndFields;
+        HashSet<String> spatialFields;
         String tableName;
-        HashMap<String, String> fieldMap = new HashMap<>();
-        HashSet<String> spatialFields = new HashSet<>();
         try{
-            Object obj = c.newInstance();
-
-          //Get tableName
-            java.lang.reflect.Field field = obj.getClass().getSuperclass().getDeclaredField("tableName");
-            field.setAccessible(true);
-            tableName = (String) field.get(obj);
-
-
-          //Get fieldMap
-            field = obj.getClass().getSuperclass().getDeclaredField("fieldMap");
-            field.setAccessible(true);
-            HashMap<String, String> map = (HashMap<String, String>) field.get(obj);
-            Iterator<String> it = map.keySet().iterator();
-            while (it.hasNext()){
-                String fieldName = it.next();
-                String columnName = map.get(fieldName);
-                fieldMap.put(fieldName, columnName);
-            }
-            fieldMap.put("id", "id");
-
-
-          //Get spatial fields
-            for (java.lang.reflect.Field f : obj.getClass().getDeclaredFields()){
-                Class fieldType = f.getType();
-                String packageName = fieldType.getPackage()==null ? "" :
-                                     fieldType.getPackage().getName();
-
-                if (packageName.startsWith("javaxt.geospatial.geometry") ||
-                    packageName.startsWith("com.vividsolutions.jts.geom") ||
-                    packageName.startsWith("org.locationtech.jts.geom")){
-                    spatialFields.add(f.getName());
-                }
-            }
+            tablesAndFields = getTableAndFields(c);
+            tableName = (String) tablesAndFields.get("tableName");
+            spatialFields = (HashSet<String>) tablesAndFields.get("spatialFields");
         }
         catch(Exception e){
             return getServiceResponse(e);
@@ -452,7 +418,7 @@ public abstract class WebService {
                 }
                 else{
                     fieldName = StringUtils.camelCaseToUnderScore(fieldName);
-                    sql.append(fieldName);
+                    sql.append(tableName + "." + fieldName);
                 }
             }
         }
@@ -461,33 +427,7 @@ public abstract class WebService {
         sql.append(tableName);
 
 
-        String where = null;
-        Filter filter = request.getFilter();
-        if (!filter.isEmpty()){
-            //System.out.println(filter.toJson().toString(4));
-            ArrayList<String> arr = new ArrayList<>();
-            for (Filter.Item item : filter.getItems()){
-                String name = item.getField();
-                Iterator<String> it = fieldMap.keySet().iterator();
-                while (it.hasNext()){
-                    String fieldName = it.next();
-                    String columnName = fieldMap.get(fieldName);
-                    if (name.equalsIgnoreCase(fieldName) || name.equalsIgnoreCase(columnName)){
-                        String op = item.getOperation();
-                        javaxt.utils.Value v = item.getValue();
-                        arr.add("(" + columnName + " " + op + " " + v + ")");
-                        break;
-                    }
-                }
-            }
-            if (!arr.isEmpty()){
-                where = String.join(" and ", arr);
-                //console.log(where);
-            }
-        }
-        else{
-            where = request.getWhere();
-        }
+        String where = getWhere(request, tablesAndFields);
         if (where!=null){
             sql.append(" where ");
             sql.append(where);
@@ -683,14 +623,37 @@ public abstract class WebService {
    */
     private ServiceResponse save(Class c, ServiceRequest request, Database database) {
         try{
+
+          //Parse json
             JSONObject json = request.getJson();
             if (json==null || json.isEmpty()) throw new Exception("JSON is empty.");
+            Long id = json.get("id").toLong();
+            boolean isNew = id==null;
+
+
+          //Apply filter
+            HashMap<String, Object> tablesAndFields = getTableAndFields(c);
+            String tableName = (String) tablesAndFields.get("tableName");
+            String sql = "select " + tableName + ".id from " + tableName +
+            " where " + tableName + ".id=" + (id==null ? -1 : id);
+            try (Connection conn = database.getConnection()){
+                try (Recordset rs = getRecordset(request, "save", c, sql, conn)){
+                    if (rs.EOF) id = null;
+                    else id = rs.getValue("id").toLong();
+                }
+            }
+            if (id==null && !isNew) return new ServiceResponse(404);
+
+
+
+          //Reparse json
+            json = request.getJson();
+            id = json.get("id").toLong();
+            isNew = id==null;
 
 
           //Create new instance of the class
             Object obj;
-            Long id = json.get("id").toLong();
-            boolean isNew = false;
             if (id!=null){
                 obj = newInstance(c, id);
                 Method update = c.getDeclaredMethod("update", JSONObject.class);
@@ -701,18 +664,6 @@ public abstract class WebService {
                 isNew = true;
             }
 
-
-          //Apply filter
-            if (!isNew){
-                try (Connection conn = database.getConnection()){
-                    try (Recordset rs = getRecordset(request, "save", c,
-                        "select id from " + getTableName(obj) +
-                        " where id=" + getMethod("getID", c).invoke(obj), conn)){
-                        if (!rs.EOF) id = rs.getValue(0).toLong();
-                    }
-                }
-                if (id==null) return new ServiceResponse(404);
-            }
 
 
           //Call the save method
@@ -727,7 +678,8 @@ public abstract class WebService {
 
 
           //Fire event
-            if (isNew) onCreate(obj, request); else onUpdate(obj, request);
+            if (isNew) onCreate(obj, request);
+            else onUpdate(obj, request);
 
 
           //Return response
@@ -851,6 +803,114 @@ public abstract class WebService {
 
 
   //**************************************************************************
+  //** getTableAndFields
+  //**************************************************************************
+  /** Returns the table name and fields associated with a model
+   */
+    private HashMap<String, Object> getTableAndFields(Class c) throws Exception {
+
+        String tableName;
+        HashMap<String, String> fieldMap = new HashMap<>();
+        HashSet<String> stringFields = new HashSet<>();
+        HashSet<String> spatialFields = new HashSet<>();
+
+        Object obj = c.newInstance(); //maybe clone instead?
+
+      //Get tableName
+        java.lang.reflect.Field field = obj.getClass().getSuperclass().getDeclaredField("tableName");
+        field.setAccessible(true);
+        tableName = (String) field.get(obj);
+
+
+      //Get fieldMap
+        field = obj.getClass().getSuperclass().getDeclaredField("fieldMap");
+        field.setAccessible(true);
+        HashMap<String, String> map = (HashMap<String, String>) field.get(obj);
+        Iterator<String> it = map.keySet().iterator();
+        while (it.hasNext()){
+            String fieldName = it.next();
+            String columnName = map.get(fieldName);
+            fieldMap.put(fieldName, columnName);
+        }
+        fieldMap.put("id", "id");
+
+
+      //Get spatial fields
+        for (java.lang.reflect.Field f : obj.getClass().getDeclaredFields()){
+            Class fieldType = f.getType();
+            String packageName = fieldType.getPackage()==null ? "" :
+                                 fieldType.getPackage().getName();
+
+            if (packageName.startsWith("javaxt.geospatial.geometry") ||
+                packageName.startsWith("com.vividsolutions.jts.geom") ||
+                packageName.startsWith("org.locationtech.jts.geom")){
+                spatialFields.add(f.getName());
+            }
+
+            if (fieldType.equals(String.class)){
+                stringFields.add(f.getName());
+            }
+        }
+
+        HashMap<String, Object> p = new HashMap<>();
+        p.put("tableName", tableName);
+        p.put("fieldMap", fieldMap);
+        p.put("stringFields", stringFields);
+        p.put("spatialFields", spatialFields);
+        return p;
+    }
+
+
+  //**************************************************************************
+  //** getWhere
+  //**************************************************************************
+  /** Used to compile a where statement
+   */
+    private String getWhere(ServiceRequest request, HashMap<String, Object> tablesAndFields){
+
+
+        String tableName = (String) tablesAndFields.get("tableName");
+        HashMap<String, String> fieldMap = (HashMap<String, String>) tablesAndFields.get("fieldMap");
+        HashSet<String> stringFields = (HashSet<String>) tablesAndFields.get("stringFields");
+
+
+        String where = null;
+        Filter filter = request.getFilter();
+        if (!filter.isEmpty()){
+            //System.out.println(filter.toJson().toString(4));
+            ArrayList<String> arr = new ArrayList<>();
+            for (Filter.Item item : filter.getItems()){
+                String name = item.getField();
+                Iterator<String> it = fieldMap.keySet().iterator();
+                while (it.hasNext()){
+                    String fieldName = it.next();
+                    String columnName = fieldMap.get(fieldName);
+                    if (name.equalsIgnoreCase(fieldName) || name.equalsIgnoreCase(columnName)){
+                        String op = item.getOperation();
+                        String v = item.getValue().toString();
+
+                        if (v!=null && stringFields.contains(fieldName)){
+                            v = "'" + v.replace("'","''") + "'";
+                        }
+
+                        arr.add("(" + tableName + "." + columnName + " " + op + " " + v + ")");
+                        break;
+                    }
+                }
+            }
+            if (!arr.isEmpty()){
+                where = String.join(" and ", arr);
+            }
+        }
+        else{
+            where = request.getWhere();
+        }
+        return where;
+    }
+
+
+
+  //**************************************************************************
   //** getServiceResponse
   //**************************************************************************
   /** Returns a ServiceResponse for a given Exception.
@@ -858,6 +918,9 @@ public abstract class WebService {
     private ServiceResponse getServiceResponse(Exception e){
         if (e instanceof java.lang.reflect.InvocationTargetException){
             return new ServiceResponse(e.getCause());
+        }
+        else if (e instanceof SecurityException){
+            return new ServiceResponse(403, "Not Authorized");
         }
         else{
             return new ServiceResponse(e);
