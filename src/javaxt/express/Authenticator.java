@@ -60,6 +60,7 @@ public class Authenticator implements javaxt.http.servlet.Authenticator, Cloneab
 
 
   //Local variables
+    private String auth;
     private String[] credentials;
     private String authenticationScheme;
     private HttpServletRequest request;
@@ -310,34 +311,38 @@ public class Authenticator implements javaxt.http.servlet.Authenticator, Cloneab
     public boolean handleRequest(String service, HttpServletResponse response)
         throws ServletException, IOException {
 
+
+
+
+      //Send NTLM response as needed
+        boolean ntlm = (auth!=null && auth.equals("NTLM"));
+        if (ntlm){
+            String ua = request.getHeader("user-agent");
+            if (ua!=null){
+                if (ua.contains("MSIE ") || ua.contains("Trident/") || ua.contains("Edge/") || ua.contains("Edg/")){
+                    if (sendNTLMResponse(request, response)) return true;
+                }
+                else{
+                    ntlm = false;
+                }
+            }
+        }
+
+
         boolean requestHandled = true;
-
-
-
-//      //Send NTLM response as needed
-//        boolean ntlm = (auth!=null && auth.equals("NTLM"));
-//        if (ntlm){
-//            String ua = request.getHeader("user-agent");
-//            if (ua!=null){
-//                if (ua.contains("MSIE ") || ua.contains("Trident/") || ua.contains("Edge/") || ua.contains("Edg/")){
-//                    if (Authenticator.sendNTLMResponse(request, response)) return true;
-//                }
-//                else{
-//                    ntlm = false;
-//                }
-//            }
-//        }
-
-
-
         if (service.equals("login")){
-
             if (credentials==null){
-                response.setStatus(401, "Access Denied");
-                response.setHeader("WWW-Authenticate", "Basic realm=\"Access Denied\""); //<--Prompt the user for thier credentials
-                response.setHeader("Cache-Control", "no-cache, no-transform");
-                response.setContentType("text/plain");
-                response.write("Unauthorized");
+                if (ntlm){
+                    response.setStatus(401, "Access Denied");
+                    response.setHeader("WWW-Authenticate", "NTLM");
+                }
+                else{
+                    response.setStatus(401, "Access Denied");
+                    response.setHeader("WWW-Authenticate", "Basic realm=\"Access Denied\""); //<--Prompt the user for thier credentials
+                    response.setHeader("Cache-Control", "no-cache, no-transform");
+                    response.setContentType("text/plain");
+                    response.write("Unauthorized");
+                }
             }
             else{
                 try{
@@ -364,18 +369,23 @@ public class Authenticator implements javaxt.http.servlet.Authenticator, Cloneab
                 }
             }
 
-            response.setStatus(401, "Access Denied");
-
-            Boolean prompt = new javaxt.utils.Value(request.getParameter("prompt")).toBoolean(); //<--Hack for Firefox
-            if (prompt!=null && prompt==true){
-                response.setHeader("WWW-Authenticate", "Basic realm=\"" +
-                "This site is restricted. Please enter your username and password.\"");
+            if (ntlm){
+                response.setStatus(401, "Access Denied");
+                response.setHeader("WWW-Authenticate", "NTLM");
             }
+            else{
+                response.setStatus(401, "Access Denied");
 
-            response.setHeader("Cache-Control", "no-cache, no-transform");
-            response.setContentType("text/plain");
-            response.write("Unauthorized");
+                Boolean prompt = new javaxt.utils.Value(request.getParameter("prompt")).toBoolean(); //<--Hack for Firefox
+                if (prompt!=null && prompt==true){
+                    response.setHeader("WWW-Authenticate", "Basic realm=\"" +
+                    "This site is restricted. Please enter your username and password.\"");
+                }
 
+                response.setHeader("Cache-Control", "no-cache, no-transform");
+                response.setContentType("text/plain");
+                response.write("Unauthorized");
+            }
         }
         else if (service.equals("whoami")){
 
