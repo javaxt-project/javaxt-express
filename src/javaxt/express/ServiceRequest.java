@@ -690,9 +690,13 @@ public class ServiceRequest {
         javaxt.sql.Parser sqlParser = new javaxt.sql.Parser("SELECT " + fields + " FROM T");
         ArrayList<Field> arr = new ArrayList<>();
         for (javaxt.sql.Parser.SelectStatement stmt : sqlParser.getSelectStatements()){
-            Field field = new Field(stmt.getField());
+            String column = stmt.getField();
+            boolean isFunction = stmt.isFunction();
+            if (!isFunction) column = StringUtils.camelCaseToUnderScore(column);
+
+            Field field = new Field(column);
             field.setAlias(stmt.getAlias());
-            field.isFunction(stmt.isFunction());
+            field.isFunction(isFunction);
             arr.add(field);
         }
         return arr.toArray(new Field[arr.size()]);
@@ -897,7 +901,7 @@ public class ServiceRequest {
             }
 
 
-
+            key = StringUtils.camelCaseToUnderScore(key);
             filter.set(key, op, val);
         }
 
@@ -1014,6 +1018,10 @@ public class ServiceRequest {
         public Field(String field){
             col = field;
             isFunction = false;
+        }
+
+        public String getColumn(){
+            return col;
         }
 
         public void setAlias(String alias){
