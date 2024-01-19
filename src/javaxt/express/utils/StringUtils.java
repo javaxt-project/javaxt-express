@@ -17,6 +17,7 @@ public class StringUtils {
    *  (e.g. user_id). Credit: https://stackoverflow.com/a/50837880/
    */
     public static String camelCaseToUnderScore(String input) {
+        if (input.contains("_")) return input.toLowerCase();
         StringBuffer result = new StringBuffer();
         boolean begin = true;
         boolean lastUppercase = false;
