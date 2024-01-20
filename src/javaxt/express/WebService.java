@@ -319,7 +319,11 @@ public abstract class WebService {
    *  support CRUD operations. This is a protected method that extending
    *  classes can override to apply custom filters or add constraints when
    *  retrieving objects from the database. This method is called whenever an
-   *  HTTP GET, POST, or DELETE request is made for a Model.
+   *  HTTP GET, POST, or DELETE request is made for a Model. It is perfectly
+   *  acceptable to throw exceptions when overriding this method. When
+   *  throwing exceptions, an IllegalArgumentException will return a HTTP 400
+   *  error to the client and a SecurityException will return a 403 error. All
+   *  other exceptions will return a 500 error.
    *  @param op Operation that is requesting the Recordset. Options include
    *  "list, "get", "save", and "delete".
    *  @param c The Model (Java class) associated with the request.
@@ -646,7 +650,7 @@ public abstract class WebService {
 
 
 
-          //Reparse json
+          //Reparse json (json may have changed in getRecordset)
             json = request.getJson();
             id = json.get("id").toLong();
             isNew = id==null;
@@ -701,13 +705,19 @@ public abstract class WebService {
         try (Connection conn = database.getConnection()){
 
           //Apply filter
-            Long id = null;
+            Long id = request.getID();
             try (Recordset rs = getRecordset(request, "delete", c,
                 "select id from " + getTableName(c.newInstance()) +
-                " where id=" + request.getID(), conn)){
-                if (!rs.EOF) id = rs.getValue(0).toLong();
+                " where id=" + id, conn)){
+                if (rs.EOF) id = null;
+                else id = rs.getValue("id").toLong();
             }
             if (id==null) return new ServiceResponse(404);
+
+
+          //Reparse request to get ID (id may have changed in getRecordset)
+            Long newID = request.getParameter("id").toLong();
+            if (newID!=null) id = newID;
 
 
           //Create new instance of the class
@@ -890,7 +900,9 @@ public abstract class WebService {
                         String v = item.getValue().toString();
 
                         if (v!=null && stringFields.contains(fieldName)){
-                            v = "'" + v.replace("'","''") + "'";
+                            if (!(v.startsWith("'") && v.endsWith("'"))){
+                                v = "'" + v.replace("'","''") + "'";
+                            }
                         }
 
                         arr.add("(" + tableName + "." + columnName + " " + op + " " + v + ")");
@@ -921,6 +933,9 @@ public abstract class WebService {
         }
         else if (e instanceof SecurityException){
             return new ServiceResponse(403, "Not Authorized");
+        }
+        else if (e instanceof IllegalArgumentException){
+            return new ServiceResponse(400, e.getMessage());
         }
         else{
             return new ServiceResponse(e);

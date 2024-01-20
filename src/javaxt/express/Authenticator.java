@@ -257,16 +257,17 @@ public class Authenticator implements javaxt.http.servlet.Authenticator, Cloneab
             //if (username.equals("logout") && password.equals("logout")) return;
 
 
-
-            Object[] arr = cache.get(username);
-            if (arr!=null){
-                long lastUpdate = (long) arr[1];
-                if (System.currentTimeMillis()-lastUpdate<cacheExpiration){
-                    user = (User) arr[0];
-                }
-                else{
-                    cache.remove(username);
-                    cache.notifyAll();
+            synchronized(cache){
+                Object[] arr = cache.get(username);
+                if (arr!=null){
+                    long lastUpdate = (long) arr[1];
+                    if (System.currentTimeMillis()-lastUpdate<cacheExpiration){
+                        user = (User) arr[0];
+                    }
+                    else{
+                        cache.remove(username);
+                        cache.notifyAll();
+                    }
                 }
             }
         }
