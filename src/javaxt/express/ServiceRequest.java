@@ -659,9 +659,13 @@ public class ServiceRequest {
 
 
                 if (addField){
-                    Field field = new Field(expression.toString());
+                    String column = expression.toString();
+                    boolean isFunction = functionName!=null;
+                    if (!isFunction) column = StringUtils.camelCaseToUnderScore(column);
+
+                    Field field = new Field(column);
                     field.setAlias(alias);
-                    if (functionName!=null) field.isFunction(true);
+                    field.isFunction(isFunction);
                     arr.add(field);
                 }
             }
