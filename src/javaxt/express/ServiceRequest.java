@@ -1155,4 +1155,135 @@ public class ServiceRequest {
         }
     }
 
+
+  //**************************************************************************
+  //** getSelectStatement
+  //**************************************************************************
+  /** Returns a SQL select statement for the current request. Compiles the
+   *  select statement using an array of Fields returned by the getFields()
+   *  method. If no fields are found in the request, a "select *" statement is
+   *  returned. Note that fields that are not functions are prepended with a
+   *  table name.
+   *  @param tableName If given, fields that are not functions are prepended
+   *  with a table name.
+   */
+    public String getSelectStatement(String tableName){
+        StringBuilder sql = new StringBuilder("select ");
+        Field[] fields = getFields();
+        if (fields==null || fields.length==0) sql.append("*");
+        else{
+            for (int i=0; i<fields.length; i++){
+                if (i>0) sql.append(", ");
+                Field field = fields[i];
+                String fieldName = field.toString();
+                if (field.isFunction()){
+                    sql.append(fieldName);
+                }
+                else{
+                    fieldName = StringUtils.camelCaseToUnderScore(fieldName);
+                    if (tableName!=null && !tableName.isEmpty()){
+                        sql.append(tableName + ".");
+                    }
+                    sql.append(fieldName);
+                }
+            }
+        }
+        return sql.toString();
+    }
+
+
+  //**************************************************************************
+  //** getOrderByStatement
+  //**************************************************************************
+  /** Returns a SQL order by statement for the current request. Compiles the
+   *  order by statement using Sort class returned by the getSort() method.
+   *  Returns an empty string if a sort was not defined. Otherwise, the order
+   *  by statement returned, starting with a white space " " for convenience.
+   */
+    public String getOrderByStatement(){
+        Sort sort = getSort();
+        if (!sort.isEmpty()){
+            StringBuilder sql = new StringBuilder();
+            sql.append(" order by ");
+            java.util.Iterator<String> it = sort.getKeySet().iterator();
+            while (it.hasNext()){
+                String colName = it.next();
+                String direction = sort.get(colName);
+                sql.append(colName);
+                sql.append(" ");
+                sql.append(direction);
+                if (it.hasNext()) sql.append(", ");
+            }
+            return sql.toString();
+        }
+        return "";
+    }
+
+
+  //**************************************************************************
+  //** getOffsetLimitStatement
+  //**************************************************************************
+  /** Returns a SQL offset and limit statement for the current request. These
+   *  statements are used for pagination. Different database vendors use
+   *  different keywords to specify offset and limit. The given Driver is used
+   *  to determine which keywords to use. Returns an empty string if limit and
+   *  is offset are not defined. Otherwise, the limit and/or offset statement
+   *  is returned, starting with a white space " " for convenience.
+   *  @param driver An instance of a javaxt.sql.Driver class.
+   */
+    public String getOffsetLimitStatement(javaxt.sql.Driver driver){
+        StringBuilder sql = new StringBuilder();
+
+      //Get offset
+        Object offset = getOffset();
+        if (offset!=null){
+            StringBuilder str = new StringBuilder();
+            str.append(" offset ");
+            str.append(offset);
+
+            if (driver.equals("Oracle")){
+                str.append(" rows"); //OFFSET 20 ROWS
+            }
+
+            offset = str.toString();
+        }
+        else{
+            offset = "";
+        }
+
+
+      //Get limit
+        Object limit = getLimit();
+        if (limit!=null){
+            StringBuilder str = new StringBuilder();
+            if (driver.equals("Oracle")){
+                str.append(" fetch next ");
+                str.append(limit);
+                str.append(" only");
+            }
+            else { //PostgreSQL and H2
+                str.append(" limit ");
+                str.append(limit);
+            }
+
+            limit = str.toString();
+        }
+        else{
+            limit = "";
+        }
+
+
+      //Append offset and limit
+        if (driver.equals("H2")){
+            sql.append(limit);
+            sql.append(offset);
+        }
+        else{
+            sql.append(offset);
+            sql.append(limit);
+        }
+
+        return sql.toString();
+    }
+
 }
