@@ -408,102 +408,22 @@ public abstract class WebService {
         }
 
 
-      //Build sql string
-        StringBuilder sql = new StringBuilder("select ");
-        Field[] fields = request.getFields();
-        if (fields==null || fields.length==0) sql.append("*");
-        else{
-            for (int i=0; i<fields.length; i++){
-                if (i>0) sql.append(",");
-                Field field = fields[i];
-                String fieldName = field.toString();
-                if (field.isFunction()){
-                    sql.append(fieldName);
-                }
-                else{
-                    fieldName = StringUtils.camelCaseToUnderScore(fieldName);
-                    sql.append(tableName + "." + fieldName);
-                }
-            }
-        }
-
+      //Compile SQL statement
+        StringBuilder sql = new StringBuilder();
+        sql.append(request.getSelectStatement(tableName));
         sql.append(" from ");
         sql.append(tableName);
-
-
         String where = getWhere(request, tablesAndFields);
         if (where!=null){
             sql.append(" where ");
             sql.append(where);
         }
+        sql.append(request.getOrderByStatement());
+        sql.append(request.getOffsetLimitStatement(database.getDriver()));
+        //console.log(sql);
 
 
-      //Add order by clause
-        Sort sort = request.getSort();
-        if (!sort.isEmpty()){
-            sql.append(" order by ");
-            java.util.Iterator<String> it = sort.getKeySet().iterator();
-            while (it.hasNext()){
-                String colName = it.next();
-                String direction = sort.get(colName);
-                sql.append(colName);
-                sql.append(" ");
-                sql.append(direction);
-                if (it.hasNext()) sql.append(",");
-            }
-        }
-
-
-      //Get offset
-        Object offset = request.getOffset();
-        if (offset!=null){
-            StringBuilder str = new StringBuilder();
-            str.append(" offset ");
-            str.append(offset);
-
-            if (database.getDriver().equals("Oracle")){
-                str.append(" rows"); //OFFSET 20 ROWS
-            }
-
-            offset = str.toString();
-        }
-        else{
-            offset = "";
-        }
-
-
-      //Get limit
-        Object limit = request.getLimit();
-        if (limit!=null){
-            StringBuilder str = new StringBuilder();
-            if (database.getDriver().equals("Oracle")){
-                str.append(" fetch next ");
-                str.append(limit);
-                str.append(" only");
-            }
-            else { //PostgreSQL and H2
-                str.append(" limit ");
-                str.append(limit);
-            }
-
-            limit = str.toString();
-        }
-        else{
-            limit = "";
-        }
-
-
-      //Append offset and limit
-        if (database.getDriver().equals("H2")){
-            sql.append(limit);
-            sql.append(offset);
-        }
-        else{
-            sql.append(offset);
-            sql.append(limit);
-        }
-
-
+      //Get output format
         String format = request.getParameter("format").toString();
         if (format==null) format = ""; else format = format.toLowerCase();
 
