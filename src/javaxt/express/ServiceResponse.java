@@ -280,12 +280,22 @@ public class ServiceResponse {
                 }
 
 
+
+              //Set "Content-Disposition" header as needed
+                String contentDisposition = this.getContentDisposition();
+                if (contentDisposition!=null) response.setHeader("Content-Disposition", contentDisposition);
+
+
               //Set fileName and contentType. Note that when a fileName is
-              //provided, the server responds with an attachment. Example:
-              //Content-Disposition: attachment;filename=...
+              //provided, the server returns a "Content-Disposition" header
+              //which we may be different than what the caller spefified in
+              //this response. To avoid ambiguities, we'll rely exclusively
+              //on whatever the user specified for the "Content-Disposition"
                 String contentType = file.getContentType();
                 String fileName = null;
 
+
+              //Send file
                 response.write(file.toFile(), fileName, contentType, true);
             }
             else if (obj instanceof java.io.InputStream){
