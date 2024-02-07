@@ -278,6 +278,12 @@ public class Server {
         public void processRequest(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
+          //Add CORS support
+            response.addHeader("Access-Control-Allow-Origin", "*");
+            response.addHeader("Access-Control-Allow-Headers","*");
+            response.addHeader("Access-Control-Allow-Methods", "*");
+
+          
             ServiceRequest req = new ServiceRequest(request);
             ServiceResponse rsp = ws.getServiceResponse(req, database);
             rsp.send(response);
