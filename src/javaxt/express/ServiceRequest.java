@@ -368,7 +368,7 @@ public class ServiceRequest {
   /** Returns a list of all the parameter keywords found in this request.
    */
     public String[] getParameterNames(){
-        HashSet<String> keys = new HashSet<>();
+        LinkedHashSet<String> keys = new LinkedHashSet<>();
         Iterator<String> it = this.parameters.keySet().iterator();
         while (it.hasNext()) keys.add(it.next());
         if (parseJson){
@@ -737,7 +737,7 @@ public class ServiceRequest {
 
 
       //Parse querystring
-        HashMap<String, javaxt.utils.Value> params = new HashMap<>();
+        LinkedHashMap<String, javaxt.utils.Value> params = new LinkedHashMap<>();
         if (hasParameter("filter")){
 
             String str = getParameter("filter").toString();
@@ -748,7 +748,7 @@ public class ServiceRequest {
                 }
             }
             else{
-                HashMap<String, List<String>> map = javaxt.utils.URL.parseQueryString(str);
+                LinkedHashMap<String, List<String>> map = javaxt.utils.URL.parseQueryString(str);
                 Iterator<String> it = map.keySet().iterator();
                 while (it.hasNext()){
                     String key = it.next();
@@ -769,7 +769,7 @@ public class ServiceRequest {
         Iterator<String> it = params.keySet().iterator();
         while (it.hasNext()){
             String key = it.next();
-            String val = params.get(key).toString();
+
 
           //Skip reserved keywords
             key = key.trim();
@@ -779,6 +779,21 @@ public class ServiceRequest {
                 k.equals("count") || k.equals("_") || k.isEmpty()){
                 continue;
             }
+
+
+          //Parse val
+            String val = params.get(key).toString();
+            if (val!=null){
+
+              //Check if val is a JSON array
+                if (val.startsWith("[") && val.endsWith("]")){
+                    try{
+                        //TODO: generate comma delimited list?
+                    }
+                    catch(Exception e){}
+                }
+            }
+
 
 
           //Get characters before and after the "=" sign
@@ -1086,11 +1101,21 @@ public class ServiceRequest {
             public String getField(){
                 return col;
             }
+            public void setField(String col){
+                this.col = col;
+            }
             public String getOperation(){
                 return op;
             }
+            public void setOperation(String op){
+                this.op = op;
+            }
             public javaxt.utils.Value getValue(){
                 return val;
+            }
+            public void setValue(javaxt.utils.Value val){
+                if (val==null) val = new javaxt.utils.Value(null);
+                this.val = val;
             }
             public String toString(){
                 return StringUtils.camelCaseToUnderScore(col) + " " + op + " " + val;
