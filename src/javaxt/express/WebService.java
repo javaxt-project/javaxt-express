@@ -807,10 +807,23 @@ public abstract class WebService {
         String where = null;
         Filter filter = request.getFilter();
         if (!filter.isEmpty()){
-            //System.out.println(filter.toJson().toString(4));
             ArrayList<String> arr = new ArrayList<>();
             for (Filter.Item item : filter.getItems()){
                 String name = item.getField();
+
+
+              //Check if the column name is a function
+                Field[] fields = request.getFields(name);
+                if (fields!=null){
+                    Field field = fields[0];
+                    if (field.isFunction()){
+                        arr.add("(" + item.toString() + ")");
+                        continue;
+                    }
+                }
+
+
+              //Filter out unknown fields and append table name to the column
                 Iterator<String> it = fieldMap.keySet().iterator();
                 while (it.hasNext()){
                     String fieldName = it.next();
