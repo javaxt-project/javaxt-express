@@ -584,8 +584,6 @@ public class ServiceRequest {
   //**************************************************************************
   /** Returns an array of ServiceRequest.Fields by parsing the "fields"
    *  parameter in the HTTP request (e.g. "?fields=id,firstName,lastName").
-   *  Note that fields may contain approved SQL functions (e.g. "min", "max",
-   *  "count", "avg", "sum"). Fields with unsupported functions are ignored.
    */
     public Field[] getFields(){
         if (fields!=null) return fields;
@@ -600,10 +598,22 @@ public class ServiceRequest {
 
 
       //Parse the fields
-        try{
+        this.fields = getFields(fields);
 
-          //
-            ArrayList<Field> arr = new ArrayList<>();
+        return this.fields;
+    }
+
+
+  //**************************************************************************
+  //** getFields
+  //**************************************************************************
+  /** Used to parse a given String into an array of Fields.
+   *  @param fields A comma delimited list of fields (e.g. "id,firstName,lastName")
+   */
+    public Field[] getFields(String fields){
+        ArrayList<Field> arr = new ArrayList<>();
+
+        try{
 
           //Parse fields parameter using JSQLParser
             CCJSqlParserManager parserManager = new CCJSqlParserManager();
@@ -618,7 +628,6 @@ public class ServiceRequest {
                 SelectExpressionItem si = (SelectExpressionItem) it.next();
                 Expression expression = si.getExpression();
                 String alias = si.getAlias()==null ? null : si.getAlias().getName();
-                boolean addField = true;
 
 
               //Check if the expression contains a function
@@ -639,70 +648,36 @@ public class ServiceRequest {
 
 
 
-              //If the expression contains a function, check whether the function
-              //is allowed.
-                if (functionName!=null){
-                    addField = false;
+                String column = expression.toString();
+                boolean isFunction = functionName!=null;
+                if (!isFunction) column = StringUtils.camelCaseToUnderScore(column);
 
-                    if (functionName.startsWith("st_")){
-                        addField = true;
-                    }
-                    else{
-                        for (String fn : approvedFunctions){
-                            if (fn.equals(functionName)){
-                                addField = true;
-                                break;
-                            }
-                        }
-                    }
-                }
-
-
-                if (addField){
-                    String column = expression.toString();
-                    boolean isFunction = functionName!=null;
-                    if (!isFunction) column = StringUtils.camelCaseToUnderScore(column);
-
-                    Field field = new Field(column);
-                    field.setAlias(alias);
-                    field.isFunction(isFunction);
-                    arr.add(field);
-                }
+                Field field = new Field(column);
+                field.setAlias(alias);
+                field.isFunction(isFunction);
+                field.setFunctionName(functionName);
+                arr.add(field);
             }
-
-
-
-            this.fields = arr.toArray(new Field[arr.size()]);
 
         }
         catch(Throwable e){
+
           //JSQLParser doesn't like one of the fields or JSqlParser is missing
           //from the class path. If so, fallback to the JavaXT SQL parser.
-            this.fields = getFields(fields);
+            arr.clear();
+            javaxt.sql.Parser sqlParser = new javaxt.sql.Parser("SELECT " + fields + " FROM T");
+            for (javaxt.sql.Parser.SelectStatement stmt : sqlParser.getSelectStatements()){
+                String column = stmt.getField();
+                boolean isFunction = stmt.isFunction();
+                if (!isFunction) column = StringUtils.camelCaseToUnderScore(column);
+
+                Field field = new Field(column);
+                field.setAlias(stmt.getAlias());
+                field.isFunction(isFunction);
+                arr.add(field);
+            }
         }
 
-        return this.fields;
-    }
-
-
-  //**************************************************************************
-  //** getFields
-  //**************************************************************************
-  /** Fallback for JSqlParser
-   */
-    private Field[] getFields(String fields){
-        javaxt.sql.Parser sqlParser = new javaxt.sql.Parser("SELECT " + fields + " FROM T");
-        ArrayList<Field> arr = new ArrayList<>();
-        for (javaxt.sql.Parser.SelectStatement stmt : sqlParser.getSelectStatements()){
-            String column = stmt.getField();
-            boolean isFunction = stmt.isFunction();
-            if (!isFunction) column = StringUtils.camelCaseToUnderScore(column);
-
-            Field field = new Field(column);
-            field.setAlias(stmt.getAlias());
-            field.isFunction(isFunction);
-            arr.add(field);
-        }
         return arr.toArray(new Field[arr.size()]);
     }
 
@@ -1033,6 +1008,7 @@ public class ServiceRequest {
         private String table;
         private String alias;
         private boolean isFunction;
+        private String functionName;
 
         public Field(String field){
             col = field;
@@ -1053,6 +1029,14 @@ public class ServiceRequest {
 
         public void isFunction(boolean isFunction){
             this.isFunction = isFunction;
+        }
+
+        public void setFunctionName(String functionName){
+            this.functionName = functionName;
+        }
+
+        public String getFunctionName(){
+            return functionName;
         }
 
         public String toString(){
