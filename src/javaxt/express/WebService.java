@@ -812,23 +812,26 @@ public abstract class WebService {
                 String name = item.getField();
 
 
-              //Check if the column name is a function
-                Field[] fields = request.getFields(name);
-                if (fields!=null){
-                    Field field = fields[0];
-                    if (field.isFunction()){
-                        arr.add("(" + item.toString() + ")");
-                        continue;
-                    }
-                }
+//              //Check if the column name is a function
+//                Field[] fields = request.getFields(name);
+//                if (fields!=null){
+//                    Field field = fields[0];
+//                    if (field.isFunction()){
+//                        arr.add("(" + item.toString() + ")");
+//                        continue;
+//                    }
+//                }
 
 
-              //Filter out unknown fields and append table name to the column
+              //Append table name to the column
                 Iterator<String> it = fieldMap.keySet().iterator();
+                boolean foundField = false;
                 while (it.hasNext()){
                     String fieldName = it.next();
                     String columnName = fieldMap.get(fieldName);
                     if (name.equalsIgnoreCase(fieldName) || name.equalsIgnoreCase(columnName)){
+                        foundField = true;
+
                         String op = item.getOperation();
                         String v = item.getValue().toString();
 
@@ -842,6 +845,12 @@ public abstract class WebService {
                         break;
                     }
                 }
+
+
+                if (!foundField){
+                    arr.add("(" + item.toString() + ")");
+                }
+                
             }
             if (!arr.isEmpty()){
                 where = String.join(" and ", arr);
