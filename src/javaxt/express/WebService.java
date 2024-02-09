@@ -810,17 +810,20 @@ public abstract class WebService {
             ArrayList<String> arr = new ArrayList<>();
             for (Filter.Item item : filter.getItems()){
                 String name = item.getField();
+                String op = item.getOperation();
+                String v = item.getValue().toString();
 
 
-//              //Check if the column name is a function
-//                Field[] fields = request.getFields(name);
-//                if (fields!=null){
-//                    Field field = fields[0];
-//                    if (field.isFunction()){
-//                        arr.add("(" + item.toString() + ")");
-//                        continue;
-//                    }
-//                }
+              //Check if the column name is a function
+                Field[] fields = request.getFields(name);
+                Field field = null;
+                if (fields!=null){
+                    field = fields[0];
+                    if (field.isFunction()){
+                        arr.add("(" + item.toString() + ")");
+                        continue;
+                    }
+                }
 
 
               //Append table name to the column
@@ -831,9 +834,6 @@ public abstract class WebService {
                     String columnName = fieldMap.get(fieldName);
                     if (name.equalsIgnoreCase(fieldName) || name.equalsIgnoreCase(columnName)){
                         foundField = true;
-
-                        String op = item.getOperation();
-                        String v = item.getValue().toString();
 
                         if (v!=null && stringFields.contains(fieldName)){
                             if (!(v.startsWith("'") && v.endsWith("'"))){
@@ -847,10 +847,24 @@ public abstract class WebService {
                 }
 
 
+              //If we're still here, append the filter "as is"
                 if (!foundField){
-                    arr.add("(" + item.toString() + ")");
+
+                  //Set column name
+                    String col;
+                    if (field!=null) col = field.getColumn();
+                    else col = StringUtils.camelCaseToUnderScore(name);
+
+                  //Update value
+                    if (v!=null && v.contains(" ")){
+                        if (!(v.startsWith("'") && v.endsWith("'"))){
+                            v = "'" + v.replace("'","''") + "'";
+                        }
+                    }
+
+                    arr.add("(" + col + " " + op + " " + v + ")");
                 }
-                
+
             }
             if (!arr.isEmpty()){
                 where = String.join(" and ", arr);
@@ -861,7 +875,6 @@ public abstract class WebService {
         }
         return where;
     }
-
 
 
   //**************************************************************************
