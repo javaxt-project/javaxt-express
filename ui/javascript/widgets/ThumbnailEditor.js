@@ -26,10 +26,22 @@ javaxt.dhtml.ThumbnailEditor = function(parent, config) {
        */
         mask: 'circle',
 
+      /** If true, will render a slider used to resize the image. Otherwise,
+       *  the slider is hidden from view. Default is true.
+       */
+        sliders: true,
+
+      /** If true, will prevent users from resizing or moving the image.
+       *  Default is false.
+       */
+        readOnly: false,
+
       /** Style for individual elements within the component. Note that you can
        *  provide CSS class names instead of individual style definitions.
        */
         style: {
+
+            backgroundColor: "#000",
 
             uploadArea: {
 
@@ -91,17 +103,23 @@ javaxt.dhtml.ThumbnailEditor = function(parent, config) {
         if (isNaN(config.thumbnailHeight)) config.thumbnailHeight = defaultConfig.thumbnailHeight;
 
 
-        var div = createElement("div", parent);
-        div.style.display = "inline-block";
+        config.readOnly = (config.readOnly===true);
+
+
+        var div = createElement("div", parent, {
+            display: "inline-block"
+        });
         me.el = div;
 
 
         var table = createTable(div);
-        var td = table.addRow().addColumn();
-        td.style.height = "100%";
-        td.style.backgroundColor = "#000";
+        var td = table.addRow().addColumn({
+            height: "100%",
+            backgroundColor: config.style.backgroundColor
+        });
         createMainPanel(td);
-        createSliders(table.addRow().addColumn());
+
+        if (config.sliders!==false) createSliders(table.addRow().addColumn());
     };
 
 
@@ -114,6 +132,21 @@ javaxt.dhtml.ThumbnailEditor = function(parent, config) {
 
 
   //**************************************************************************
+  //** setImage
+  //**************************************************************************
+    this.setImage = function(src){
+        if (!src) return;
+
+        img.style.width = "";
+        img.style.height = "";
+        if (canvas) ctx.clearRect(0, 0, canvas.width, canvas.height);
+        img.src = src;
+
+        img.parentNode.className = "";
+    };
+
+
+  //**************************************************************************
   //** getImage
   //**************************************************************************
   /** Returns image data, cropped and scaled to match the thumbnail preview.
@@ -122,8 +155,10 @@ javaxt.dhtml.ThumbnailEditor = function(parent, config) {
    *  <pre>img.src = URL.createObjectURL(data);</pre>
    *  @param format Image format (e.g. jpg, png, webp, etc). Supported formats
    *  vary from browser to browser.
+   *  @param returnBase64 If true, returns a Base64 encoded string representing
+   *  the image. Otherwise, returns a Blob. Default is false.
    */
-    this.getImage = function(format){
+    this.getImage = function(format, returnBase64){
         if (!format) format = "png";
         if (format==="jpg") format = "jpeg";
 
@@ -149,6 +184,7 @@ javaxt.dhtml.ThumbnailEditor = function(parent, config) {
 
             var type = 'image/' + format;
             var data = output.toDataURL(type);
+            if (returnBase64===true) return data;
             data = data.substring(("data:" + type + ";base64,").length);
             return base64ToBlob(data, type);
         }
@@ -196,7 +232,7 @@ javaxt.dhtml.ThumbnailEditor = function(parent, config) {
                     return function(e) {
                         var src = e.target.result;
                         img.src = src;
-                        img.file = f;
+                        //img.file = f;
                         div.className = "";
                     };
                 })(file);
@@ -227,8 +263,11 @@ javaxt.dhtml.ThumbnailEditor = function(parent, config) {
 
             resizeImage();
 
+
             mask.show();
-            mask.style.cursor = "grab";
+            if (!config.readOnly){
+                mask.style.cursor = "grab";
+            }
 
 
           //Create canvas as needed
@@ -249,9 +288,10 @@ javaxt.dhtml.ThumbnailEditor = function(parent, config) {
 
             img.show();
 
-
-            slider.setValue(0, true);
-            slider.enable();
+            if (slider){
+                slider.setValue(0, true);
+                slider.enable();
+            }
 
             me.onChange();
         };
@@ -292,6 +332,7 @@ javaxt.dhtml.ThumbnailEditor = function(parent, config) {
         var yOffset = 0;
         initDrag(mask, {
             onDragStart: function(x, y){
+                if (config.readOnly) return;
                 mask.style.cursor = "grabbing";
                 xOffset = parseInt(img.style.left);
                 yOffset = parseInt(img.style.top);
@@ -299,10 +340,12 @@ javaxt.dhtml.ThumbnailEditor = function(parent, config) {
                 yInitial = y;
             },
             onDrag: function(x, y){
+                if (config.readOnly) return;
                 img.style.left = xOffset + (x-xInitial) + "px";
                 img.style.top = yOffset + (y-yInitial) + "px";
             },
             onDragEnd: function(){
+                if (config.readOnly) return;
                 mask.style.cursor = "grab";
                 me.onChange();
             }
