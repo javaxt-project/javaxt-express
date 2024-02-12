@@ -265,8 +265,23 @@ public class FileManager {
 
 
               //Update header nodes
-                Node outerNode = getOuterNode(xml);
-                Node[] nodes = getNodes(outerNode.getChildNodes());
+                Node[] nodes = getNodes(getOuterNode(xml).getChildNodes());
+
+                HashSet<String> simpleNodes = new HashSet<>();
+                for (Node node : nodes){
+                    String nodeName = node.getNodeName().toLowerCase();
+                    if (nodeName.equals("script")) {
+                        String url = getAttributeValue(node, "src");
+                        if (url.length()==0) continue;
+                        simpleNodes.add("script|"+url);
+                    }
+                    else if (nodeName.equals("link")){
+                        String url = getAttributeValue(node, "href");
+                        if (url.length()==0) continue;
+                        simpleNodes.add("link|"+url);
+                    }
+                }
+
                 for (int i=0; i<nodes.length; i++){
                     Node node = nodes[i];
                     String nodeName = node.getNodeName().toLowerCase();
@@ -274,13 +289,27 @@ public class FileManager {
 
                   //Convert node into an HTML string
                     String txt = "";
-                    if (nodeName.equals("scripts")){
+                    if (nodeName.equals("scripts")){ //wildcard replacements
                         for (Node n : getElementsByTagName("script", node)){
+
+                          //Skip node if a similar node is found in the header
+                            String url = getAttributeValue(n, "src");
+                            if (simpleNodes.contains("script|"+url)) continue;
+
+
+                          //Add node
                             txt += updateTag(n) + "\r\n";
                         }
                     }
-                    else if (nodeName.equals("links")){
+                    else if (nodeName.equals("links")){ //wildcard replacements
                         for (Node n : getElementsByTagName("link", node)){
+
+                          //Skip node if a similar node is found in the header
+                            String url = getAttributeValue(n, "href");
+                            if (simpleNodes.contains("link|"+url)) continue;
+
+
+                          //Add node
                             txt += updateTag(n) + "\r\n";
                         }
                     }
@@ -464,7 +493,7 @@ public class FileManager {
                 String nodeName = node.getNodeName().toLowerCase();
                 if (nodeName.equals("script")){
 
-                  //Get link
+                  //Get String src = getAttributeValue(node, "src");link
                     String src = getAttributeValue(node, "src");
                     if (src.length()==0) return;
                     //console.log(src);
