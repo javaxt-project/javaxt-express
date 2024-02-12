@@ -13,11 +13,6 @@ javaxt.express.DBView = function(parent, config) {
     this.className = "javaxt.express.DBView";
 
     var me = this;
-    var tree, editor, grid, gridContainer, waitmask;
-    var runButton, cancelButton;
-    var jobID;
-
-
     var defaultConfig = {
 
         queryLanguage: "sql",
@@ -31,6 +26,8 @@ javaxt.express.DBView = function(parent, config) {
                 height: "100%",
                 /*backgroundColor: "#1c1e23"*/
             },
+
+            border: "1px solid #383b41",
 
             leftPanel: {
                 backgroundColor: "#272a31",
@@ -82,7 +79,10 @@ javaxt.express.DBView = function(parent, config) {
     };
 
 
-    var border = "1px solid #383b41";
+    var tree, editor, grid, gridContainer, waitmask;
+    var runButton, cancelButton;
+    var jobID;
+    var border;
 
 
 
@@ -107,6 +107,7 @@ javaxt.express.DBView = function(parent, config) {
 
       //Get waitmask
         waitmask = config.waitmask;
+        border = config.border;
 
 
       //Create main div
