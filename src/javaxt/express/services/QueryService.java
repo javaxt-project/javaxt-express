@@ -11,7 +11,7 @@ import java.math.BigDecimal;
 
 import javaxt.sql.*;
 import javaxt.json.*;
-//import javaxt.utils.Console;
+import static javaxt.utils.Console.console;
 
 import net.sf.jsqlparser.parser.*;
 import net.sf.jsqlparser.statement.select.*;
@@ -213,7 +213,7 @@ public class QueryService {
 
           //Collect misc params
             JSONObject params = new JSONObject();
-            params.set("format", request.getParameter("format").toString());
+            params.set("format", getParameter("format", request).toString());
             Boolean addMetadata = getParameter("metadata", request).toBoolean();
             if (addMetadata!=null && addMetadata==true){
                 params.set("metadata", true);
