@@ -11,7 +11,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
-
+import static javaxt.xml.DOM.*;
 
 //******************************************************************************
 //**  FileManager
@@ -249,7 +249,7 @@ public class FileManager {
                     headerNodes.add(el.toString());
                 }
                 str.append("</links>");
-                org.w3c.dom.Document xml = javaxt.xml.DOM.createDocument(str.toString());
+                org.w3c.dom.Document xml = createDocument(str.toString());
 
 
 
@@ -265,18 +265,29 @@ public class FileManager {
 
 
               //Update header nodes
-                Node outerNode = javaxt.xml.DOM.getOuterNode(xml);
-                Node[] nodes = javaxt.xml.DOM.getNodes(outerNode.getChildNodes());
+                Node outerNode = getOuterNode(xml);
+                Node[] nodes = getNodes(outerNode.getChildNodes());
                 for (int i=0; i<nodes.length; i++){
                     Node node = nodes[i];
                     String nodeName = node.getNodeName().toLowerCase();
 
-                  //Replace any self-enclosing tags as needed
-                    String txt = javaxt.xml.DOM.getText(node);
-                    if (txt.endsWith("/>") && nodeName.equals("script")){
-                        txt = txt.substring(0, txt.length()-2);
-                        txt += "></" + nodeName + ">";
+
+                  //Convert node into an HTML string
+                    String txt = "";
+                    if (nodeName.equals("scripts")){
+                        for (Node n : getElementsByTagName("script", node)){
+                            txt += updateTag(n) + "\r\n";
+                        }
                     }
+                    else if (nodeName.equals("links")){
+                        for (Node n : getElementsByTagName("link", node)){
+                            txt += updateTag(n) + "\r\n";
+                        }
+                    }
+                    else{
+                        txt = updateTag(node);
+                    }
+
 
                   //Replace entry in headerNodes
                     int x = updates.get(i);
@@ -310,7 +321,7 @@ public class FileManager {
               //the js and css files sourced in the xml document.
                 javaxt.io.File xmlFile = new javaxt.io.File(file);
                 org.w3c.dom.Document xml = xmlFile.getXML();
-                String outerNode = javaxt.xml.DOM.getOuterNode(xml).getNodeName();
+                String outerNode = getOuterNode(xml).getNodeName();
                 if (outerNode.equals("application") || outerNode.equals("includes")){
 
 
@@ -326,7 +337,7 @@ public class FileManager {
 
                   //Set content type and send response
                     response.setContentType("application/xml");
-                    sendResponse(javaxt.xml.DOM.getText(xml), lastUpdate, request, response);
+                    sendResponse(getText(xml), lastUpdate, request, response);
                     return;
                 }
 
@@ -403,14 +414,36 @@ public class FileManager {
    *  file update
    */
     public long updateLinks(javaxt.io.File xmlFile, org.w3c.dom.Document xml) throws Exception {
+
+      //Generate list of nodes
         ArrayList<Node> includes = new ArrayList<>();
-        for (Node node : javaxt.xml.DOM.getElementsByTagName("script", xml)){
-            includes.add(node);
+        for (Node node : getElementsByTagName("script", xml)) includes.add(node);
+        for (Node node : getElementsByTagName("link", xml)) includes.add(node);
+
+
+      //Update links
+        long t = updateLinks(xmlFile, includes);
+
+
+
+      //Replace nested nodes
+        ArrayList<Node> orgNodes = new ArrayList<>();
+        for (Node node : getElementsByTagName("script", xml)) orgNodes.add(node);
+        for (Node node : getElementsByTagName("link", xml)) orgNodes.add(node);
+        for (int i=0; i<includes.size(); i++){
+            Node node = includes.get(i);
+            Node orgNode = orgNodes.get(i);
+            Node parentNode = orgNode.getParentNode();
+            String nodeName = node.getNodeName().toLowerCase();
+            if (nodeName.equals("scripts") || nodeName.equals("links")){
+                node = xml.adoptNode(node);
+                parentNode.insertBefore(node, orgNode);
+                parentNode.removeChild(orgNode);
+            }
         }
-        for (Node node : javaxt.xml.DOM.getElementsByTagName("link", xml)){
-            includes.add(node);
-        }
-        return updateLinks(xmlFile, includes);
+
+
+        return t;
     }
 
 
@@ -431,20 +464,47 @@ public class FileManager {
                 String nodeName = node.getNodeName().toLowerCase();
                 if (nodeName.equals("script")){
 
-                  //Update links to scripts
-                    String src = javaxt.xml.DOM.getAttributeValue(node, "src");
+                  //Get link
+                    String src = getAttributeValue(node, "src");
+                    if (src.length()==0) return;
                     //console.log(src);
-                    if (src.length()>0)
-                    try{
-                        javaxt.io.File jsFile = new javaxt.io.File(getPath(src));
-                        //console.log(jsFile);
-                        if (jsFile.exists()){
 
-                          //Append version number to the path
-                            long lastModified = jsFile.getLastModifiedTime().getTime();
-                            long currVersion = new javaxt.utils.Date(lastModified).toLong();
-                            javaxt.xml.DOM.setAttributeValue(node, "src" , src + "?v=" + currVersion);
-                            addDate(lastModified);
+
+                  //Update link
+                    try{
+                        String path = getPath(src);
+                        if (path.contains("*")){ //Special case for wildcard links
+
+
+                          //Create new xml document
+                            StringBuilder str = new StringBuilder();
+                            str.append("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\r\n");
+                            str.append("<scripts>\r\n");
+                            for (String link : getLinks(src, path)){
+                                str.append("<script src=\"");
+                                str.append(link);
+                                str.append("\"></script>\r\n");
+                            }
+                            str.append("</scripts>");
+                            //console.log(str);
+
+
+                          //Replace original node with new nodes
+                            org.w3c.dom.Document xml = createDocument(str.toString());
+                            synchronized(nodes){
+                                int idx = nodes.indexOf(node);
+                                nodes.set(idx, getOuterNode(xml));
+                            }
+
+                        }
+                        else{ //Append version number to the path
+                            javaxt.io.File jsFile = new javaxt.io.File(path);
+                            if (jsFile.exists()){
+                                long lastModified = jsFile.getLastModifiedTime().getTime();
+                                long currVersion = new javaxt.utils.Date(lastModified).toLong();
+                                setAttributeValue(node, "src" , src + "?v=" + currVersion);
+                                addDate(lastModified);
+                            }
                         }
                     }
                     catch(Exception e){
@@ -455,22 +515,49 @@ public class FileManager {
                 else if (nodeName.equals("link")){
 
                   //Update links to css files
-                    String href = javaxt.xml.DOM.getAttributeValue(node, "href");
-                    String type = javaxt.xml.DOM.getAttributeValue(node, "type");
-                    String rel = javaxt.xml.DOM.getAttributeValue(node, "rel");
+                    String href = getAttributeValue(node, "href");
+                    String type = getAttributeValue(node, "type");
+                    String rel = getAttributeValue(node, "rel");
                     boolean isStyleSheet = type.equalsIgnoreCase("text/css");
                     if (!isStyleSheet) isStyleSheet = rel.equalsIgnoreCase("stylesheet");
                     if (href.length()>0 && isStyleSheet){
 
                         try{
-                            javaxt.io.File cssFile = new javaxt.io.File(getPath(href));
-                            if (cssFile.exists()){
+                            String path = getPath(href);
+                            if (path.contains("*")){ //Special case for wildcard links
 
-                              //Append version number to the path
-                                long lastModified = cssFile.getLastModifiedTime().getTime();
-                                long currVersion = new javaxt.utils.Date(lastModified).toLong();
-                                javaxt.xml.DOM.setAttributeValue(node, "href" , href + "?v=" + currVersion);
-                                addDate(lastModified);
+
+                              //Create new xml document
+                                StringBuilder str = new StringBuilder();
+                                str.append("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\r\n");
+                                str.append("<links>\r\n");
+                                for (String link : getLinks(href, path)){
+
+                                    str.append("<link href=\"");
+                                    str.append(link);
+                                    str.append("\" rel=\"stylesheet\" />\r\n");
+
+                                }
+                                str.append("</links>");
+                                //console.log(str);
+
+
+                              //Replace original node with new nodes
+                                org.w3c.dom.Document xml = createDocument(str.toString());
+                                synchronized(nodes){
+                                    int idx = nodes.indexOf(node);
+                                    nodes.set(idx, getOuterNode(xml));
+                                }
+
+                            }
+                            else{
+                                javaxt.io.File cssFile = new javaxt.io.File(path);
+                                if (cssFile.exists()){ //Append version number to the path
+                                    long lastModified = cssFile.getLastModifiedTime().getTime();
+                                    long currVersion = new javaxt.utils.Date(lastModified).toLong();
+                                    setAttributeValue(node, "href" , href + "?v=" + currVersion);
+                                    addDate(lastModified);
+                                }
                             }
                         }
                         catch(Exception e){
@@ -480,6 +567,34 @@ public class FileManager {
                     }
                 }
             }
+
+
+            private ArrayList<String> getLinks(String src, String path) throws Exception {
+
+              //Get file path
+                javaxt.io.File f = new javaxt.io.File(path);
+                javaxt.io.Directory d = f.getDirectory();
+                String search = f.getName();
+
+
+              //Build relative path to the files
+                String basePath = src.substring(0, src.indexOf("*"));
+                int x = d.toString().replace("\\", "/").lastIndexOf(basePath);
+
+
+              //Create new xml document
+                ArrayList<String> links = new ArrayList<>();
+                for (javaxt.io.File file : d.getFiles(search, true)){
+                    long lastModified = file.getLastModifiedTime().getTime();
+                    long currVersion = new javaxt.utils.Date(lastModified).toLong();
+                    addDate(lastModified);
+
+                    String p = file.getDirectory().toString().replace("\\", "/").substring(x);
+                    links.add(p + file.getName() + "?v=" + currVersion);
+                }
+                return links;
+            }
+
 
             private String getPath(String relPath){
                 if (relPath.startsWith("/")){
@@ -545,7 +660,7 @@ public class FileManager {
         for (int i=0; i<nodes.getLength(); i++){
             Node node = nodes.item(i);
             if (node.getNodeType()==1){
-                if (javaxt.xml.DOM.hasChildren(node)){
+                if (hasChildren(node)){
                     updateNodes(node.getChildNodes(), xml);
                 }
                 else{
@@ -571,6 +686,20 @@ public class FileManager {
     }
 
 
-
+  //**************************************************************************
+  //** updateTag
+  //**************************************************************************
+  /** Returns a HTML string for a given node. Replaces any self-enclosing tags
+   *  as needed.
+   */
+    private String updateTag(Node node){
+        String txt = getText(node);
+        String nodeName = node.getNodeName().toLowerCase();
+        if (txt.endsWith("/>") && nodeName.equals("script")){
+            txt = txt.substring(0, txt.length()-2);
+            txt += "></" + nodeName + ">";
+        }
+        return txt;
+    }
 
 }
