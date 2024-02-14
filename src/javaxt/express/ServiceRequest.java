@@ -258,7 +258,7 @@ public class ServiceRequest {
   /** Returns the value associated with a parameter in the request. Performs a
    *  case insensitive search for the keyword in the query string. In addition,
    *  will search the JSON payload of the request if parseJson is set to true.
-   *  If the value is "null" then a null value is returned.
+   *  If the value is an empty string or "null" then a null value is returned.
    *  @param key Query string parameter name. Performs a case insensitive
    *  search for the keyword.
    */
@@ -522,6 +522,14 @@ public class ServiceRequest {
   //**************************************************************************
   //** getCredentials
   //**************************************************************************
+  /** Returns the credentials associated with an HTTP request. The credentials
+   *  will vary based on the security authentication scheme used to
+   *  authenticate clients (e.g. "BASIC", "DIGEST", "NTLM", etc). In the case
+   *  of "BASIC" authentication, the credentials typically include a username
+   *  and password. In the case of "NTLM" authentication, the credentials may
+   *  only contain a username. What is actually returned is up to the
+   *  javaxt.http.servlet.Authenticator used to authenticate the request.
+   */
     public String[] getCredentials(){
         return request.getCredentials();
     }
@@ -530,6 +538,11 @@ public class ServiceRequest {
   //**************************************************************************
   //** authenticate
   //**************************************************************************
+  /** Used to authenticate a client request. Authentication is performed by a
+   *  javaxt.http.servlet.Authenticator. If no Authenticator is defined or if
+   *  the Authenticator fails to authenticate the client, this method throws a
+   *  ServletException.
+   */
     public void authenticate() throws ServletException {
         request.authenticate();
     }
