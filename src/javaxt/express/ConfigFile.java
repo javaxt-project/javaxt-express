@@ -1,20 +1,20 @@
 package javaxt.express;
 import javaxt.json.JSONObject;
 import javaxt.encryption.AES256;
-import javaxt.json.JSONValue;
 
 //******************************************************************************
 //**  ConfigFile
 //******************************************************************************
 /**
- *   Used to access and save configuration information to an encrypted JSON
- *   file.
+ *   Used to access and save configuration information stored in a JSON file.
+ *   Provides an option to encrypt the JSON file.
  *
  ******************************************************************************/
 
 public class ConfigFile {
 
     private javaxt.io.File file;
+    private JSONObject config;
 
 
   //**************************************************************************
@@ -43,7 +43,9 @@ public class ConfigFile {
     }
 
 
-
+  //**************************************************************************
+  //** getDirectory
+  //**************************************************************************
     public javaxt.io.Directory getDirectory(){
         return file.getDirectory();
     }
@@ -62,17 +64,49 @@ public class ConfigFile {
   //**************************************************************************
   //** getConfig
   //**************************************************************************
+  /** Returns the current config (json document).
+   */
+    public JSONObject getConfig(){
+        if (config==null) config = file.getJSONObject();
+        return config;
+    }
+
+
+  //**************************************************************************
+  //** getConfig
+  //**************************************************************************
   /** Used to decrypt and parse a config file (json document).
    */
     public JSONObject getConfig(String username, String password)
         throws java.security.InvalidKeyException, Exception {
-
-        return new JSONObject(
+        if (config==null) config = new JSONObject(
             AES256.decrypt(
                 file.getBytes().toByteArray(),
                 generatePassword(username, password)
             )
         );
+        return config;
+    }
+
+
+  //**************************************************************************
+  //** save
+  //**************************************************************************
+  /** Used to save the config file.
+   */
+    public void save(){
+        file.write(getConfig());
+    }
+
+
+  //**************************************************************************
+  //** save
+  //**************************************************************************
+  /** Used to encrypt and save the config file.
+   */
+    public void save(String username, String password)
+        throws java.security.InvalidKeyException, Exception {
+        save(getConfig(), username, password);
     }
 
 
@@ -94,7 +128,7 @@ public class ConfigFile {
   //**************************************************************************
   //** generatePassword
   //**************************************************************************
-  /** Used to generate a password/key used to encrypt/decrypt the config file.
+  /** Used to generate a password/key used to encrypt/decrypt a config file.
    */
     private static String generatePassword(String username, String password) throws Exception {
         return ( javaxt.utils.Base64.encode(
@@ -103,28 +137,32 @@ public class ConfigFile {
     }
 
 
-
-
   //**************************************************************************
-  //** getFile
+  //** updateDir
   //**************************************************************************
-  /** Returns a File for a given path
-   *  @param path Full canonical path to a file or a relative path (relative
-   *  to the jarFile)
+  /** Used to update a path to a directory defined in the config file.
+   *  Resolves both canonical and relative paths (relative to the configFile).
    */
-    public static javaxt.io.File getFile(String path, javaxt.io.File jarFile){
-        javaxt.io.File file = new javaxt.io.File(path);
-        if (!file.exists()){
-            file = new javaxt.io.File(jarFile.MapPath(path));
-        }
-        return file;
+    public void updateDir(String key, boolean create){
+        updateDir(key, getConfig(), file, create);
     }
 
 
   //**************************************************************************
   //** updateDir
   //**************************************************************************
-  /** Used to update a path to a directory defined in a config file. Resolves
+  /** Used to update a path to a directory defined in a given config. Resolves
+   *  both canonical and relative paths (relative to the configFile).
+   */
+    public void updateDir(String key, JSONObject config, boolean create){
+        updateDir(key, config, file, create);
+    }
+
+
+  //**************************************************************************
+  //** updateDir
+  //**************************************************************************
+  /** Used to update a path to a directory defined in a given config. Resolves
    *  both canonical and relative paths (relative to the configFile).
    */
     public static void updateDir(String key, JSONObject config, javaxt.io.File configFile, boolean create){
@@ -140,26 +178,34 @@ public class ConfigFile {
                 }
                 else{
 
-                    javaxt.io.Directory dir = new javaxt.io.Directory(path);
+                  //Get directory
+                    javaxt.io.Directory dir;
+                    if (isRelativePath(path)){
+                        path = configFile.MapPath(path);
+                        dir = new javaxt.io.Directory(new java.io.File(path));
+                    }
+                    else{
+                        dir = new javaxt.io.Directory(path);
+                    }
+
+
+                  //Get canonical path
                     if (dir.exists()){
                         try{
-                            java.io.File f = new java.io.File(path);
-                            javaxt.io.Directory d = new javaxt.io.Directory(f.getCanonicalFile());
+                            javaxt.io.Directory d = new javaxt.io.Directory(dir.toFile().getCanonicalFile());
                             if (!dir.toString().equals(d.toString())){
                                 dir = d;
                             }
                         }
-                        catch(Exception e){
-                        }
-                    }
-                    else{
-                        dir = new javaxt.io.Directory(new java.io.File(configFile.MapPath(path)));
+                        catch(Exception e){}
                     }
 
 
+                  //Create directory as needed
                     if (!dir.exists() && create) dir.create();
 
 
+                  //Update config
                     if (dir.exists()){
                         config.set(key, dir.toString());
                     }
@@ -175,8 +221,30 @@ public class ConfigFile {
   //**************************************************************************
   //** updateFile
   //**************************************************************************
-  /** Used to update a path to a file defined in a config file. Resolves
+  /** Used to update a path to a file defined in the config file. Resolves
    *  both canonical and relative paths (relative to the configFile).
+   */
+    public void updateFile(String key){
+        updateFile(key, getConfig(), file);
+    }
+
+
+  //**************************************************************************
+  //** updateFile
+  //**************************************************************************
+  /** Used to update a path to a file defined a given config. Resolves both
+   *  canonical and relative paths (relative to the configFile).
+   */
+    public void updateFile(String key, JSONObject config){
+        updateFile(key, config, file);
+    }
+
+
+  //**************************************************************************
+  //** updateFile
+  //**************************************************************************
+  /** Used to update a path to a file defined in a config. Resolves both
+   *  canonical and relative paths (relative to a configFile).
    */
     public static void updateFile(String key, JSONObject config, javaxt.io.File configFile){
         if (config.has(key)){
@@ -191,32 +259,61 @@ public class ConfigFile {
                 }
                 else{
 
-                    javaxt.io.File file = new javaxt.io.File(path);
+                  //Get file
+                    javaxt.io.File file = getFile(path, configFile);
+
+
+                  //Get canonical path
                     if (file.exists()){
                         try{
-                            java.io.File f = new java.io.File(path);
-                            javaxt.io.File _file = new javaxt.io.File(f.getCanonicalFile());
-                            if (!file.toString().equals(_file.toString())){
-                                file = _file;
+                            javaxt.io.File f = new javaxt.io.File(file.toFile().getCanonicalFile());
+                            if (!file.toString().equals(f.toString())){
+                                file = f;
                             }
                         }
-                        catch(Exception e){
-                        }
-                    }
-                    else{
-                        file = new javaxt.io.File(configFile.MapPath(path));
+                        catch(Exception e){}
                     }
 
+
+                  //Update config
                     config.set(key, file.toString());
-//                    if (file.exists()){
-//                        config.set(key, file.toString());
-//                    }
-//                    else{
-//                        config.remove(key);
-//                    }
                 }
             }
         }
+    }
+
+
+  //**************************************************************************
+  //** getFile
+  //**************************************************************************
+  /** Returns a File for a given path. Resolves both canonical and relative
+   *  paths (relative to the given file).
+   *  @param path Full canonical path or a relative path
+   *  @param file If a relative path is given, the path is resolved to the
+   *  given file
+   */
+    public static javaxt.io.File getFile(String path, javaxt.io.File file){
+        if (isRelativePath(path)){
+            return new javaxt.io.File(file.MapPath(path));
+        }
+        else{
+            return new javaxt.io.File(path);
+        }
+    }
+
+
+  //**************************************************************************
+  //** isRelativePath
+  //**************************************************************************
+  /** Returns true is the given path appears to be relative
+   */
+    private static boolean isRelativePath(String path){
+        path = path.replace("\\", "/");
+        if (path.startsWith("/")) return false;
+        if (System.getProperty("os.name").toLowerCase().startsWith("windows")){
+            if (path.indexOf(":")==1) return false;
+        }
+        return true;
     }
 
 }
