@@ -91,13 +91,23 @@ public class DbUtils {
                     }
 
 
+                    /*
                   //Replace geometry types
+                  //...no longer needed in newer versions of H2
                     int idx = statement.toUpperCase().indexOf("geometry(Geometry,4326)".toUpperCase());
                     if (idx>0){
                         String a = statement.substring(0, idx) + "geometry";
                         String b = statement.substring(idx + "geometry(Geometry,4326)".length());
                         statement = a + b;
                     }
+                    */
+
+
+                  //Update spatial index statement
+                    if (str.startsWith("CREATE INDEX") && str.contains("USING GIST")){
+                        statement = str.replace("CREATE INDEX", "CREATE SPATIAL INDEX").replace("USING GIST", "");
+                    }
+
 
                     arr.add(statement);
                 }
