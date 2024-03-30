@@ -183,7 +183,7 @@ public class ServiceRequest {
    */
     public void setPath(String path){
         if (path!=null){
-            path = path.substring(1);
+            if (path.startsWith("/")) path = path.substring(1);
             boolean addPath = service==null;
             ArrayList<String> arr = new ArrayList<>();
             for (String str : path.split("/")){
