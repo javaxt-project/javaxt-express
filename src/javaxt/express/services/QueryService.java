@@ -1,6 +1,7 @@
 package javaxt.express.services;
 import javaxt.express.ServiceResponse;
 import javaxt.express.ServiceRequest;
+import javaxt.express.WebService;
 import javaxt.express.User;
 
 import java.sql.SQLException;
@@ -29,8 +30,9 @@ import net.sf.jsqlparser.expression.LongValue;
  *
  ******************************************************************************/
 
-public class QueryService {
+public class QueryService extends WebService {
 
+    private Database database;
     private javaxt.io.Directory jobDir;
     private javaxt.io.Directory logDir;
     private Map<String, QueryJob> jobs = new ConcurrentHashMap<>();
@@ -43,6 +45,7 @@ public class QueryService {
   //** Constructor
   //**************************************************************************
     public QueryService(Database database, javaxt.io.Directory jobDir, javaxt.io.Directory logDir){
+        this.database = database;
 
       //Set path to the jobs directory
         if (jobDir!=null) if (!jobDir.exists()) jobDir.create();
@@ -103,6 +106,8 @@ public class QueryService {
    *  </ul>
    */
     public ServiceResponse getServiceResponse(ServiceRequest request, Database database) {
+        if (database==null) database = this.database;
+
         String path = request.getPath(0).toString();
         if (path!=null){
             if (path.equals("jobs")){
@@ -588,21 +593,23 @@ public class QueryService {
 
 
           //Cancel the query in the database
-            Integer pid = getPid(job.getKey(), conn);
-            if (pid!=null){
-                boolean jobCanceled = false;
+            if (database.getDriver().equals("PostgreSQL")){
+                Integer pid = getPid(job.getKey(), conn);
+                if (pid!=null){
+                    boolean jobCanceled = false;
 
-                javaxt.sql.Record record = conn.getRecord("SELECT pg_cancel_backend(" + pid + ")");
-                if (record!=null) jobCanceled = record.get(0).toBoolean();
-
-                if (!jobCanceled){
-                    record = conn.getRecord("SELECT pg_terminate_backend(" + pid + ")");
+                    javaxt.sql.Record record = conn.getRecord("SELECT pg_cancel_backend(" + pid + ")");
                     if (record!=null) jobCanceled = record.get(0).toBoolean();
-                }
+
+                    if (!jobCanceled){
+                        record = conn.getRecord("SELECT pg_terminate_backend(" + pid + ")");
+                        if (record!=null) jobCanceled = record.get(0).toBoolean();
+                    }
 
 
-                if (!jobCanceled){
-                    throw new Exception();
+                    if (!jobCanceled){
+                        throw new Exception();
+                    }
                 }
             }
 
@@ -640,6 +647,19 @@ public class QueryService {
         try {
             JSONArray arr = new JSONArray();
             for (Table table : database.getTables()){
+
+
+              //Get schema
+                String schema = table.getSchema();
+                if (schema!=null){
+
+                  //Skip PostgreSQL metadata tables
+                    if (schema.equalsIgnoreCase("information_schema")) continue;
+                    if (schema.toLowerCase().startsWith("pg_")) continue;
+                }
+
+
+              //Get columns
                 JSONArray columns = new JSONArray();
                 for (Column column : table.getColumns()){
 
@@ -652,9 +672,11 @@ public class QueryService {
                     columns.add(col);
                 }
 
+
+              //Update array
                 JSONObject json = new JSONObject();
                 json.set("name", table.getName());
-                json.set("schema", table.getSchema());
+                json.set("schema", schema);
                 json.set("columns", columns);
                 arr.add(json);
             }
