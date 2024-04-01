@@ -15,16 +15,61 @@ javaxt.express.DBView = function(parent, config) {
     var me = this;
     var defaultConfig = {
 
+      /** If the CodeMirror library is available, it will be used as the query
+       *  editor (vs default textarea). You can specify a coding language to
+       *  use with CodeMirror (e.g. sql, cypher, etc). Default is sql.
+       */
         queryLanguage: "sql",
+
+
+      /** Path to REST endpoint used to create, get, and delete query jobs.
+       *  This path may be overridden via the createJob, getJob, and cancelJob
+       *  config.
+       */
         queryService: "sql/job/",
+
+
+      /** Path to REST endpoint that returns a list of tables. Alternatively,
+       *  you can provide a function with a callback.
+       */
         getTables: "sql/tables/",
+
+
+      /** Path to REST endpoint used to create a query job. Alternatively, you
+       *  can provide a function that executes a "POST" request.
+       */
+        createJob: "sql/job/",
+
+
+      /** Path to REST endpoint used to delete/cancel a query job. Note that
+       *  the "{jobID}" will be replaced with an actual id. Alternatively, you
+       *  can provide a function that executes a "DELETE" request. The function
+       *  should return an XHR request.
+       */
+        cancelJob: "sql/job/{jobID}",
+
+
+      /** Path to REST endpoint that returns results of a query job. Note that
+       *  the "{jobID}" will be replaced with an actual id. Alternatively, you
+       *  can provide a function that executes a "GET" request. The function
+       *  should return an XHR request.
+       */
+        getJob: "sql/job/{jobID}",
+
+
+      /** Used to specify the page size (i.e. the maximum number records to
+       *  fetch from the server at a time)
+       */
         pageSize: 50,
 
+
+      /** Style for individual elements within the component. Note that you can
+       *  provide CSS class names instead of individual style definitions.
+       */
         style:{
             container: {
                 width: "100%",
-                height: "100%",
-                /*backgroundColor: "#1c1e23"*/
+                height: "100%"
             },
 
             border: "1px solid #383b41",
@@ -73,13 +118,25 @@ javaxt.express.DBView = function(parent, config) {
             }
         },
 
+
+      /** By default, when a user clicks on a node in the tree, the query editor
+       *  is updated with a default query statement for the node. You can update
+       *  this default behaviour by providing a custom function.
+       */
         onTreeClick: function(item){
-            editor.setValue("select * from " + item.name);
+            var tableName = item.name;
+            if (item.node){
+                var schema = item.node.schema;
+                if (schema && schema!=="public"){
+                    tableName = schema + "." + tableName;
+                }
+            }
+            editor.setValue("select * from " + tableName);
         }
     };
 
 
-    var tree, editor, grid, gridContainer, waitmask;
+    var tree, toolbar, editor, grid, gridContainer, waitmask;
     var runButton, cancelButton;
     var jobID;
     var border;
@@ -113,6 +170,7 @@ javaxt.express.DBView = function(parent, config) {
       //Create main div
         var div = createElement('div', parent, config.style.container);
         me.el = div;
+        addShowHide(me);
 
 
       //Create table with 2 columns
@@ -213,7 +271,6 @@ javaxt.express.DBView = function(parent, config) {
 
 
       //Set parameters for the query service
-        var url = config.queryService;
         var payload = {
             query: editor.getValue(),
             limit: config.pageSize
@@ -221,7 +278,7 @@ javaxt.express.DBView = function(parent, config) {
 
 
       //Execute query and render results
-        getResponse(url, JSON.stringify(payload), function(request){
+        getResponse(payload, function(request){
             cancelButton.disable();
             var json = JSON.parse(request.responseText);
             var data = parseResponse(json);
@@ -244,7 +301,10 @@ javaxt.express.DBView = function(parent, config) {
   //** clearResults
   //**************************************************************************
     this.clearResults = function(){
-        if (grid) grid.clear();
+        if (grid){
+            grid.clear();
+            destroy(grid);
+        }
         gridContainer.innerHTML = "";
     };
 
@@ -258,7 +318,8 @@ javaxt.express.DBView = function(parent, config) {
         return {
             tree: tree,
             grid: grid,
-            editor: editor
+            editor: editor,
+            toolbar: toolbar
         };
     };
 
@@ -303,15 +364,15 @@ javaxt.express.DBView = function(parent, config) {
   //**************************************************************************
     var createQueryView = function(parent){
         var table = createTable(parent);
-        var td;
+
 
       //Create toolbar
-        td = table.addRow().addColumn(config.style.toolbar);
-        addButtons(td);
+        toolbar = table.addRow().addColumn(config.style.toolbar);
+        addButtons(toolbar);
 
 
       //Create editor
-        td = table.addRow().addColumn(config.style.editor);
+        var td = table.addRow().addColumn(config.style.editor);
         td.style.borderBottom = border;
 
         var target = td;
@@ -357,8 +418,12 @@ javaxt.express.DBView = function(parent, config) {
             editor = createElement('textarea', td, {
                 width: "100%",
                 height: "100%",
-                resize: "none"
+                resize: "none",
+                border: "0 none",
+                padding: "10px",
+                boxSizing: "border-box" //this is critical if you want padding
             });
+            editor.spellcheck = false;
             editor.getValue = function(){
                 return this.value;
             };
@@ -512,7 +577,9 @@ javaxt.express.DBView = function(parent, config) {
    */
     var cancel = function(callback){
         if (jobID){
-            javaxt.dhtml.utils.delete(config.queryService + jobID,{
+
+            var request;
+            var requestConfig = {
                 success : function(){
                     cancelButton.disable();
                     if (callback) callback.apply(null,[]);
@@ -525,7 +592,18 @@ javaxt.express.DBView = function(parent, config) {
                         showError(request);
                     }
                 }
-            });
+            };
+
+            var cancelJob = config.cancelJob;
+            if (!cancelJob) cancelJob = config.queryService + jobID;
+            if (typeof cancelJob === "string"){
+                var url = cancelJob.replace("{jobID}",jobID);
+                request = javaxt.dhtml.utils.delete(url, requestConfig);
+            }
+            else if  (typeof cancelJob === "function") {
+                request = cancelJob.apply(me, [jobID, requestConfig]);
+            }
+
         }
         else{
             if (callback) callback.apply(null,[]);
@@ -557,8 +635,10 @@ javaxt.express.DBView = function(parent, config) {
    *  are executed asynchronously. This method will pull the sql api until
    *  the query is complete.
    */
-    var getResponse = function(url, payload, callback){
-        post(url, payload, {
+    var getResponse = function(payload, callback){
+
+
+        var requestConfig = {
             success : function(text){
 
                 jobID = JSON.parse(text).job_id;
@@ -569,7 +649,10 @@ javaxt.express.DBView = function(parent, config) {
                 var timer;
                 var checkStatus = function(){
                     if (jobID){
-                        var request = get(config.queryService + jobID, {
+
+
+                        var request;
+                        var requestConfig = {
                             success : function(text){
                                 if (text==="pending" || text==="running"){
                                     timer = setTimeout(checkStatus, 250);
@@ -583,7 +666,18 @@ javaxt.express.DBView = function(parent, config) {
                                 clearTimeout(timer);
                                 showError(response);
                             }
-                        });
+                        };
+
+                        var getJob = config.getJob;
+                        if (!getJob) getJob = config.queryService + jobID;
+                        if (typeof getJob === "string"){
+                            var url = getJob.replace("{jobID}",jobID);
+                            request = get(url, requestConfig);
+                        }
+                        else if  (typeof getJob === "function") {
+                            request = getJob.apply(me, [jobID, requestConfig]);
+                        }
+
                     }
                     else{
                         clearTimeout(timer);
@@ -596,7 +690,18 @@ javaxt.express.DBView = function(parent, config) {
                 //mainMask.hide();
                 showError(response);
             }
-        });
+        };
+
+
+
+        var createJob = config.createJob;
+        if (!createJob) createJob = config.queryService;
+        if (typeof createJob === "string"){
+            post(createJob, JSON.stringify(payload), requestConfig);
+        }
+        else if  (typeof createJob === "function") {
+            createJob.apply(me, [payload, requestConfig]);
+        }
     };
 
 
@@ -648,6 +753,7 @@ javaxt.express.DBView = function(parent, config) {
   /** Used to render query results in a grid
    */
     var render = function(records, columns){
+        if (columns.length===0) return;
 
         //mainMask.hide();
 
@@ -751,11 +857,16 @@ javaxt.express.DBView = function(parent, config) {
             columns: arr,
             style: config.style.table,
             url: config.queryService,
-            payload: JSON.stringify({
-                query: editor.getValue()
-            }),
             limit: config.pageSize,
-            getResponse: getResponse,
+            getResponse: function(url, payload, callback){
+
+                payload = {
+                    query: editor.getValue(),
+                    limit: config.pageSize
+                };
+
+                getResponse(payload, callback);
+            },
             parseResponse: function(request){
                 return parseResponse(JSON.parse(request.responseText)).records;
             }
@@ -824,7 +935,9 @@ javaxt.express.DBView = function(parent, config) {
     var del = javaxt.dhtml.utils.delete;
     var clone = javaxt.dhtml.utils.clone;
     var merge = javaxt.dhtml.utils.merge;
+    var destroy = javaxt.dhtml.utils.destroy;
     var onRender = javaxt.dhtml.utils.onRender;
+    var addShowHide = javaxt.dhtml.utils.addShowHide;
     var createTable = javaxt.dhtml.utils.createTable;
     var createElement = javaxt.dhtml.utils.createElement;
 
