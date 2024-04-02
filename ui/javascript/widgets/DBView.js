@@ -632,7 +632,7 @@ javaxt.express.DBView = function(parent, config) {
   //** getResponse
   //**************************************************************************
   /** Used to execute a sql api request and get a response. Note that queries
-   *  are executed asynchronously. This method will pull the sql api until
+   *  are executed asynchronously. This method will pool the sql api until
    *  the query is complete.
    */
     var getResponse = function(payload, callback){
@@ -758,69 +758,7 @@ javaxt.express.DBView = function(parent, config) {
         //mainMask.hide();
 
 
-      //Compute default column widths
-        var widths = [];
-        var totalWidth = 0;
-        var headerWidth = 0;
-        var pixelsPerChar = 10;
-        if (columns.length>1){
-
-            for (var i=0; i<columns.length; i++){
-                var len = 0;
-                var column = columns[i];
-                if (column!=null) len = (rec+"").length*pixelsPerChar;
-                widths.push(len);
-                headerWidth+=len;
-            }
-            for (var i=0; i<records.length; i++){
-                var record = records[i];
-                for (var j=0; j<record.length; j++){
-                    var rec = record[j];
-                    var len = 0;
-                    if (rec!=null){
-                        var str = rec+"";
-                        var r = str.indexOf("\r");
-                        var n = str.indexOf("\n");
-                        if (r==-1){
-                            if (n>-1) str = str.substring(n);
-                        }
-                        else{
-                            if (n>-1){
-                                str = str.substring(Math.min(r,n));
-                            }
-                            else str = str.substring(r);
-                        }
-
-                        len = Math.min(str.length*pixelsPerChar, 150);
-                    }
-                    widths[j] = Math.max(widths[j], len);
-                }
-            }
-            for (var i=0; i<widths.length; i++){
-                totalWidth += widths[i];
-            }
-        }
-        else{
-            widths.push(1);
-            totalWidth = 1;
-        }
-
-
-
-      //Convert list of column names into column definitions
-        var arr = [];
-        for (var i=0; i<columns.length; i++){
-            var colWidth = ((widths[i]/totalWidth)*100)+"%";
-            arr.push({
-               header: columns[i],
-               width: colWidth,
-               sortable: false
-            });
-        }
-
-
-
-
+      //Create divs
         var outerDiv = createElement("div", gridContainer, {
             position: "relative",
             height: "100%"
@@ -843,62 +781,123 @@ javaxt.express.DBView = function(parent, config) {
         });
 
 
+
+      //Create grid after the divs are rendered
         onRender(innerDiv, function(){
             var rect = javaxt.dhtml.utils.getRect(innerDiv);
-            //console.log(totalWidth, headerWidth, rect.width);
+
+
+          //Compute column widths
+            var widths = [];
+            var minWidths = [];
+            var headerWidth = 0;
+            var pixelsPerChar = 10;
+            if (columns.length>1){
+
+                var arr = [];
+                arr.push(columns);
+                arr.push(...records);
+
+                var o = getSuggestedColumnWidths(arr, pixelsPerChar, rect.width);
+                widths = o.suggestedWidths;
+                headerWidth = o.headerWidth;
+
+                for (var i=0; i<columns.length; i++){
+                    var minWidth = columns[i].length*pixelsPerChar;
+                    if (minWidth<150) minWidth = 150;
+                    minWidths.push(minWidth);
+                }
+            }
+            else{
+                widths.push("100%");
+                minWidths.push(null);
+            }
+
+
+          //Generate column definitions
+            var arr = [];
+            for (var i=0; i<columns.length; i++){
+                arr.push({
+                   header: columns[i],
+                   width: widths[i],
+                   minWidth: minWidths[i],
+                   sortable: false
+                });
+            }
+
+
+
+          //Adjust width of the overflowDiv as needed
             if (rect.width<headerWidth){
                 overflowDiv.style.width = headerWidth + "px";
             }
-        });
 
 
-      //Create grid
-        grid = new javaxt.dhtml.DataGrid(overflowDiv, {
-            columns: arr,
-            style: config.style.table,
-            url: config.queryService,
-            limit: config.pageSize,
-            getResponse: function(url, payload, callback){
 
-                payload = {
-                    query: editor.getValue(),
-                    limit: config.pageSize
-                };
+          //Create grid
+            grid = new javaxt.dhtml.DataGrid(overflowDiv, {
+                columns: arr,
+                style: config.style.table,
+                url: config.queryService,
+                limit: config.pageSize,
+                getResponse: function(url, payload, callback){
 
-                getResponse(payload, callback);
-            },
-            parseResponse: function(request){
-                return parseResponse(JSON.parse(request.responseText)).records;
-            }
-        });
+                    payload = {
+                        query: editor.getValue(),
+                        page: grid.getCurrPage(),
+                        limit: config.pageSize
+                    };
+
+                    getResponse(payload, callback);
+                },
+                parseResponse: function(request){
+                    return parseResponse(JSON.parse(request.responseText)).records;
+                },
+                update: function(row, record){
+                    for (var i=0; i<record.length; i++){
+                        var val = record[i];
+                        if (val === null || val === undefined){
+                            val = "";
+                        }
+                        else{
+                            if (val.constructor === arrayConstructor ||
+                                val.constructor === objectConstructor) {
+                                val = JSON.stringify(val);
+                            }
+                        }
+                        row.set(i, val);
+                    }
+                }
+            });
 
 
-        grid.beforeLoad = function(page){
-            //mainMask.show();
-            //cancelButton.disable();
-        };
-
-        grid.afterLoad = function(){
-            //mainMask.hide();
-            cancelButton.disable();
-        };
-
-        grid.onSelectionChange = function(){
-
-        };
-
-        grid.getColumns = function(){
-            return columns;
-        };
-
-        grid.getConfig = function(){
-            return {
-                columns: arr
+            grid.beforeLoad = function(page){
+                //mainMask.show();
+                //cancelButton.disable();
             };
-        };
+
+            grid.afterLoad = function(){
+                //mainMask.hide();
+                cancelButton.disable();
+            };
+
+            grid.onSelectionChange = function(){
+
+            };
+
+            grid.getColumns = function(){
+                return columns;
+            };
+
+            grid.getConfig = function(){
+                return {
+                    columns: arr
+                };
+            };
 
 
-        grid.load(records, 1);
+            grid.load(records, 1);
+        });
     };
 
 
@@ -923,6 +922,8 @@ javaxt.express.DBView = function(parent, config) {
         return new javaxt.dhtml.Button(toolbar, btn);
     };
 
+var arrayConstructor = [].constructor;
+var objectConstructor = ({}).constructor;
 
 
   //**************************************************************************
@@ -940,6 +941,7 @@ javaxt.express.DBView = function(parent, config) {
     var addShowHide = javaxt.dhtml.utils.addShowHide;
     var createTable = javaxt.dhtml.utils.createTable;
     var createElement = javaxt.dhtml.utils.createElement;
+    var getSuggestedColumnWidths = javaxt.dhtml.utils.getSuggestedColumnWidths;
 
 
     init();
