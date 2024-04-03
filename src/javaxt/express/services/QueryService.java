@@ -356,6 +356,32 @@ public class QueryService extends WebService {
                         if (val instanceof String){
                             String s = (String) val;
                             if (s.trim().length()==0) val = "null";
+                            else{
+                                if (s.startsWith("{") && s.endsWith("}")){
+                                    try{
+                                        val = new JSONObject(s);
+                                    }
+                                    catch(Exception e){}
+                                }
+                                else if (s.startsWith("[") && s.endsWith("]")){
+                                    try{
+                                        val = new JSONArray(s);
+                                    }
+                                    catch(Exception e){}
+                                }
+                            }
+                        }
+                        else{
+                            if (val instanceof java.sql.Array){
+                                try{
+                                    JSONArray arr = new JSONArray();
+                                    for (Object o : (Object[]) ((java.sql.Array) val).getArray()){
+                                        arr.add(o);
+                                    }
+                                    val = arr;
+                                }
+                                catch(Exception e){}
+                            }
                         }
                     }
                     json.set(field.getName(), val);
