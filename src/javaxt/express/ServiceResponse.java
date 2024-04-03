@@ -97,7 +97,7 @@ public class ServiceResponse {
         //if (error.equalsIgnoreCase("NullPointerException")){
         for (StackTraceElement x : e.getStackTrace()){
             String err = x.toString();
-            if (err.trim().startsWith("org.eclipse.jetty")) break;
+            if (err.contains("org.eclipse.jetty")) break;
             error.append("\r\n");
             error.append(x);
         }
