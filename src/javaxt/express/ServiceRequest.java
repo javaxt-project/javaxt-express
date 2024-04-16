@@ -756,17 +756,8 @@ public class ServiceRequest {
         filter = new Filter();
         Iterator<String> it = params.keySet().iterator();
         while (it.hasNext()){
-            String key = it.next();
-
-
-          //Skip reserved keywords
-            key = key.trim();
-            String k = key.toLowerCase();
-            if (k.equals("fields") || k.equals("where") || k.equals("orderby") ||
-                k.equals("limit") || k.equals("offset") || k.equals("page") ||
-                k.equals("count") || k.equals("_") || k.isEmpty()){
-                continue;
-            }
+            String key = it.next().trim();
+            if (key.isEmpty()) continue;
 
 
           //Parse val
