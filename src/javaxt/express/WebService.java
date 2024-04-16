@@ -409,8 +409,8 @@ public abstract class WebService {
 
 
       //Compile SQL statement
-        StringBuilder sql = new StringBuilder();
-        sql.append(request.getSelectStatement(tableName));
+        StringBuilder sql = new StringBuilder("select ");
+        sql.append(request.getSelectStatement(tablesAndFields));
         sql.append(" from ");
         sql.append(tableName);
         String where = request.getWhereStatement(tablesAndFields);
