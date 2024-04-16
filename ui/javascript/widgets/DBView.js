@@ -5,7 +5,9 @@ if(!javaxt.express) javaxt.express={};
 //**  DBView
 //******************************************************************************
 /**
- *   Panel used to execute queries and view results in a grid
+ *   Panel used to execute queries and view results in a grid. This widget is
+ *   designed to work with REST services provided by implementations of the
+ *   javaxt.express.services.QueryService class.
  *
  ******************************************************************************/
 
@@ -61,6 +63,12 @@ javaxt.express.DBView = function(parent, config) {
        *  fetch from the server at a time)
        */
         pageSize: 50,
+
+
+      /** Used to specify the response format for the query results. Options
+       *  include "json", "csv", "tsv, and "jsv"
+       */
+        format: "json",
 
 
       /** Style for individual elements within the component. Note that you can
@@ -273,15 +281,15 @@ javaxt.express.DBView = function(parent, config) {
       //Set parameters for the query service
         var payload = {
             query: editor.getValue(),
-            limit: config.pageSize
+            limit: config.pageSize,
+            format: config.format
         };
 
 
       //Execute query and render results
         getResponse(payload, function(request){
             cancelButton.disable();
-            var json = JSON.parse(request.responseText);
-            var data = parseResponse(json);
+            var data = parseResponse(request.responseText);
             render(data.records, data.columns);
             if (waitmask) waitmask.hide();
         });
@@ -710,35 +718,50 @@ javaxt.express.DBView = function(parent, config) {
   //**************************************************************************
   /** Used to parse the query response from the sql api
    */
-    var parseResponse = function(json){
+    var parseResponse = function(text){
 
-      //Get rows
-        var rows = json.rows;
-
-
-      //Generate list of columns
-        var record = rows[0];
-        var columns = [];
-        for (var key in record) {
-            if (record.hasOwnProperty(key)) {
-                columns.push(key);
-            }
-        }
-
-
-      //Generate records
         var records = [];
-        for (var i=0; i<rows.length; i++){
-            var record = [];
-            var row = rows[i];
-            for (var j=0; j<columns.length; j++){
-                var key = columns[j];
-                var val = row[key];
-                record.push(val);
-            }
-            records.push(record);
-        }
+        var columns = [];
 
+        if (config.format==="json"){
+            var json = JSON.parse(text);
+
+
+          //Get rows
+            var rows = json.rows;
+
+
+          //Generate list of columns
+            var record = rows[0];
+            for (var key in record) {
+                if (record.hasOwnProperty(key)) {
+                    columns.push(key);
+                }
+            }
+
+
+          //Generate records
+            for (var i=0; i<rows.length; i++){
+                var record = [];
+                var row = rows[i];
+                for (var j=0; j<columns.length; j++){
+                    var key = columns[j];
+                    var val = row[key];
+                    record.push(val);
+                }
+                records.push(record);
+            }
+
+
+        }
+        else if (config.format==="jsv"){
+            var json = JSON.parse(text);
+            records = json.rows;
+            columns = json.cols;
+        }
+        else{
+            //csv or tsv
+        }
 
         return {
             columns: columns,
@@ -851,7 +874,7 @@ javaxt.express.DBView = function(parent, config) {
                     getResponse(payload, callback);
                 },
                 parseResponse: function(request){
-                    return parseResponse(JSON.parse(request.responseText)).records;
+                    return parseResponse(request.responseText).records;
                 },
                 update: function(row, record){
                     for (var i=0; i<record.length; i++){
