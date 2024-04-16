@@ -357,7 +357,7 @@ public abstract class WebService {
 
             Long id = request.getID();
             if (id==null){
-                String where = getWhere(request, tablesAndFields);
+                String where = request.getWhereStatement(tablesAndFields);
                 if (where==null) return new ServiceResponse(404);
                 else sql += where;
             }
@@ -413,12 +413,36 @@ public abstract class WebService {
         sql.append(request.getSelectStatement(tableName));
         sql.append(" from ");
         sql.append(tableName);
-        String where = getWhere(request, tablesAndFields);
+        String where = request.getWhereStatement(tablesAndFields);
         if (where!=null){
             sql.append(" where ");
             sql.append(where);
         }
-        sql.append(request.getOrderByStatement());
+
+        Long offset = request.getOffset();
+        if (offset==null || offset<1){
+            sql.append(request.getOrderByStatement());
+        }
+        else{
+          //Add ID (unique primary key) to the order by statement as needed.
+          //This is important when paginating sorting on non-distinct columns (esp on H2)
+            Sort sort = request.getSort();
+            if (!sort.isEmpty()){
+                sql.append(" order by ");
+                boolean addID = true;
+                java.util.Iterator<String> it = sort.getKeySet().iterator();
+                while (it.hasNext()){
+                    String colName = it.next();
+                    String direction = sort.get(colName);
+                    sql.append(colName);
+                    sql.append(" ");
+                    sql.append(direction);
+                    if (it.hasNext()) sql.append(", ");
+                    if (colName.equalsIgnoreCase("id")) addID = false;
+                }
+                if (addID) sql.append(", id");
+            }
+        }
         sql.append(request.getOffsetLimitStatement(database.getDriver()));
         //console.log(sql);
 
@@ -735,9 +759,10 @@ public abstract class WebService {
   //**************************************************************************
   //** getTableAndFields
   //**************************************************************************
-  /** Returns the table name and fields associated with a model
+  /** Returns a HashMap with the table name and fields associated with a given
+   *  model.
    */
-    private HashMap<String, Object> getTableAndFields(Class c) throws Exception {
+    protected static HashMap<String, Object> getTableAndFields(Class c) throws Exception {
 
         String tableName;
         HashMap<String, String> fieldMap = new HashMap<>();
@@ -790,91 +815,6 @@ public abstract class WebService {
         return p;
     }
 
-
-  //**************************************************************************
-  //** getWhere
-  //**************************************************************************
-  /** Used to compile a where statement
-   */
-    private String getWhere(ServiceRequest request, HashMap<String, Object> tablesAndFields){
-
-
-        String tableName = (String) tablesAndFields.get("tableName");
-        HashMap<String, String> fieldMap = (HashMap<String, String>) tablesAndFields.get("fieldMap");
-        HashSet<String> stringFields = (HashSet<String>) tablesAndFields.get("stringFields");
-
-
-        String where = null;
-        Filter filter = request.getFilter();
-        if (!filter.isEmpty()){
-            ArrayList<String> arr = new ArrayList<>();
-            for (Filter.Item item : filter.getItems()){
-                String name = item.getField();
-                String op = item.getOperation();
-                String v = item.getValue().toString();
-
-
-              //Check if the column name is a function
-                Field[] fields = request.getFields(name);
-                Field field = null;
-                if (fields!=null){
-                    field = fields[0];
-                    if (field.isFunction()){
-                        arr.add("(" + item.toString() + ")");
-                        continue;
-                    }
-                }
-
-
-              //Append table name to the column
-                Iterator<String> it = fieldMap.keySet().iterator();
-                boolean foundField = false;
-                while (it.hasNext()){
-                    String fieldName = it.next();
-                    String columnName = fieldMap.get(fieldName);
-                    if (name.equalsIgnoreCase(fieldName) || name.equalsIgnoreCase(columnName)){
-                        foundField = true;
-
-                        if (v!=null && stringFields.contains(fieldName)){
-                            if (!(v.startsWith("'") && v.endsWith("'"))){
-                                v = "'" + v.replace("'","''") + "'";
-                            }
-                        }
-
-                        arr.add("(" + tableName + "." + columnName + " " + op + " " + v + ")");
-                        break;
-                    }
-                }
-
-
-              //If we're still here, append the filter "as is"
-                if (!foundField){
-
-                  //Set column name
-                    String col;
-                    if (field!=null) col = field.getColumn();
-                    else col = StringUtils.camelCaseToUnderScore(name);
-
-                  //Update value
-                    if (v!=null && v.contains(" ")){
-                        if (!(v.startsWith("'") && v.endsWith("'"))){
-                            v = "'" + v.replace("'","''") + "'";
-                        }
-                    }
-
-                    arr.add("(" + col + " " + op + " " + v + ")");
-                }
-
-            }
-            if (!arr.isEmpty()){
-                where = String.join(" and ", arr);
-            }
-        }
-        else{
-            where = request.getWhere();
-        }
-        return where;
-    }
 
 
   //**************************************************************************
