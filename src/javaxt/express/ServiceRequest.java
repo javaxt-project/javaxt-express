@@ -1172,13 +1172,13 @@ public class ServiceRequest {
   //**************************************************************************
   //** getSelectStatement
   //**************************************************************************
-  /** Returns a SQL select statement for the current request. Compiles the
+  /** Returns a SQL "select" statement for the current request. Compiles the
    *  select statement using an array of Fields returned by the getFields()
    *  method. If no fields are found in the request, a "select *" statement is
    *  returned. Note that fields that are not functions are prepended with a
    *  table name.
    *  @param tableName If given, fields that are not functions are prepended
-   *  with a table name.
+   *  with a table name. This parameter is optional.
    */
     public String getSelectStatement(String tableName){
         StringBuilder sql = new StringBuilder("select ");
@@ -1202,6 +1202,138 @@ public class ServiceRequest {
             }
         }
         return sql.toString();
+    }
+
+
+  //**************************************************************************
+  //** getWhereStatement
+  //**************************************************************************
+  /** Returns a SQL "where" statement for the current request. Compiles the
+   *  "where" statement using Filter class returned by the getFilter() method.
+   *  If the Filter is empty, will use raw value for the "where" parameter
+   *  returned by the getWhere() method instead.
+   *
+   *  Returns an empty string if the Filter is empty and the "where" parameter
+   *  is not defined. Otherwise, a where statement is returned, starting with
+   *  a white space " " for convenience.
+   *
+   *  @param c Model classes used to validate fields in the filter. This
+   *  parameter is optional.
+   */
+    public String getWhereStatement(Class... c){
+        ArrayList<HashMap<String, Object>> arr = new ArrayList<>();
+        try{
+            for (Class cls : c){
+                arr.add(WebService.getTableAndFields(cls));
+            }
+        }
+        catch(Exception e){}
+        String where = getWhereStatement(arr);
+        if (where!=null) return " where " + where;
+        else return "";
+    }
+
+    protected String getWhereStatement(HashMap<String, Object> tablesAndFields){
+        ArrayList<HashMap<String, Object>> arr = new ArrayList<>();
+        arr.add(tablesAndFields);
+        return getWhereStatement(arr);
+    }
+
+    private String getWhereStatement(ArrayList<HashMap<String, Object>> tablesAndFields){
+        String where = null;
+        Filter filter = getFilter();
+        if (!filter.isEmpty()){
+            ArrayList<String> arr = new ArrayList<>();
+            for (Filter.Item item : filter.getItems()){
+                String name = item.getField();
+                String op = item.getOperation();
+                String v = item.getValue().toString();
+
+
+              //Check if the column name is a function
+                Field[] fields = getFields(name);
+                Field field = null;
+                if (fields!=null){
+                    field = fields[0];
+                    if (field.isFunction()){
+                        arr.add("(" + item.toString() + ")");
+                        continue;
+                    }
+                }
+
+
+
+                if (tablesAndFields==null || tablesAndFields.isEmpty()){
+
+                  //Set column name
+                    String col;
+                    if (field!=null) col = field.getColumn();
+                    else col = StringUtils.camelCaseToUnderScore(name);
+
+                  //Update value
+                    if (v!=null && v.contains(" ")){
+                        if (!(v.startsWith("'") && v.endsWith("'"))){
+                            v = "'" + v.replace("'","''") + "'";
+                        }
+                    }
+
+                    arr.add("(" + col + " " + op + " " + v + ")");
+
+                }
+                else{
+
+
+                  //Check if the column name corresponds to a field in the
+                  //database. If so, append table name to the column.
+                    boolean foundField = false;
+                    for (HashMap<String, Object> map : tablesAndFields){
+
+                        String tableName = (String) map.get("tableName");
+                        HashMap<String, String> fieldMap = (HashMap<String, String>) map.get("fieldMap");
+                        HashSet<String> stringFields = (HashSet<String>) map.get("stringFields");
+
+
+                        Iterator<String> it = fieldMap.keySet().iterator();
+                        while (it.hasNext()){
+                            String fieldName = it.next();
+                            String columnName = fieldMap.get(fieldName);
+                            if (name.equalsIgnoreCase(fieldName) || name.equalsIgnoreCase(columnName)){
+                                foundField = true;
+
+                                if (v!=null && stringFields.contains(fieldName)){
+                                    if (!(v.startsWith("'") && v.endsWith("'"))){
+                                        v = "'" + v.replace("'","''") + "'";
+                                    }
+                                }
+
+                                arr.add("(" + tableName + "." + columnName + " " + op + " " + v + ")");
+                                break;
+                            }
+                        }
+                        if (foundField) break;
+                    }
+                    //console.log(foundField, name, tableName);
+                }
+            }
+            if (!arr.isEmpty()){
+                where = String.join(" and ", arr);
+            }
+        }
+
+
+      //Fallback to the where parameter in the request (legacy)
+        if (where==null){
+            where = getWhere();
+            if (where!=null){
+                where = where.trim();
+                if (where.toLowerCase().startsWith("where")){
+                    where = where.substring(5).trim();
+                    if (where.isEmpty()) where = null;
+                }
+            }
+        }
+
+        return where;
     }
 
 
@@ -1237,28 +1369,35 @@ public class ServiceRequest {
   //** getOffsetLimitStatement
   //**************************************************************************
   /** Returns a SQL offset and limit statement for the current request. These
-   *  statements are used for pagination. Different database vendors use
-   *  different keywords to specify offset and limit. The given Driver is used
-   *  to determine which keywords to use. Returns an empty string if limit and
-   *  is offset are not defined. Otherwise, the limit and/or offset statement
-   *  is returned, starting with a white space " " for convenience.
-   *  @param driver An instance of a javaxt.sql.Driver class.
+   *  statements are used for pagination. Note that different database vendors
+   *  use different keywords to specify offset and limit. The given Driver is
+   *  used to determine which keywords to use. Returns an empty string if
+   *  limit and is offset are not defined. Otherwise, the limit and/or offset
+   *  statement is returned, starting with a white space " " for convenience.
+   *  @param driver An instance of a javaxt.sql.Driver class. This parameter
+   *  is optional.
    */
     public String getOffsetLimitStatement(javaxt.sql.Driver driver){
+        if (driver==null) driver = new javaxt.sql.Driver("","","");
+
         StringBuilder sql = new StringBuilder();
 
       //Get offset
         Object offset = getOffset();
         if (offset!=null){
-            StringBuilder str = new StringBuilder();
-            str.append(" offset ");
-            str.append(offset);
+            Long x = (Long) offset;
+            if (x<1) offset = "";
+            else{
+                StringBuilder str = new StringBuilder();
+                str.append(" offset ");
+                str.append(offset);
 
-            if (driver.equals("Oracle")){
-                str.append(" rows"); //OFFSET 20 ROWS
+                if (driver.equals("Oracle")){
+                    str.append(" rows"); //OFFSET 20 ROWS
+                }
+
+                offset = str.toString();
             }
-
-            offset = str.toString();
         }
         else{
             offset = "";
