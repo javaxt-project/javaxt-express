@@ -1217,6 +1217,19 @@ public class DbUtils {
                 }
 
 
+              //Special case for arrays
+                if (obj instanceof java.sql.Array){
+                    try{
+                        JSONArray arr = new JSONArray();
+                        for (Object o : (Object[]) ((java.sql.Array) obj).getArray()){
+                            arr.add(o);
+                        }
+                        val = new Value(arr);
+                    }
+                    catch(Exception e){}
+                }
+
+
               //Special case for H2's TimestampWithTimeZone
                 if (packageName.equals("org.h2.api")){
                     if (className.equals("TimestampWithTimeZone")){
