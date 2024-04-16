@@ -1,14 +1,12 @@
 package javaxt.express.services;
-import javaxt.express.ServiceResponse;
-import javaxt.express.ServiceRequest;
-import javaxt.express.WebService;
-import javaxt.express.User;
+import javaxt.express.utils.*;
+import javaxt.express.*;
 
-import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.io.StringReader;
 import java.math.BigDecimal;
+import java.sql.SQLException;
 
 import javaxt.sql.*;
 import javaxt.json.*;
@@ -309,10 +307,6 @@ public class QueryService extends WebService {
             str = new StringBuilder();
             this.format = format;
             this.addMetadata = addMetadata;
-
-            if (format.equals("json")){
-                str.append("{\"rows\":[");
-            }
         }
 
         public void write(Recordset rs){
@@ -342,53 +336,53 @@ public class QueryService extends WebService {
                     }
                     str.append("\r\n");
                 }
+                else if (format.equals("jsv")){
+                    str.append("{\"cols\":[");
+                    for (int i=0; i<fields.length; i++){
+                        if (i>0) str.append(",");
+                        str.append("\"");
+                        str.append(fields[i].getName());
+                        str.append("\"");
+                    }
+                    str.append("],");
+                    str.append("\"rows\":[");
+                }
+                else if (format.equals("json")){
+                    str.append("{\"rows\":[");
+                }
             }
 
 
             if (format.equals("json")){
                 JSONObject json = new JSONObject();
+                JSONObject values = DbUtils.getJson(fields);
                 for (Field field : fields){
+                    String fieldName = field.getName();
+                    String key = StringUtils.underscoreToCamelCase(fieldName.toLowerCase());
                     Object val = field.getValue().toObject();
                     if (val==null){
-                        val = "null";
+                        json.set(fieldName, "null");
                     }
                     else{
-                        if (val instanceof String){
-                            String s = (String) val;
-                            if (s.trim().length()==0) val = "null";
-                            else{
-                                if (s.startsWith("{") && s.endsWith("}")){
-                                    try{
-                                        val = new JSONObject(s);
-                                    }
-                                    catch(Exception e){}
-                                }
-                                else if (s.startsWith("[") && s.endsWith("]")){
-                                    try{
-                                        val = new JSONArray(s);
-                                    }
-                                    catch(Exception e){}
-                                }
-                            }
-                        }
-                        else{
-                            if (val instanceof java.sql.Array){
-                                try{
-                                    JSONArray arr = new JSONArray();
-                                    for (Object o : (Object[]) ((java.sql.Array) val).getArray()){
-                                        arr.add(o);
-                                    }
-                                    val = arr;
-                                }
-                                catch(Exception e){}
-                            }
-                        }
+                        json.set(fieldName, values.get(key));
                     }
-                    json.set(field.getName(), val);
                 }
 
                 if (x>0) str.append(",");
                 str.append(json.toString().replace("\"null\"", "null")); //<-- this is a bit of a hack...
+
+            }
+            else if (format.equals("jsv")){
+                JSONArray arr = new JSONArray();
+                JSONObject values = DbUtils.getJson(fields);
+                for (Field field : fields){
+                    String fieldName = field.getName();
+                    String key = StringUtils.underscoreToCamelCase(fieldName.toLowerCase());
+                    arr.add(values.get(key));
+                }
+
+                if (x>0) str.append(",");
+                str.append(arr.toString().replace("\"null\"", "null")); //<-- same logic as json...
 
             }
             else if (format.equals("tsv") || format.equals("csv")){
@@ -469,6 +463,9 @@ public class QueryService extends WebService {
                 }
 
                 str.append("}");
+            }
+            else if (format.equals("jsv")){
+                str.append("]}");
             }
         }
 
@@ -772,7 +769,7 @@ public class QueryService extends WebService {
             String format = params.get("format").toString();
             if (format==null) format="";
             format = format.trim().toLowerCase();
-            if (format.equals("csv") || format.equals("tsv")){
+            if (format.equals("csv") || format.equals("tsv") || format.equals("jsv")){
                 this.format = format;
             }
             else this.format = "json";
