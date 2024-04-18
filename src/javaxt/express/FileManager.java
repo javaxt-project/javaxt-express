@@ -1,17 +1,21 @@
 package javaxt.express;
+
+import java.util.*;
+import java.io.IOException;
+import java.util.concurrent.ConcurrentHashMap;
+
+
+import javaxt.io.Directory;
+import static javaxt.xml.DOM.*;
+import javaxt.utils.ThreadPool;
 import javaxt.express.utils.DateUtils;
+import static javaxt.utils.Console.console;
 import javaxt.http.servlet.HttpServletRequest;
 import javaxt.http.servlet.HttpServletResponse;
-import static javaxt.utils.Console.console;
-import javaxt.utils.ThreadPool;
-
-import java.io.IOException;
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
-import static javaxt.xml.DOM.*;
+
 
 //******************************************************************************
 //**  FileManager
@@ -37,6 +41,69 @@ public class FileManager {
   //**************************************************************************
     public FileManager(javaxt.io.Directory web){
         this.web = web;
+    }
+
+
+  //**************************************************************************
+  //** getFileUpdates
+  //**************************************************************************
+  /** Used to monitor the web directory for changes. Calls the eventMonitor
+   *  whenever a file is created, updated, moved or deleted. Example:
+   <pre>
+    fileManager.getFileUpdates((Directory.Event event) -> {
+        String op;
+        int eventID = event.getEventID();
+        if (eventID==Directory.Event.CREATE){
+            op = "create";
+        }
+        else if (eventID==Directory.Event.DELETE){
+            op = "delete";
+        }
+        else{
+            op = "update";
+        }
+        java.io.File file = new java.io.File(event.getFile());
+        console.log(op, file);
+    });
+    </pre>
+    */
+    public void getFileUpdates(EventMonitor eventMonitor){
+        if (eventMonitor==null) return;
+        new Thread(() -> {
+            try{
+                List events = web.getEvents();
+                while (true){
+                    Directory.Event event;
+                    synchronized (events) {
+                        while (events.isEmpty()) {
+                            try {
+                                events.wait();
+                            }
+                            catch (InterruptedException e) {}
+                        }
+                        event = (Directory.Event) events.remove(0);
+                    }
+
+                    try{
+                        java.io.File f = new java.io.File(event.getFile());
+                        if (f.isFile()) eventMonitor.processEvent(event);
+                    }
+                    catch(Exception e){}
+                }
+            }
+            catch(Exception e){}
+        }).start();
+    }
+
+
+  //**************************************************************************
+  //** EventMonitor Interface
+  //**************************************************************************
+  /** Implementations of this class are used by the getFileUpdates() method
+   *  to process events (e.g. file created, updated, moved or deleted).
+   */
+    public static interface EventMonitor {
+        public void processEvent(Directory.Event event);
     }
 
 
