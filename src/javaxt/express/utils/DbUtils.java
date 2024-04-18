@@ -1172,7 +1172,8 @@ public class DbUtils {
   //**************************************************************************
   //** getJson
   //**************************************************************************
-  /** Returns a JSON representation of a record in a Recordset
+  /** Returns a JSON representation of a record in a Recordset. Note that the
+   *  column names are represented using camel case.
    */
     public static JSONObject getJson(Recordset rs){
         return getJson(rs.getFields());
@@ -1187,59 +1188,8 @@ public class DbUtils {
             String fieldName = field.getName().toLowerCase();
             fieldName = StringUtils.underscoreToCamelCase(fieldName);
 
-
-            Value val = field.getValue();
-            if (!val.isNull()){
-                Object obj = val.toObject();
-                Class cls = obj.getClass();
-                String className = cls.getSimpleName();
-                Package pkg = cls.getPackage();
-                String packageName = pkg==null ? "" : pkg.getName();
-
-
-              //Special case for json objects
-                if ((packageName.equals("java.lang") && className.equals("String")) ||
-                    !packageName.startsWith("java"))
-                {
-                    String s = obj.toString().trim();
-                    if (s.startsWith("{") && s.endsWith("}")){
-                        try{
-                            val = new Value(new JSONObject(s));
-                        }
-                        catch(Exception e){}
-                    }
-                    else if (s.startsWith("[") && s.endsWith("]")){
-                        try{
-                            val = new Value(new JSONArray(s));
-                        }
-                        catch(Exception e){}
-                    }
-                }
-
-
-              //Special case for arrays
-                if (obj instanceof java.sql.Array){
-                    try{
-                        JSONArray arr = new JSONArray();
-                        for (Object o : (Object[]) ((java.sql.Array) obj).getArray()){
-                            arr.add(o);
-                        }
-                        val = new Value(arr);
-                    }
-                    catch(Exception e){}
-                }
-
-
-              //Special case for H2's TimestampWithTimeZone
-                if (packageName.equals("org.h2.api")){
-                    if (className.equals("TimestampWithTimeZone")){
-                        val = new Value(val.toDate());
-                    }
-                }
-            }
-
-
-            json.set(fieldName, val);
+            JSONObject f = field.toJson();
+            json.set(fieldName, f.get("value"));
         }
         return json;
     }
