@@ -4,20 +4,32 @@ import java.util.*;
 import javaxt.utils.Value;
 import javaxt.express.utils.DateUtils;
 
+//******************************************************************************
+//**  NotificationService
+//******************************************************************************
+/**
+ *   Provides static methods used to post and consume events.
+ *
+ ******************************************************************************/
 
 public class NotificationService {
 
-    private static List events;
+    private static List events = null;
     private static List<Listener> listeners;
 
 
   //**************************************************************************
   //** notify
   //**************************************************************************
+  /** Used to post an event and share it with any registered event listeners
+   *  @param event Type of event (e.g. "create", "update", "delete")
+   *  @param model Subject of the event (e.g. "User", "File", etc)
+   *  @param data Additional information related to the event (e.g. User ID)
+   */
     public static void notify(String event, String model, Value data){
         if (events==null) return;
 
-        //TODO: Validate inputs
+        if (data==null) data = new Value(null);
 
         long timestamp = DateUtils.getCurrentTime();
         synchronized(events){
@@ -30,13 +42,16 @@ public class NotificationService {
   //**************************************************************************
   //** start
   //**************************************************************************
+  /** Used to start the notification engine
+   */
     public static void start(){
         start(4);
     }
 
     public static void start(int numThreads){
-        listeners = new LinkedList();
+        if (events!=null) return;
 
+        listeners = new LinkedList();
 
         events = new LinkedList();
         for (int i=0; i<numThreads; i++){
@@ -49,6 +64,8 @@ public class NotificationService {
   //**************************************************************************
   //** stop
   //**************************************************************************
+  /** Used to stop the notification engine
+   */
     public static void stop(){
 
         synchronized(listeners){
@@ -61,12 +78,15 @@ public class NotificationService {
             events.add(0, null);
             events.notify();
         }
+        events = null;
     }
 
 
   //**************************************************************************
   //** addListener
   //**************************************************************************
+  /** Used to add an event listener that will consume events
+   */
     public static void addListener(Listener listener){
         synchronized(listeners){
             listeners.add(listener);
