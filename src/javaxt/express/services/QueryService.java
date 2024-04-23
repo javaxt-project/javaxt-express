@@ -437,36 +437,48 @@ public class QueryService extends WebService {
 
         public void close(){
             isClosed = true;
+
             if (format.equals("json")){
+                if (x>0){
+                    str.append("]");
 
-                str.append("]");
 
-
-                if (addMetadata){
-                    if (metadata!=null){
-                        str.append(",\"metadata\":");
-                        str.append(metadata);
+                    if (addMetadata){
+                        if (metadata!=null){
+                            str.append(",\"metadata\":");
+                            str.append(metadata);
+                        }
                     }
+
+
+                    if (count!=null){
+                        str.append(",\"total_rows\":");
+                        str.append(count);
+                    }
+
+                    if (this.elapsedTime!=null){
+                        double elapsedTime = (double)(this.elapsedTime)/1000d;
+                        BigDecimal time = new BigDecimal(elapsedTime).setScale(3, BigDecimal.ROUND_HALF_UP);
+                        str.append(",\"time\":");
+                        str.append(time);
+                    }
+
+                    str.append("}");
+
                 }
-
-
-                if (count!=null){
-                    str.append(",\"total_rows\":");
-                    str.append(count);
+                else{
+                    str.append("{}");
                 }
-
-                if (this.elapsedTime!=null){
-                    double elapsedTime = (double)(this.elapsedTime)/1000d;
-                    BigDecimal time = new BigDecimal(elapsedTime).setScale(3, BigDecimal.ROUND_HALF_UP);
-                    str.append(",\"time\":");
-                    str.append(time);
-                }
-
-                str.append("}");
             }
             else if (format.equals("jsv")){
-                str.append("]}");
+                if (x>0){
+                    str.append("]}");
+                }
+                else{
+                    str.append("{}");
+                }
             }
+
         }
 
 
