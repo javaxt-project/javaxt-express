@@ -269,19 +269,35 @@ public class ServiceRequest {
    *  search for the keyword.
    */
     public javaxt.utils.Value getParameter(String key){
-        String val = null;
+        Object val = null;
         if (key!=null){
+
+
+          //Search the URL querystring
             List<String> parameters = getParameter(key, this.parameters);
             if (parameters!=null){
-                val = parameters.get(0).trim();
-                if (val.length()>0){
-                    if (val.equalsIgnoreCase("null")) val = null;
+                LinkedHashSet<String> vals = new LinkedHashSet<>();
+                for (String v : parameters){
+                    if (v.length()>0){
+                        if (v.equalsIgnoreCase("null")) v = null;
+                    }
+                    else{
+                        v = null;
+                    }
+                    if (v!=null) vals.add(v);
                 }
-                else{
-                    val = null;
+                if (!vals.isEmpty()){
+                    if (vals.size()==1){
+                        val = vals.iterator().next();
+                    }
+                    else{
+                        val = vals.toArray(new String[vals.size()]);
+                    }
                 }
             }
 
+
+          //If nothing found in the querystring, search the payload as directed
             if (val==null && parseJson){ //&& !getRequest().getMethod().equals("GET")
                 JSONObject json = getJson();
                 if (json!=null && json.has(key)){
@@ -767,146 +783,162 @@ public class ServiceRequest {
 
 
           //Parse val
-            String val = params.get(key).toString();
-            if (val!=null){
-
-              //Check if val is a JSON array
-                if (val.startsWith("[") && val.endsWith("]")){
-                    try{
-                        //TODO: generate comma delimited list?
-                    }
-                    catch(Exception e){}
-                }
+            String[] vals;
+            javaxt.utils.Value v = params.get(key);
+            if (v.isNull()){
+                vals = new String[]{null};
             }
-
-
-
-          //Get characters before and after the "=" sign
-            String a = key.length()==1 ? key : key.substring(key.length()-1);
-            String b = val==null ? "" : val.substring(0, 1);
-
-
-
-          //Get op and update key and val as needed
-            String op;
-            if (val==null) val = "null";
-            if (val.contains(",") && !(val.startsWith("'") || val.startsWith("!'"))){
-
-                op = "IN";
-                if (b.equals("!")){
-                    val = val.substring(1).trim();
-                    op = "NOT IN";
+            else{
+                Object o = v.toObject();
+                if (v.isArray()){
+                    vals = (String[]) o;
                 }
-                if (a.equals("!")){
-                    key = key.substring(0, key.length()-1);
-                    op = "NOT IN";
-                }
-
-
-                StringBuilder str = new StringBuilder("(");
-                int x = 0;
-                String nullVal = null;
-                for (String s : val.split(",")){
-                    if (s.equalsIgnoreCase("NULL") || s.equalsIgnoreCase("!NULL")){
-                        nullVal = s;
+                else{
+                    if (o instanceof JSONArray){
+                        JSONArray arr = (JSONArray) o;
+                        vals = new String[arr.length()];
+                        for (int i=0; i<vals.length; i++){
+                            vals[i] = arr.get(i).toString();
+                        }
                     }
                     else{
-                        if (x>0) str.append(",");
-                        str.append(s);
-                        x++;
+                        vals = new String[]{o.toString()};
                     }
                 }
-                str.append(")");
-
-                if (nullVal!=null){
-                    if (op.equals("IN")){
-                        str.append(" OR ");
-                        str.append(StringUtils.camelCaseToUnderScore(key));
-                        str.append(" IS");
-                        if (nullVal.startsWith("!")) str.append(" NOT");
-                        str.append(" NULL");
-                    }
-                    else{ //not tested...
-                        str.append(" AND ");
-                        str.append(StringUtils.camelCaseToUnderScore(key));
-                        str.append(" IS");
-                        if (nullVal.startsWith("!")) str.append(" NOT");
-                        str.append(" NULL");
-                    }
-                }
-
-                val = str.toString();
             }
-            else {
 
-                if (a.equals("!") || b.equals("!")){
-                    op = "<>";
+
+          //Set filter
+            for (String val : vals){
+
+
+              //Get characters before and after the "=" sign
+                String a = key.length()==1 ? key : key.substring(key.length()-1);
+                String b = val==null ? "" : val.substring(0, 1);
+
+
+
+              //Get op and update key and val as needed
+                String op;
+                if (val==null) val = "null";
+                if (val.contains(",") && !(val.startsWith("'") || val.startsWith("!'"))){
+
+                    op = "IN";
                     if (b.equals("!")){
                         val = val.substring(1).trim();
+                        op = "NOT IN";
                     }
                     if (a.equals("!")){
                         key = key.substring(0, key.length()-1);
+                        op = "NOT IN";
+                    }
+
+
+                    StringBuilder str = new StringBuilder("(");
+                    int x = 0;
+                    String nullVal = null;
+                    for (String s : val.split(",")){
+                        if (s.equalsIgnoreCase("NULL") || s.equalsIgnoreCase("!NULL")){
+                            nullVal = s;
+                        }
+                        else{
+                            if (x>0) str.append(",");
+                            str.append(s);
+                            x++;
+                        }
+                    }
+                    str.append(")");
+
+                    if (nullVal!=null){
+                        if (op.equals("IN")){
+                            str.append(" OR ");
+                            str.append(StringUtils.camelCaseToUnderScore(key));
+                            str.append(" IS");
+                            if (nullVal.startsWith("!")) str.append(" NOT");
+                            str.append(" NULL");
+                        }
+                        else{ //not tested...
+                            str.append(" AND ");
+                            str.append(StringUtils.camelCaseToUnderScore(key));
+                            str.append(" IS");
+                            if (nullVal.startsWith("!")) str.append(" NOT");
+                            str.append(" NULL");
+                        }
+                    }
+
+                    val = str.toString();
+                }
+                else {
+
+                    if (a.equals("!") || b.equals("!")){
+                        op = "<>";
+                        if (b.equals("!")){
+                            val = val.substring(1).trim();
+                        }
+                        if (a.equals("!")){
+                            key = key.substring(0, key.length()-1);
+                        }
+                    }
+
+                    else if (a.equals(">") || b.equals(">")){
+                        op = ">=";
+                        if (b.equals(">")){
+                            val = val.substring(1).trim();
+                        }
+                        if (a.equals(">")){
+                            key = key.substring(0, key.length()-1);
+                        }
+                    }
+
+                    else if (a.equals("<") || b.equals("<")){
+                        op = "<=";
+                        if (b.equals("<")){
+                            val = val.substring(1).trim();
+                        }
+                        if (a.equals("<")){
+                            key = key.substring(0, key.length()-1);
+                        }
+                    }
+
+                    else{
+                        op = "=";
                     }
                 }
 
-                else if (a.equals(">") || b.equals(">")){
-                    op = ">=";
-                    if (b.equals(">")){
-                        val = val.substring(1).trim();
+
+              //Special case for nulls
+                if (val.equalsIgnoreCase("null")){
+                    if (op.equals("=")) op = "IS";
+                    if (op.equals("<>")) op = "IS NOT";
+                }
+
+
+              //Special case for like
+                if (val.contains("%") && val.startsWith("'") && val.endsWith("'")){
+                    if (op.equals("=")) op = "LIKE";
+                    if (op.equals("<>")) op = "NOT LIKE";
+                }
+
+
+                if (op.equals("=")){
+                    if (val.toLowerCase().startsWith("startswith(") && val.endsWith(")")){
+                        op = "LIKE";
+                        val = "'" + val.substring(11, val.length()-1).replace("'", "''") + "%'";
                     }
-                    if (a.equals(">")){
-                        key = key.substring(0, key.length()-1);
+                    else if (val.toLowerCase().startsWith("endswith(") && val.endsWith(")")){
+                        op = "LIKE";
+                        val = "'%" + val.substring(9, val.length()-1).replace("'", "''") + "'";
+                    }
+                    else if (val.toLowerCase().startsWith("contains(") && val.endsWith(")")){
+                        op = "LIKE";
+                        val = "'%" + val.substring(9, val.length()-1).replace("'", "''") + "%'";
                     }
                 }
 
-                else if (a.equals("<") || b.equals("<")){
-                    op = "<=";
-                    if (b.equals("<")){
-                        val = val.substring(1).trim();
-                    }
-                    if (a.equals("<")){
-                        key = key.substring(0, key.length()-1);
-                    }
-                }
 
-                else{
-                    op = "=";
-                }
+                String col = StringUtils.camelCaseToUnderScore(key);
+                filter.add(col, op, val);
             }
-
-
-          //Special case for nulls
-            if (val.equalsIgnoreCase("null")){
-                if (op.equals("=")) op = "IS";
-                if (op.equals("<>")) op = "IS NOT";
-            }
-
-
-          //Special case for like
-            if (val.contains("%") && val.startsWith("'") && val.endsWith("'")){
-                if (op.equals("=")) op = "LIKE";
-                if (op.equals("<>")) op = "NOT LIKE";
-            }
-
-
-            if (op.equals("=")){
-                if (val.toLowerCase().startsWith("startswith(") && val.endsWith(")")){
-                    op = "LIKE";
-                    val = "'" + val.substring(11, val.length()-1).replace("'", "''") + "%'";
-                }
-                else if (val.toLowerCase().startsWith("endswith(") && val.endsWith(")")){
-                    op = "LIKE";
-                    val = "'%" + val.substring(9, val.length()-1).replace("'", "''") + "'";
-                }
-                else if (val.toLowerCase().startsWith("contains(") && val.endsWith(")")){
-                    op = "LIKE";
-                    val = "'%" + val.substring(9, val.length()-1).replace("'", "''") + "%'";
-                }
-            }
-
-
-            key = StringUtils.camelCaseToUnderScore(key);
-            filter.set(key, op, val);
         }
 
         return filter;
@@ -1085,7 +1117,7 @@ public class ServiceRequest {
    *  "where" clause for a SQL query.
    */
     public class Filter {
-        private LinkedHashMap<String, Item> items = new LinkedHashMap<>();
+        private LinkedHashMap<String, ArrayList<Item>> items = new LinkedHashMap<>();
 
         public class Item {
             private String col;
@@ -1133,6 +1165,10 @@ public class ServiceRequest {
             set(col, "=", val);
         }
 
+      /** Used to add, update, or remove an item in the filter. If an entry
+       *  does not exist for a given col, a new item is created. If an entry
+       *  does exist it is update or deleted, depending on whether val is null.
+       */
         public void set(String col, String op, Object val){
             String key = col.toLowerCase();
             javaxt.utils.Value v = (val instanceof javaxt.utils.Value) ?
@@ -1142,35 +1178,99 @@ public class ServiceRequest {
                 items.remove(key);
             }
             else{
-                items.put(key, new Item(col, op, v));
+                ArrayList<Item> arr = new ArrayList<>();
+                arr.add(new Item(col, op, v));
+                items.put(key, arr);
             }
         }
 
+      /** Used to add an entry to the filter. Note that this may result in
+       *  multiple entries for a given col. Use with caution.
+       */
+        public void add(String col, String op, Object val){
+            String key = col.toLowerCase();
+            javaxt.utils.Value v = (val instanceof javaxt.utils.Value) ?
+                    (javaxt.utils.Value) val : new javaxt.utils.Value(val);
+            if (!v.isNull()){
+                ArrayList<Item> arr = items.get(key);
+                if (arr==null){
+                    arr = new ArrayList<>();
+                    items.put(key, arr);
+                }
+                arr.add(new Item(col, op, v));
+            }
+        }
 
+      /** Returns a value for a given key in the filter. Always returns a
+       *  javaxt.utils.Value object. Check the isNull() method to test for null
+       *  values and the isArray() method to test if the javaxt.utils.Value
+       *  object contains multiple values. Example:
+       <pre>
+            javaxt.utils.Value val = item.get("test");
+            if (val.isNull()){
+                console.log(val);
+            }
+            else{
+                if (val.isArray()){
+                    javaxt.utils.Value[] vals = (javaxt.utils.Value[]) val.toObject();
+                    for (javaxt.utils.Value v : vals){
+                        console.log(v);
+                    }
+                }
+                else{
+                    console.log(val);
+                }
+            }
+       </pre>
+       */
         public javaxt.utils.Value get(String col){
-            Item item = items.get(col.toLowerCase());
-            if (item!=null){
-                return item.val;
+            ArrayList<Item> arr = items.get(col.toLowerCase());
+            if (arr==null || arr.isEmpty()){
+                return new javaxt.utils.Value(null);
             }
-            return new javaxt.utils.Value(null);
+            else{
+                if (arr.size()==1){
+                    Item item = arr.get(0);
+                    if (item!=null){
+                        return item.val;
+                    }
+                    return new javaxt.utils.Value(null);
+                }
+                else{
+                    javaxt.utils.Value[] vals = new javaxt.utils.Value[arr.size()];
+                    for (int i=0; i<vals.length; i++){
+                        vals[i] = arr.get(i).val;
+                    }
+                    return new javaxt.utils.Value(vals);
+                }
+            }
         }
 
 
+      /** Returns true if the filter is empty
+       */
         public boolean isEmpty(){
             return items.isEmpty();
         }
 
+
+      /** Returns all the items in the filter
+       */
         public Item[] getItems(){
             ArrayList<Item> arr = new ArrayList<>();
             Iterator<String> it = items.keySet().iterator();
             while (it.hasNext()){
                 String key = it.next();
-                Item item = items.get(key);
-                arr.add(item);
+                for (Item item : items.get(key)){
+                    arr.add(item);
+                }
             }
             return arr.toArray(new Item[arr.size()]);
         }
 
+
+      /** Returns a JSON representation of the filter
+       */
         public JSONArray toJson(){
             JSONArray arr = new JSONArray();
             for (Item item : getItems()) arr.add(item.toJson());
@@ -1351,80 +1451,98 @@ public class ServiceRequest {
         String where = null;
         Filter filter = getFilter();
         if (!filter.isEmpty()){
-            ArrayList<String> arr = new ArrayList<>();
-            for (Filter.Item item : filter.getItems()){
-                String name = item.getField();
-                String op = item.getOperation();
-                String v = item.getValue().toString();
 
 
-              //Check if the column name is a function
-                Field[] fields = getFields(name);
-                Field field = null;
-                if (fields!=null){
-                    field = fields[0];
-                    if (field.isFunction()){
-                        arr.add("(" + item.toString() + ")");
-                        continue;
-                    }
-                }
+            ArrayList<String> a2 = new ArrayList<>();
+            Iterator<String> it = filter.items.keySet().iterator();
+            while (it.hasNext()){
+                ArrayList<String> arr = new ArrayList<>();
+                String key = it.next();
+                for (Filter.Item item : filter.items.get(key)){
+                    String name = item.getField();
+                    String op = item.getOperation();
+                    String v = item.getValue().toString();
 
 
-
-                if (tablesAndFields==null || tablesAndFields.isEmpty()){
-
-                  //Set column name
-                    String col;
-                    if (field!=null) col = field.getColumn();
-                    else col = StringUtils.camelCaseToUnderScore(name);
-
-                  //Update value
-                    if (v!=null && v.contains(" ")){
-                        if (!(v.startsWith("'") && v.endsWith("'"))){
-                            v = "'" + v.replace("'","''") + "'";
+                  //Check if the column name is a function
+                    Field[] fields = getFields(name);
+                    Field field = null;
+                    if (fields!=null){
+                        field = fields[0];
+                        if (field.isFunction()){
+                            arr.add("(" + item.toString() + ")");
+                            continue;
                         }
                     }
 
-                    arr.add("(" + col + " " + op + " " + v + ")");
-
-                }
-                else{
 
 
-                  //Check if the column name corresponds to a field in the
-                  //database. If so, append table name to the column.
-                    boolean foundField = false;
-                    for (HashMap<String, Object> map : tablesAndFields){
+                    if (tablesAndFields==null || tablesAndFields.isEmpty()){
 
-                        String tableName = (String) map.get("tableName");
-                        HashMap<String, String> fieldMap = (HashMap<String, String>) map.get("fieldMap");
-                        HashSet<String> stringFields = (HashSet<String>) map.get("stringFields");
+                      //Set column name
+                        String col;
+                        if (field!=null) col = field.getColumn();
+                        else col = StringUtils.camelCaseToUnderScore(name);
 
-
-                        Iterator<String> it = fieldMap.keySet().iterator();
-                        while (it.hasNext()){
-                            String fieldName = it.next();
-                            String columnName = fieldMap.get(fieldName);
-                            if (name.equalsIgnoreCase(fieldName) || name.equalsIgnoreCase(columnName)){
-                                foundField = true;
-
-                                if (v!=null && stringFields.contains(fieldName)){
-                                    if (!(v.startsWith("'") && v.endsWith("'"))){
-                                        v = "'" + v.replace("'","''") + "'";
-                                    }
-                                }
-
-                                arr.add("(" + tableName + "." + columnName + " " + op + " " + v + ")");
-                                break;
+                      //Update value
+                        if (v!=null && v.contains(" ")){
+                            if (!(v.startsWith("'") && v.endsWith("'"))){
+                                v = "'" + v.replace("'","''") + "'";
                             }
                         }
-                        if (foundField) break;
+
+                        arr.add("(" + col + " " + op + " " + v + ")");
+
                     }
-                    //console.log(foundField, name, tableName);
+                    else{
+
+
+                      //Check if the column name corresponds to a field in the
+                      //database. If so, append table name to the column.
+                        boolean foundField = false;
+                        for (HashMap<String, Object> map : tablesAndFields){
+
+                            String tableName = (String) map.get("tableName");
+                            HashMap<String, String> fieldMap = (HashMap<String, String>) map.get("fieldMap");
+                            HashSet<String> stringFields = (HashSet<String>) map.get("stringFields");
+
+
+                            Iterator<String> i2 = fieldMap.keySet().iterator();
+                            while (i2.hasNext()){
+                                String fieldName = i2.next();
+                                String columnName = fieldMap.get(fieldName);
+                                if (name.equalsIgnoreCase(fieldName) || name.equalsIgnoreCase(columnName)){
+                                    foundField = true;
+
+                                    if (v!=null && stringFields.contains(fieldName)){
+                                        if (!(v.startsWith("'") && v.endsWith("'"))){
+                                            v = "'" + v.replace("'","''") + "'";
+                                        }
+                                    }
+
+                                    arr.add("(" + tableName + "." + columnName + " " + op + " " + v + ")");
+                                    break;
+                                }
+                            }
+                            if (foundField) break;
+                        }
+                        //console.log(foundField, name, tableName);
+                    }
+                }
+
+                if (!arr.isEmpty()){
+                    if (arr.size()>1){
+                        a2.add("(" + String.join(" and ", arr) + ")");
+                    }
+                    else{
+                        a2.add(arr.get(0));
+                    }
                 }
             }
-            if (!arr.isEmpty()){
-                where = String.join(" and ", arr);
+
+
+            if (!a2.isEmpty()){
+                where = String.join(" and ", a2);
             }
         }
 
@@ -1441,6 +1559,7 @@ public class ServiceRequest {
             }
         }
 
+console.log(where);
         return where;
     }
 
