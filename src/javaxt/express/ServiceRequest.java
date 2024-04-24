@@ -1559,7 +1559,6 @@ public class ServiceRequest {
             }
         }
 
-console.log(where);
         return where;
     }
 
