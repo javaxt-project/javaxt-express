@@ -1278,6 +1278,21 @@ public class ServiceRequest {
         }
 
 
+      /** Used to remove an item from the filter
+       */
+        public void remove(String col){
+            String key = col.toLowerCase();
+            items.remove(key);
+        }
+
+        
+      /** Used to remove all the items from the filter
+       */
+        public void removeAll(){
+            items.clear();
+        }
+
+
       /** Returns true if the filter is empty
        */
         public boolean isEmpty(){
