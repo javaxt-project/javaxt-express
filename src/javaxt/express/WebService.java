@@ -169,6 +169,34 @@ public abstract class WebService {
             }
 
 
+
+          //Experimental special case for anonymous classes
+            if (this.getClass().isAnonymousClass()){
+                for (Method m : this.getClass().getMethods()){
+                    if (Modifier.isPrivate(m.getModifiers())) continue;
+
+                    if (m.getReturnType().equals(ServiceResponse.class)){
+                        
+                        Class<?>[] params = m.getParameterTypes();
+                        if (params.length>0){
+                            if (ServiceRequest.class.isAssignableFrom(params[0])){
+                                String key = m.getName();
+                                if (!strictLookup) key = key.toLowerCase();
+                                ArrayList<Method> methods = serviceMethods.get(key);
+                                if (methods==null){
+                                    methods = new ArrayList<>();
+                                    serviceMethods.put(key, methods);
+                                    methods.add(m);
+                                }
+                                //methods.add(m);
+                            }
+                        }
+                    }
+                }
+            }
+
+
+
           //Find service methods that implement the requested method
             ArrayList<Method> methods = null;
             if (serviceMethods.containsKey(methodName)){
@@ -275,7 +303,7 @@ public abstract class WebService {
             }
 
 
-          //Special case for plural-form of a model
+          //Special case for plural-form of a model. Return list of models.
             if (className.endsWith("ies")){ //Categories == Category
                 c = getClass(className.substring(0, className.length()-3) + "y");
             }
@@ -285,14 +313,7 @@ public abstract class WebService {
             else if (className.endsWith("s")){ //Sources == Source
                 c = getClass(className.substring(0, className.length()-1));
             }
-            if (c!=null){
-                if (c.isReadOnly()){
-                    return list(c.c, request, database);
-                }
-                else{
-                    return new ServiceResponse(501, "Not Implemented.");
-                }
-            }
+            if (c!=null) return list(c.c, request, database);
 
         }
         else if (method.startsWith("delete")){
@@ -767,6 +788,7 @@ public abstract class WebService {
         String tableName;
         HashMap<String, String> fieldMap = new HashMap<>();
         HashSet<String> stringFields = new HashSet<>();
+        HashSet<String> arrayFields = new HashSet<>();
         HashSet<String> spatialFields = new HashSet<>();
 
         Object obj = c.newInstance(); //maybe clone instead?
@@ -802,15 +824,21 @@ public abstract class WebService {
                 spatialFields.add(f.getName());
             }
 
-            if (fieldType.equals(String.class)){
+            if (fieldType.equals(String.class) || fieldType.equals(String[].class)){
                 stringFields.add(f.getName());
             }
+
+            if (fieldType.isArray()){
+                arrayFields.add(f.getName());
+            }
+
         }
 
         HashMap<String, Object> p = new HashMap<>();
         p.put("tableName", tableName);
         p.put("fieldMap", fieldMap);
         p.put("stringFields", stringFields);
+        p.put("arrayFields", arrayFields);
         p.put("spatialFields", spatialFields);
         return p;
     }
