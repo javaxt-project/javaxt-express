@@ -35,10 +35,16 @@ public abstract class WebSite extends HttpServlet {
     ".html", ".txt"
     };
 
-    private String[] DefaultFileNames = new String[]{
-    "home", "index", "Overview"
+    /** */
+    private String[] defaultFileNames = new String[]{
+        "home", "index", "Overview"
     };
 
+    private String[] contentFolders = new String[]{
+        "content",
+        "documentation", //javaxt.com
+        "wiki" //legacy
+    };
 
 
   //**************************************************************************
@@ -204,10 +210,15 @@ public abstract class WebSite extends HttpServlet {
             }
             else if (ext.equals("txt")){
 
-              //Don't send text files from the wiki directory
+              //Don't send text files from any of the content folders (e.g. wiki directory)
                 String filePath = file.getDirectory().toString();
-                int idx = filePath.indexOf("/wiki/");
-                sendFile = (idx==-1);
+                for (String folderName : contentFolders){
+                    int idx = filePath.indexOf("/" + folderName + "/");
+                    if (idx>-1){
+                        sendFile = false;
+                        break;
+                    }
+                }
             }
 
             if (sendFile){
@@ -392,7 +403,7 @@ public abstract class WebSite extends HttpServlet {
                 else{
                     if (file!=null){
                         title = file.getName(false);
-                        for (String fileName : DefaultFileNames){
+                        for (String fileName : defaultFileNames){
                             if (title.equalsIgnoreCase(fileName)){
                                 title = file.getDirectory().getName();
                                 break;
@@ -679,7 +690,7 @@ public abstract class WebSite extends HttpServlet {
 
       //If we are still here, check whether the url is missing a content folder
       //in its path (e.g. "documentation", "wiki").
-        String[] contentFolders = new String[]{"documentation", "wiki"};
+
         for (String folderName : contentFolders){
 
             folderPath = web + folderName + "/";
@@ -716,7 +727,7 @@ public abstract class WebSite extends HttpServlet {
         javaxt.io.Directory dir = new javaxt.io.Directory(folderPath + path);
         //System.out.println("Search: " + dir + " <--" + dir.exists());
         if (dir.exists()){
-            for (String fileName : DefaultFileNames){
+            for (String fileName : defaultFileNames){
                 for (String fileExtension : fileExtensions){
 
                     javaxt.io.File file = new javaxt.io.File(dir, fileName + fileExtension);
