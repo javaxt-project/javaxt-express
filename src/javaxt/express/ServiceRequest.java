@@ -69,6 +69,37 @@ public class ServiceRequest {
 
 
 
+      //Parse payload if it contains URL encoded form data
+        String contentType = request.getContentType();
+        if (contentType!=null){
+            if (contentType.equalsIgnoreCase("application/x-www-form-urlencoded")){
+                byte[] b = getPayload();
+                if (b!=null && b.length>0){
+                    try{
+                        LinkedHashMap<String, List<String>> params =
+                        javaxt.utils.URL.parseQueryString(new String(b, "UTF-8"));
+                        Iterator<String> it = params.keySet().iterator();
+                        while (it.hasNext()){
+                            String key = it.next();
+                            List<String> values = params.get(key);
+                            List<String> currValues = this.parameters.get(key);
+                            if (currValues==null){
+                                this.parameters.put(key, values);
+                            }
+                            else{
+                                for (String val : values){
+                                    currValues.add(val);
+                                }
+                            }
+                        }
+                    }
+                    catch(Exception e){}
+                }
+            }
+        }
+
+
+
       //Parse path, excluding servlet and service path
         setPath(request.getPathInfo());
 
@@ -505,7 +536,7 @@ public class ServiceRequest {
             byte[] b = getPayload();
             if (b!=null && b.length>0){
                 try{
-                    json = new JSONObject(new String(getPayload(), "UTF-8"));
+                    json = new JSONObject(new String(b, "UTF-8"));
                 }
                 catch(Exception e){}
             }
@@ -1505,6 +1536,7 @@ public class ServiceRequest {
                             String tableName = (String) map.get("tableName");
                             HashMap<String, String> fieldMap = (HashMap<String, String>) map.get("fieldMap");
                             HashSet<String> stringFields = (HashSet<String>) map.get("stringFields");
+                            HashSet<String> arrayFields = (HashSet<String>) map.get("arrayFields");
 
 
                             Iterator<String> i2 = fieldMap.keySet().iterator();
@@ -1514,13 +1546,65 @@ public class ServiceRequest {
                                 if (name.equalsIgnoreCase(fieldName) || name.equalsIgnoreCase(columnName)){
                                     foundField = true;
 
+                                  //Wrap value is single quote as needed
                                     if (v!=null && stringFields.contains(fieldName)){
                                         if (!(v.startsWith("'") && v.endsWith("'"))){
-                                            v = "'" + v.replace("'","''") + "'";
+                                            if (op.equals("IN")){
+                                                //TODO: split by commas and add quotes
+                                            }
+                                            else{
+                                                v = "'" + v.replace("'","''") + "'";
+                                            }
                                         }
                                     }
 
-                                    arr.add("(" + tableName + "." + columnName + " " + op + " " + v + ")");
+
+                                  //Compile statement and update arr
+                                    if (arrayFields.contains(fieldName)){
+
+                                      //Special case for arrays
+                                        if (op.equals("=")){
+                                            arr.add("(" + v + " = ANY(" + tableName + "." + columnName + "))");
+                                        }
+                                        else if (op.equals("IN")){
+                                            if (v==null){
+
+                                            }
+                                            else{
+
+                                              //Split up "in" statement with a bunch of "or" statements
+                                                if (v.startsWith("(") && v.endsWith(")")){
+                                                    v = v.substring(1, v.length()-1);
+                                                }
+                                                StringBuilder str = new StringBuilder("(");
+                                                String[] a = v.split(","); //very weak!
+                                                for (int i=0; i<a.length; i++){
+                                                    if (i>0) str.append(" OR ");
+                                                    String s = a[i];
+                                                    if (stringFields.contains(fieldName)){
+                                                        if (!(s.startsWith("'") && s.endsWith("'"))){
+                                                            s = "'" + s.replace("'","''") + "'";
+                                                        }
+                                                    }
+                                                    str.append("(" + s + " = ANY(" + tableName + "." + columnName + "))");
+                                                }
+                                                str.append(")");
+                                                arr.add(str.toString());
+                                            }
+                                        }
+                                        else{
+                                            //Not sure what other array operations we can support...
+                                        }
+
+                                    }
+                                    else{
+
+                                      //Most statements are generated here
+                                        arr.add("(" + tableName + "." + columnName + " " + op + " " + v + ")");
+
+                                    }
+
+
                                     break;
                                 }
                             }
@@ -1559,6 +1643,7 @@ public class ServiceRequest {
             }
         }
 
+        //console.log(where);
         return where;
     }
 
