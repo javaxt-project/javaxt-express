@@ -383,12 +383,27 @@ javaxt.express.app.Horizon = function(parent, config) {
                     panel.show();
                 }
                 else{
-                    var cls = eval(className);
-                    panel = new cls(body, {
+
+
+                  //Create custom config for the panel
+                    var cfg = {
                         style: config.style.javaxt,
                         fx: config.fx,
                         waitmask: config.waitmask
-                    });
+                    };
+
+                  //Update config with non-standard config options
+                    for (var key in config) {
+                        if (config.hasOwnProperty(key)){
+                            if (defaultConfig[key]) continue;
+                            cfg[key] = config[key];
+                        }
+                    }
+
+
+                  //Instantiate panel
+                    var cls = eval(className);
+                    panel = new cls(body, cfg);
                     panels[label] = panel;
                 }
             };
