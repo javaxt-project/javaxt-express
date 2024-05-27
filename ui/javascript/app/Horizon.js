@@ -48,7 +48,10 @@ javaxt.express.app.Horizon = function(parent, config) {
             //"Home": com.acme.DashboardPanel,
             //"Admin": com.acme.AdminPanel
         },
-        windows: []
+        windows: [],
+        renderers: {
+            profileButton: function(user, profileButton){}
+        }
     };
 
     var waitmask;
@@ -130,8 +133,19 @@ javaxt.express.app.Horizon = function(parent, config) {
   //** update
   //**************************************************************************
     this.update = function(user){
-        updateUser(user);
 
+      //Update title
+        document.title = config.name;
+
+
+      //Update user
+        var prevUserID = currUser ? currUser.id : null;
+        updateUser(user);
+        if (user.id===prevUserID) return;
+
+
+      //Watch for forward and back events via a 'popstate' listener
+        enablePopstateListener();
 
 
       //Create web socket listener
@@ -182,18 +196,37 @@ javaxt.express.app.Horizon = function(parent, config) {
 
 
   //**************************************************************************
+  //** onModelChangeEvent
+  //**************************************************************************
+  /** Called whenever a Model created, updated, or deleted.
+   *  @param op Operation name. Options include "create", "update", or "delete"
+   *  @param model The name of the model that was changed (e.g. "User").
+   *  @param id The unique identifier associated with the model (e.g. 12345)
+   *  @param userID The unique identifier associated with the user that's
+   *  responsible for the change.
+   */
+    this.onModelChangeEvent = function(op, model, id, userID){};
+
+
+  //**************************************************************************
+  //** onLogOff
+  //**************************************************************************
+  /** Called after the logoff() method is complete.
+   */
+    this.onLogOff = function(){};
+
+
+  //**************************************************************************
   //** updateUser
   //**************************************************************************
     var updateUser = function(user){
         currUser = user;
-        document.title = config.name + " - Home";
-        if (user.person){
-            profileButton.innerHTML = user.person.firstName.substring(0,1);
+
+
+      //Update the profile button
+        if (config.renderers.profileButton){
+            config.renderers.profileButton(user, profileButton);
         }
-
-
-      //Watch for forward and back events via a 'popstate' listener
-        enablePopstateListener();
 
 
       //Show/hide admin tab
@@ -228,7 +261,7 @@ javaxt.express.app.Horizon = function(parent, config) {
                 tabs[currTab].click();
             }
             else{
-                tabs["Home"].click();
+                Object.values(tabs)[0].click();
             }
         });
 
@@ -274,24 +307,7 @@ javaxt.express.app.Horizon = function(parent, config) {
             }
         }
         else{
-            if (id===document.user.id){
-                if (model==="User"){
-                    if (op==="delete"){
-                        logoff();
-                        return;
-                    }
-                    else if (op==="update"){
-                        get(config.url.user + "?id=" + id, {
-                            success: function(text){
-                                var user = JSON.parse(text);
-                                document.user = merge(user, document.user);
-                                if (document.user.status!==1) logoff();
-                                else updateUser(document.user);
-                            }
-                        });
-                    }
-                }
-            }
+            me.onModelChangeEvent(op, model, id, userID);
         }
 
 
@@ -387,7 +403,7 @@ javaxt.express.app.Horizon = function(parent, config) {
                 this.className = "active";
                 fn.apply(me, []);
                 document.title = config.name + " - " + label;
-                document.user.preferences.set("Tab", label);
+                if (currUser) currUser.preferences.set("Tab", label);
             };
 
 
@@ -505,7 +521,7 @@ javaxt.express.app.Horizon = function(parent, config) {
                 console.log("Show Accout");
             }));
             div.appendChild(createMenuOption("Sign Out", "times", function(){
-                logoff();
+                me.logoff();
             }));
             profileMenu = div;
         }
@@ -604,7 +620,7 @@ javaxt.express.app.Horizon = function(parent, config) {
   //**************************************************************************
   //** logoff
   //**************************************************************************
-    var logoff = function(){
+    this.logoff = function(){
         waitmask.show();
         currUser = null;
 
@@ -644,7 +660,7 @@ javaxt.express.app.Horizon = function(parent, config) {
 
       //Logoff
         auth.logoff(function(){
-            document.user = null;
+            me.onLogOff();
             var pageLoader = new javaxt.dhtml.PageLoader();
             pageLoader.loadPage("index.html", function(){
                 waitmask.hide();
@@ -678,7 +694,6 @@ javaxt.express.app.Horizon = function(parent, config) {
     var createTable = javaxt.dhtml.utils.createTable;
     var addShowHide = javaxt.dhtml.utils.addShowHide;
     var merge = javaxt.dhtml.utils.merge;
-    var get = javaxt.dhtml.utils.get;
 
 
     init();
