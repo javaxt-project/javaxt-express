@@ -13,6 +13,7 @@ if(!javaxt.express.app) javaxt.express.app={};
  ******************************************************************************/
 
 javaxt.express.app.Horizon = function(parent, config) {
+    this.className = "javaxt.express.app.Horizon";
 
     var me = this;
     var defaultConfig = {
@@ -429,12 +430,14 @@ javaxt.express.app.Horizon = function(parent, config) {
             if (this.className==="active") return;
             this.raise();
 
-            var panel = window.history.state;
-            panel.label = label;
-            panel.popID++;
+            var state = window.history.state;
+            if (state==null) state = {};
+            state[me.className] = {
+                tab: label
+            };
 
             var url = ""; //window.location.href;
-            history.pushState(panel, document.title, url);
+            history.pushState(state, document.title, url);
         };
 
         tabs[label] = tab;
@@ -470,8 +473,7 @@ javaxt.express.app.Horizon = function(parent, config) {
   /** Used to processes forward and back events from the browser
    */
     var popstateListener = function(e) {
-        var obj = e.state;
-        var label = obj.label;
+        var label = e.state[me.className].tab;
         var tab = tabs[label];
         tab.raise();
     };
