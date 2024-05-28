@@ -643,13 +643,20 @@ javaxt.express.app.Horizon = function(parent, config) {
         hideWindows();
 
 
+      //Remove all tabs
+        tabbar.innerHTML = "";
+        tabs = {};
 
-//      //Delete admin panel
-//        if (adminPanel){
-//            adminPanel.clear();
-//            destroy(adminPanel);
-//            adminPanel = null;
-//        }
+
+      //Destroy panels
+        for (var key in panels) {
+            if (panels.hasOwnProperty(key)){
+                var panel = panels[key];
+                if (panel.clear) panel.clear();
+                destroy(panel);
+            }
+        }
+        panels = {};
 
 
       //Remove menus
@@ -704,6 +711,7 @@ javaxt.express.app.Horizon = function(parent, config) {
     var createTable = javaxt.dhtml.utils.createTable;
     var addShowHide = javaxt.dhtml.utils.addShowHide;
     var isArray = javaxt.dhtml.utils.isArray;
+    var destroy = javaxt.dhtml.utils.destroy;
     var merge = javaxt.dhtml.utils.merge;
 
 
