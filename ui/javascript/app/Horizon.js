@@ -453,9 +453,7 @@ javaxt.express.app.Horizon = function(parent, config) {
         window.addEventListener('popstate', popstateListener);
 
       //Set initial history. This is critical for the popstate listener
-        if (window.history.state==null){
-            history.replaceState({}, null, '');
-        }
+        history.replaceState({}, null, '');
     };
 
 
