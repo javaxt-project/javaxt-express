@@ -44,10 +44,6 @@ javaxt.express.app.Horizon = function(parent, config) {
             logoff: "logoff",
             websocket: "/ws"
         },
-        tabs: {
-            //"Home": com.acme.DashboardPanel,
-            //"Admin": com.acme.AdminPanel
-        },
         windows: [],
         renderers: {
             profileButton: function(user, profileButton){}
@@ -70,7 +66,7 @@ javaxt.express.app.Horizon = function(parent, config) {
     var callout;
 
 
-    var body;
+    var tabbar, body;
     var tabs = {};
     var panels = {};
 
@@ -113,7 +109,8 @@ javaxt.express.app.Horizon = function(parent, config) {
 
 
       //Create tabs
-        createTabs(table.addRow().addColumn(config.style.navbar.div));
+        var td = table.addRow().addColumn(config.style.navbar.div);
+        tabbar = createElement("div", td, config.style.navbar.tabs);
 
 
       //Create body
@@ -132,10 +129,27 @@ javaxt.express.app.Horizon = function(parent, config) {
   //**************************************************************************
   //** update
   //**************************************************************************
-    this.update = function(user){
+    this.update = function(user, tabs){
 
       //Update title
         document.title = config.name;
+
+
+      //Add tabs
+        if (tabs){
+            if (isArray(tabs)){
+                tabs.forEach((tab)=>{
+                    addTab(tab.name, tab.cls);
+                });
+            }
+            else{
+                for (var key in tabs) {
+                    if (tabs.hasOwnProperty(key)){
+                        addTab(key, tabs[key]);
+                    }
+                }
+            }
+        }
 
 
       //Update user
@@ -228,14 +242,6 @@ javaxt.express.app.Horizon = function(parent, config) {
             config.renderers.profileButton(user, profileButton);
         }
 
-
-      //Show/hide admin tab
-        if (user.accessLevel===5){
-            tabs["Admin"].show();
-        }
-        else{
-            tabs["Admin"].hide();
-        }
 
 
       //Get active tab
@@ -361,89 +367,78 @@ javaxt.express.app.Horizon = function(parent, config) {
 
 
   //**************************************************************************
-  //** createTabs
+  //** addTab
   //**************************************************************************
-    var createTabs = function(parent){
-        var div = createElement("div", parent, config.style.navbar.tabs);
+    var addTab = function(label, className){
+        var tab = createElement("div", tabbar);
+        tab.innerText = label;
 
-        var addTab = function(label, className){
-            var tab = createElement("div", div);
-            tab.innerText = label;
+        var fn = function(){
+            var panel = panels[label];
 
-            var fn = function(){
-                var panel = panels[label];
-
-                Object.values(panels).forEach((p)=>{
-                    if (p===panel) return;
-                    p.hide();
-                });
+            Object.values(panels).forEach((p)=>{
+                if (p===panel) return;
+                p.hide();
+            });
 
 
-                if (panel){
-                    panel.show();
-                }
-                else{
+            if (panel){
+                panel.show();
+            }
+            else{
 
 
-                  //Create custom config for the panel
-                    var cfg = {
-                        style: config.style.javaxt,
-                        fx: config.fx,
-                        waitmask: config.waitmask
-                    };
+              //Create custom config for the panel
+                var cfg = {
+                    style: config.style.javaxt,
+                    fx: config.fx,
+                    waitmask: config.waitmask
+                };
 
-                  //Update config with non-standard config options
-                    for (var key in config) {
-                        if (config.hasOwnProperty(key)){
-                            if (defaultConfig[key]) continue;
-                            cfg[key] = config[key];
-                        }
+              //Update config with non-standard config options
+                for (var key in config) {
+                    if (config.hasOwnProperty(key)){
+                        if (defaultConfig[key]) continue;
+                        cfg[key] = config[key];
                     }
-
-
-                  //Instantiate panel
-                    var cls = eval(className);
-                    panel = new cls(body, cfg);
-                    panels[label] = panel;
                 }
-            };
 
 
-            tab.raise = function(){
-                if (this.className==="active") return;
-                hideWindows();
-                for (var i=0; i<div.childNodes.length; i++){
-                    div.childNodes[i].className = "";
-                }
-                this.className = "active";
-                fn.apply(me, []);
-                document.title = config.name + " - " + label;
-                if (currUser) currUser.preferences.set("Tab", label);
-            };
-
-
-            tab.onclick = function(){
-                if (this.className==="active") return;
-                this.raise();
-
-                var panel = window.history.state;
-                panel.label = label;
-                panel.popID++;
-
-                var url = ""; //window.location.href;
-                history.pushState(panel, document.title, url);
-            };
-
-            tabs[label] = tab;
-            addShowHide(tab);
+              //Instantiate panel
+                var cls = eval(className);
+                panel = new cls(body, cfg);
+                panels[label] = panel;
+            }
         };
 
 
-        for (var key in config.tabs) {
-            if (config.tabs.hasOwnProperty(key)){
-                addTab(key, config.tabs[key]);
+        tab.raise = function(){
+            if (this.className==="active") return;
+            hideWindows();
+            for (var i=0; i<tabbar.childNodes.length; i++){
+                tabbar.childNodes[i].className = "";
             }
-        }
+            this.className = "active";
+            fn.apply(me, []);
+            document.title = config.name + " - " + label;
+            if (currUser) currUser.preferences.set("Tab", label);
+        };
+
+
+        tab.onclick = function(){
+            if (this.className==="active") return;
+            this.raise();
+
+            var panel = window.history.state;
+            panel.label = label;
+            panel.popID++;
+
+            var url = ""; //window.location.href;
+            history.pushState(panel, document.title, url);
+        };
+
+        tabs[label] = tab;
+        addShowHide(tab);
     };
 
 
@@ -708,6 +703,7 @@ javaxt.express.app.Horizon = function(parent, config) {
     var createElement = javaxt.dhtml.utils.createElement;
     var createTable = javaxt.dhtml.utils.createTable;
     var addShowHide = javaxt.dhtml.utils.addShowHide;
+    var isArray = javaxt.dhtml.utils.isArray;
     var merge = javaxt.dhtml.utils.merge;
 
 
