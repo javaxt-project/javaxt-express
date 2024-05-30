@@ -868,7 +868,8 @@ javaxt.express.DBView = function(parent, config) {
                     payload = {
                         query: editor.getValue(),
                         page: grid.getCurrPage(),
-                        limit: config.pageSize
+                        limit: config.pageSize,
+                        format: config.format
                     };
 
                     getResponse(payload, callback);
