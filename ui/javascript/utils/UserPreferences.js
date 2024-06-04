@@ -24,12 +24,13 @@ javaxt.express.UserPreferences = function(callback, scope) {
     this.refresh = function(callback, scope){
         get("UserPreferences?fields=key,value&format=json", {
             success: function(text){
+                preferences = {};
                 JSON.parse(text).forEach((r)=>{
                     preferences[r.key] = r.value;
                 });
 
                 if (!scope) scope = me;
-                callback.apply(scope, [preferences]);
+                callback.apply(scope, [clone(preferences)]);
             },
             failure: function(){
 
@@ -46,7 +47,8 @@ javaxt.express.UserPreferences = function(callback, scope) {
     this.get = function(key){
         var val = preferences[key.toLowerCase()];
         if (typeof val === 'undefined') return null;
-        return val;
+        if (isObject(val)) return clone(val);
+        else return val;
     };
 
 
@@ -63,10 +65,11 @@ javaxt.express.UserPreferences = function(callback, scope) {
         if (preferences[key]===value) return;
 
 
+        if (isObject(value)) value = clone(value);
+
+
         if (silent===true){
-
             preferences[key] = value;
-
         }
         else{
 
@@ -89,8 +92,32 @@ javaxt.express.UserPreferences = function(callback, scope) {
     };
 
 
+  //**************************************************************************
+  //** isObject
+  //**************************************************************************
+  /** Returns true if the given value is an object
+   */
+    var isObject = function(value) {
+        return value != null && typeof value == 'object' && !Array.isArray(value);
+    };
+
+
+  //**************************************************************************
+  //** clone
+  //**************************************************************************
+  /** Returns a clone of a given object
+   */
+    var clone = function(json){
+        return JSON.parse(JSON.stringify(json));
+    };
+
+
+  //**************************************************************************
+  //** Utils
+  //**************************************************************************
     var post = javaxt.dhtml.utils.post;
     var get = javaxt.dhtml.utils.get;
+
 
     this.refresh(callback, scope);
 };
