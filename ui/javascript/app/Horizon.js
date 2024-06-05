@@ -130,6 +130,15 @@ javaxt.express.app.Horizon = function(parent, config) {
   //**************************************************************************
   //** update
   //**************************************************************************
+  /** Used to initialize the app with a new user and a set of tabs
+   *  @param user Simple json object with an id. Additional attributes such
+   *  as name, contact info, etc may be present and used by the renderers
+   *  defined in the config (e.g. profileButton)
+   *  @param tabs Either an array or json object with tabs. Each entry should
+   *  have a name and a fully-qualified class (e.g. com.javaxt.Test). The
+   *  class will be instantiated at runtime. Note if the class has a public
+   *  update() method, it will be called after the class is instantiated.
+   */
     this.update = function(user, tabs){
 
       //Update title
@@ -408,7 +417,9 @@ javaxt.express.app.Horizon = function(parent, config) {
               //Instantiate panel
                 var cls = eval(className);
                 panel = new cls(body, cfg);
+                addShowHide(panel);
                 panels[label] = panel;
+                if (panel.update) panel.update();
             }
         };
 
@@ -428,16 +439,24 @@ javaxt.express.app.Horizon = function(parent, config) {
 
         tab.onclick = function(){
             if (this.className==="active") return;
-            this.raise();
 
+          //Update history. Do this BEFORE raising the tab so that whatever
+          //history the tab panel has happens AFTER the tab change event.
             var state = window.history.state;
             if (state==null) state = {};
             state[me.className] = {
-                tab: label
+                tab: label,
+                lastUpdate: {
+                    date: new Date().getTime(),
+                    event: "pushState"
+                }
             };
-
-            var url = ""; //window.location.href;
+            var url = "";
             history.pushState(state, document.title, url);
+
+
+          //Raise the tab
+            this.raise();
         };
 
         tabs[label] = tab;
@@ -471,9 +490,15 @@ javaxt.express.app.Horizon = function(parent, config) {
   /** Used to processes forward and back events from the browser
    */
     var popstateListener = function(e) {
-        var label = e.state[me.className].tab;
-        var tab = tabs[label];
-        tab.raise();
+
+        if (e.state[me.className]){
+            var label = e.state[me.className].tab;
+            var tab = tabs[label];
+            if (tab) tab.raise();
+        }
+        else{
+            history.back();
+        }
     };
 
 
@@ -528,7 +553,7 @@ javaxt.express.app.Horizon = function(parent, config) {
         if (!profileMenu){
             var div = createElement("div", config.style.header.menuPopup);
             div.appendChild(createMenuOption("Account Settings", "edit", function(){
-                console.log("Show Accout");
+                console.log("Show Account");
             }));
             div.appendChild(createMenuOption("Sign Out", "times", function(){
                 me.logoff();
