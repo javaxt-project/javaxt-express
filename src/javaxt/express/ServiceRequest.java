@@ -912,7 +912,12 @@ public class ServiceRequest {
                     }
 
                     else if (a.equals(">") || b.equals(">")){
-                        op = ">=";
+
+                        op = ">="; //add "=" (legacy: assumes params are from url)
+                        if (parseJson && json!=null){
+                            if (json.has(key)) op = ">";
+                        }
+
                         if (b.equals(">")){
                             val = val.substring(1).trim();
                         }
@@ -922,7 +927,12 @@ public class ServiceRequest {
                     }
 
                     else if (a.equals("<") || b.equals("<")){
-                        op = "<=";
+
+                        op = "<="; //add "=" (legacy: assumes params are from url)
+                        if (parseJson && json!=null){
+                            if (json.has(key)) op = "<";
+                        }
+
                         if (b.equals("<")){
                             val = val.substring(1).trim();
                         }
@@ -1285,7 +1295,7 @@ public class ServiceRequest {
             items.remove(key);
         }
 
-        
+
       /** Used to remove all the items from the filter
        */
         public void removeAll(){
