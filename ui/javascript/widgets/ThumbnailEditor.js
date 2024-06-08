@@ -56,11 +56,12 @@ javaxt.dhtml.ThumbnailEditor = function(parent, config) {
             },
 
 
-          /** Style for individual sliders.
+          /** Style for the sliders. Uses the style defined in the
+           *  javaxt.dhtml.Slider class by default.
            */
             slider: {
-                groove: "sliderGrove",
-                handle: "sliderHandle"
+                groove: {},
+                handle: {}
             }
         }
     };
@@ -362,6 +363,7 @@ javaxt.dhtml.ThumbnailEditor = function(parent, config) {
         setStyle(div, config.style.toolbar);
 
         slider = new javaxt.dhtml.Slider(div,{
+            units: "percent",
             value: 0,
             disabled: true,
             style: config.style.slider
@@ -372,7 +374,7 @@ javaxt.dhtml.ThumbnailEditor = function(parent, config) {
         slider.onChange = function(){
             if (timer) cancelTimeout(timer);
 
-            var p = slider.getValue(true);
+            var p = slider.getValue()/100.0;
 
             var width = minWidth + ((maxWidth-minWidth)*p);
             var height = minHeight + ((maxHeight-minHeight)*p);
