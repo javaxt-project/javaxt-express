@@ -17,7 +17,19 @@ javaxt.express.app.Horizon = function(parent, config) {
 
     var me = this;
     var defaultConfig = {
+
+      /** Name of the application. By default, the name will be used as the
+       *  document title. As a user switches tabs, the tab name will be
+       *  appended to the title.
+       */
         name: "Express",
+
+      /** Style for individual elements within the component. In addition,
+       *  there is a general "javaxt" config for javaxt-components. This is a
+       *  complex, nested config. See "default.js" in the javaxt-webcontrols.
+       *  Note that you can provide CSS class names or an inline set of css
+       *  style definitions for each components and javaxt subcomponents.
+       */
         style: {
             javaxt: javaxt.dhtml.style.default,
             header: {
@@ -39,13 +51,42 @@ javaxt.express.app.Horizon = function(parent, config) {
                 div: "app-footer"
             }
         },
+
+
+      /** Map of URLs to REST end points
+       */
         url: {
-            user: "user",
+
+          /** URL to the login service
+           */
             login: "login",
+
+          /** URL to the logoff service
+           */
             logoff: "logoff",
+
+          /** URL to the web socket endpoint that is sending CRUD notifications
+           */
             websocket: "/ws"
         },
+
+
+      /** Used to define the maximum idle time for a user before calling
+       *  logoff(). Units are in milliseconds. Default is false (i.e. no
+       *  auto-logoff).
+       */
+        autoLogoff: false,
+
+
+      /** A shared array of javaxt.dhtml.Window components. All the windows in
+       *  the array are automatically closed when a user logs off or when the
+       *  logoff() method is called. You are encouraged to create your own
+       *  array and pass it to the constructor via this config setting and
+       *  update the array whenever you create a new window.
+       */
         windows: [],
+
+
         renderers: {
             profileButton: function(user, profileButton){}
         }
@@ -70,6 +111,10 @@ javaxt.express.app.Horizon = function(parent, config) {
     var tabbar, body;
     var tabs = {};
     var panels = {};
+    var timers = {};
+
+    var userInteractions = ["mousemove","click","keydown","touchmove"];
+
 
 
   //**************************************************************************
@@ -172,10 +217,23 @@ javaxt.express.app.Horizon = function(parent, config) {
         enablePopstateListener();
 
 
-      //Create web socket listener
+      //Watch for user events
+        enableEventListeners();
+
+
+      //Create auto-logoff timer
+        if (config.autoLogoff && config.autoLogoff>0){
+            timers.logoff = setTimeout(me.logoff, config.autoLogoff);
+        }
+
+
+      //Create web socket listener. Note that the listener is destroyed on logoff()
         if (!ws) ws = new javaxt.dhtml.WebSocket({
             url: config.url.websocket,
             onMessage: function(msg){
+
+                try { me.onMessage(msg); }
+                catch(e) {}
 
                 var arr = msg.split(",");
                 var op = arr[0];
@@ -214,9 +272,32 @@ javaxt.express.app.Horizon = function(parent, config) {
                     connected = false;
                     processEvent("disconnect", "WebSocket", -1, -1);
                 }
+            },
+            onTimeout: function(){
+                alert("Connection lost");
             }
         });
     };
+
+
+  //**************************************************************************
+  //** sendMessage
+  //**************************************************************************
+  /** Used to send a message to the server via websockets.
+   */
+    this.sendMessage = function(msg){
+        if (ws) ws.send(msg);
+    };
+
+
+  //**************************************************************************
+  //** onMessage
+  //**************************************************************************
+  /** Called whenever a message is recieved from the server via websockets.
+   *  Used the onModelChangeEvent() event listener to receive CRUD events
+   *  specifically.
+   */
+    this.onMessage = function(msg){};
 
 
   //**************************************************************************
@@ -238,6 +319,40 @@ javaxt.express.app.Horizon = function(parent, config) {
   /** Called after the logoff() method is complete.
    */
     this.onLogOff = function(){};
+
+
+  //**************************************************************************
+  //** onUserInteration
+  //**************************************************************************
+  /** Called whenever a user interacts with the app (mouse click, mouse move,
+   *  keypress, or touch event).
+   */
+    this.onUserInteration = function(e){};
+
+
+    var onUserInteration = function(e){
+        me.onUserInteration(e);
+
+
+        if (timers.logoff){
+            clearTimeout(timers.logoff);
+            timers.logoff = setTimeout(me.logoff, config.autoLogoff);
+        };
+    };
+
+
+    var enableEventListeners = function(){
+        userInteractions.forEach((interaction)=>{
+            document.body.addEventListener(interaction, onUserInteration);
+        });
+    };
+
+
+    var disableEventListeners = function(){
+        userInteractions.forEach((interaction)=>{
+            document.body.removeEventListener(interaction, onUserInteration);
+        });
+    };
 
 
   //**************************************************************************
@@ -659,12 +774,28 @@ javaxt.express.app.Horizon = function(parent, config) {
         waitmask.show();
         currUser = null;
 
+      //Disable event listeners
+        disableEventListeners();
+        disablePopstateListener();
+
       //Stop websocket listener
         if (ws){
             ws.stop();
             ws = null;
         }
 
+
+      //Stop timers
+        for (var key in timers) {
+            if (timers.hasOwnProperty(key)){
+                var timer = timers[key];
+                clearTimeout(timer);
+            }
+        }
+        timers = {};
+
+
+      //Hide all popup windows
         hideWindows();
 
 
@@ -696,8 +827,6 @@ javaxt.express.app.Horizon = function(parent, config) {
             profileMenu = null;
         }
 
-
-        disablePopstateListener();
 
 
       //Logoff
