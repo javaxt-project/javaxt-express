@@ -293,6 +293,20 @@ javaxt.express.app.Horizon = function(parent, config) {
 
 
   //**************************************************************************
+  //** onTabChange
+  //**************************************************************************
+  /** Called whenever a tab is raised in the tab bar.
+   *  @param currTab Object with key/value pairs including:
+   *  <ul>
+   *  <li>name: Name/label of the tab (String)</li>
+   *  <li>tab: Tab in the tab bar (DOM Object)</li>
+   *  <li>panel: The panel that is rendered in the body (Object)</li>
+   *  </ul>
+   */
+    this.onTabChange = function(currTab){};
+
+
+  //**************************************************************************
   //** sendMessage
   //**************************************************************************
   /** Used to send a message to the server via websockets.
@@ -586,6 +600,13 @@ javaxt.express.app.Horizon = function(parent, config) {
             fn.apply(me, []);
             document.title = config.name + " - " + label;
             if (currUser) currUser.preferences.set("Tab", label);
+
+
+            me.onTabChange({
+                name: label,
+                tab: this,
+                panel: panels[label]
+            });
         };
 
 
