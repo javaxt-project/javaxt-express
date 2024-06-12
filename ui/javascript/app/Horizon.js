@@ -89,6 +89,17 @@ javaxt.express.app.Horizon = function(parent, config) {
 
         renderers: {
             profileButton: function(user, profileButton){}
+        },
+
+        messages: {
+            connectionLost: "The connection to the server has been lost. " +
+            "The internet might be down or there might be a problem with the server. " +
+            "Some features might not work as expected while the server is offline. " +
+            "Please do not refresh your browser. We will try to reconnect in a few moments.",
+
+            connectionTimeout: "We have lost contact with the server. " +
+            "It has been unavailable for over 5 minutes. Please check your " +
+            "internet connection or contact the system administrator for assistance."
         }
     };
 
@@ -107,13 +118,13 @@ javaxt.express.app.Horizon = function(parent, config) {
     var mainMenu, profileMenu;
     var callout;
 
-
-    var tabbar, body;
+  //Other components
+    var tabbar, body, footer;
     var tabs = {};
     var panels = {};
     var timers = {};
 
-    var userInteractions = ["mousemove","click","keydown","touchmove"];
+    var userInteractions = ["mousemove","click","keydown","touchmove","wheel"];
 
 
 
@@ -165,7 +176,7 @@ javaxt.express.app.Horizon = function(parent, config) {
 
 
       //Create footer
-        createFooter(table.addRow().addColumn(config.style.footer.div));
+        footer = table.addRow().addColumn(config.style.footer.div);
 
 
         me.el = table;
@@ -274,7 +285,8 @@ javaxt.express.app.Horizon = function(parent, config) {
                 }
             },
             onTimeout: function(){
-                alert("Connection lost");
+                if (communicationError) communicationError.hide();
+                alert(config.messages.connectionTimeout);
             }
         });
     };
@@ -369,14 +381,19 @@ javaxt.express.app.Horizon = function(parent, config) {
 
 
 
-      //Get active tab
-        var currTab;
+      //Get active and requested tab
+        var currTab, requestedTab;
+        var t = getParameter("tab").toLowerCase();
         for (var key in tabs) {
             if (tabs.hasOwnProperty(key)){
                 var tab = tabs[key];
-                if (tab.isVisible() && tab.className==="active"){
-                    currTab = tab;
-                    break;
+                if (tab.isVisible()){
+                    if (tab.className==="active"){
+                        currTab = tab;
+                    }
+                    if (key.toLowerCase()===t){
+                        requestedTab = tab;
+                    }
                 }
             }
         }
@@ -386,17 +403,37 @@ javaxt.express.app.Horizon = function(parent, config) {
       //Get user preferences
         user.preferences = new javaxt.express.UserPreferences(()=>{
 
-          //Click on user's last tab
-            if (!currTab) currTab = user.preferences.get("Tab");
-            if (currTab && tabs[currTab]){
-                tabs[currTab].click();
+
+          //Click on a tab
+            if (requestedTab){
+
+              //Click on the requested tab
+                requestedTab.click();
+
+
+              //Remove tab parameter from the url
+                var state = window.history.state;
+                if (!state) state = {};
+                var url = window.location.href;
+                url = url.replace("tab="+getParameter("tab"),"");
+                if (url.lastIndexOf("&")===url.length-1) url = url.substring(0, url.length-1);
+                if (url.lastIndexOf("?")===url.length-1) url = url.substring(0, url.length-1);
+                history.replaceState(state, document.title, url);
+
             }
             else{
-                Object.values(tabs)[0].click();
+
+              //Click on user's last tab
+                if (!currTab) currTab = user.preferences.get("Tab");
+                if (currTab && tabs[currTab]){
+                    tabs[currTab].click();
+                }
+                else{
+                    Object.values(tabs)[0].click();
+                }
             }
+
         });
-
-
     };
 
 
@@ -712,6 +749,7 @@ javaxt.express.app.Horizon = function(parent, config) {
             position: "absolute",
             top: "10px",
             width: "100%",
+            height: "0px",
             display: "none"
         });
 
@@ -726,14 +764,14 @@ javaxt.express.app.Horizon = function(parent, config) {
             if (isVisible) return;
             isVisible = true;
             fx.fadeIn(div, transitionEffect, duration, function(){
-
+                menuButton.className += " warning";
             });
         };
         div.hide = function(){
             if (!isVisible) return;
             isVisible = false;
             fx.fadeOut(div, transitionEffect, duration/2, function(){
-
+                menuButton.className = menuButton.className.replaceAll("warning","").trim();
             });
         };
         div.isVisible = function(){
@@ -745,10 +783,7 @@ javaxt.express.app.Horizon = function(parent, config) {
         var error = createElement("div", div, "communication-error center");
         createElement("div", error, "icon");
         createElement("div", error, "title").innerText = "Connection Lost";
-        createElement("div", error, "message").innerText =
-        "The connection to the server has been lost. The internet might be down " +
-        "or there might be a problem with the server. Don't worry, this app will " +
-        "automatically reconnect once the issue is resolved.";
+        createElement("div", error, "message").innerText = config.messages.connectionLost;
 
 
       //Add main div to windows array so it closes automatically on logoff
@@ -862,6 +897,7 @@ javaxt.express.app.Horizon = function(parent, config) {
   //** Utils
   //**************************************************************************
     var createElement = javaxt.dhtml.utils.createElement;
+    var getParameter = javaxt.dhtml.utils.getParameter;
     var createTable = javaxt.dhtml.utils.createTable;
     var addShowHide = javaxt.dhtml.utils.addShowHide;
     var isArray = javaxt.dhtml.utils.isArray;
