@@ -79,10 +79,18 @@ javaxt.express.app.Horizon = function(parent, config) {
 
           /** Style for the communication error popup that is rendered when the
            *  connection to the server is lost. The popup consists of an icon,
-           *  title, message, and a close button. The CSS class should include
-           *  definitions for "icon", "title", "message", and "close".
+           *  title, message, and a close button. Note that the nested style
+           *  properties can be replaced with a string representing a CSS class,
+           *  provided that the class includes definitions for "icon", "title",
+           *  "message", and "close".
            */
-            communicationError: "communication-error center"
+            communicationError: {
+                div: "communication-error center",
+                icon: "communication-error-icon",
+                title: "title",
+                message: "message",
+                closeButton: "close"
+            }
 
         },
 
@@ -145,6 +153,7 @@ javaxt.express.app.Horizon = function(parent, config) {
     var ws; //web socket listener
     var connected = false;
     var communicationError;
+    var timeoutWarning;
 
 
   //Header components
@@ -319,8 +328,9 @@ javaxt.express.app.Horizon = function(parent, config) {
                 }
             },
             onTimeout: function(){
-                if (communicationError) communicationError.hide();
-                alert(config.messages.connectionTimeout);
+                if (communicationError) communicationError.hide(true);
+                if (!timeoutWarning) createTimeoutWarning();
+                timeoutWarning.show();
             }
         });
     };
@@ -500,6 +510,7 @@ javaxt.express.app.Horizon = function(parent, config) {
             if (currUser){
                 if (op==="connect"){
                     if (communicationError) communicationError.hide();
+                    if (timeoutWarning) timeoutWarning.close();
                     menuButton.hideMessage();
                 }
                 else{
@@ -826,6 +837,7 @@ javaxt.express.app.Horizon = function(parent, config) {
   /** Used to create a communications error message
    */
     var createErrorMessage = function(){
+        //if (communicationError) return;
 
       //Create main div
         var div = createElement("div", parent, {
@@ -848,9 +860,10 @@ javaxt.express.app.Horizon = function(parent, config) {
             isVisible = true;
             fx.fadeIn(div, transitionEffect, duration);
         };
-        div.hide = function(){
+        div.hide = function(nodelay){
             if (!isVisible) return;
             isVisible = false;
+            if (nodelay===true) div.style.display = "none";
             fx.fadeOut(div, transitionEffect, duration/2);
         };
         div.isVisible = function(){
@@ -859,14 +872,15 @@ javaxt.express.app.Horizon = function(parent, config) {
 
 
       //Add content
-        var error = createElement("div", div, config.style.communicationError);
-        createElement("div", error, "icon");
-        createElement("div", error, "title").innerText = "Connection Lost";
-        createElement("div", error, "message").innerText = config.messages.connectionLost;
-        var closeButton = createElement("div", error, "close");
+        var style = config.style.communicationError;
+        var useClass = isString(style);
+        var error = createElement("div", div, useClass ? style : style.div);
+        createElement("div", error, useClass ? "icon" : style.icon);
+        createElement("div", error, useClass ? "title" : style.title).innerText = "Connection Lost";
+        createElement("div", error, useClass ? "message" : style.message).innerText = config.messages.connectionLost;
+        var closeButton = createElement("div", error, useClass ? "close" : style.closeButton);
         closeButton.onclick = function(){
-            div.style.display = "none";
-            div.hide();
+            div.hide(true);
             setTimeout(()=>{
                 menuButton.showMessage("Offline");
             }, 500);
@@ -876,6 +890,56 @@ javaxt.express.app.Horizon = function(parent, config) {
       //Add main div to windows array so it closes automatically on logoff
         config.windows.push(div);
         communicationError = div;
+    };
+
+
+  //**************************************************************************
+  //** createTimeoutWarning
+  //**************************************************************************
+    var createTimeoutWarning = function(){
+        //if (timeoutWarning) return;
+
+      //Create window
+        timeoutWarning = new javaxt.dhtml.Window(document.body, {
+            width: 470,
+            valign: "top",
+            modal: true,
+            title: "Warning",
+            style: config.style.javaxt.window,
+            buttons: [
+                {
+                    name: "OK",
+                    onclick: function(){
+                        timeoutWarning.close();
+                    }
+                }
+            ]
+        });
+
+
+      //Add window to the windows array so it closes automatically on logoff
+        config.windows.push(timeoutWarning);
+
+
+      //Populate the body
+        var table = createTable(timeoutWarning.getBody());
+        table.style.height = "";
+        var tr = table.addRow();
+        var d = createElement("div", tr.addColumn({verticalAlign: "top"}), {
+            padding: "3px 10px"
+        });
+        createElement("div", d, config.style.communicationError.icon);
+        tr.addColumn({ width: "100%" }).innerText =
+        config.messages.connectionTimeout;
+
+
+      //Watch for open/close events
+        timeoutWarning.onClose = function(){
+            menuButton.showMessage("Offline");
+        };
+        timeoutWarning.onOpen = function(){
+            if (communicationError) communicationError.hide();
+        };
     };
 
 
@@ -1003,6 +1067,7 @@ javaxt.express.app.Horizon = function(parent, config) {
     var getParameter = javaxt.dhtml.utils.getParameter;
     var createTable = javaxt.dhtml.utils.createTable;
     var addShowHide = javaxt.dhtml.utils.addShowHide;
+    var isString = javaxt.dhtml.utils.isString;
     var isArray = javaxt.dhtml.utils.isArray;
     var destroy = javaxt.dhtml.utils.destroy;
     var merge = javaxt.dhtml.utils.merge;
