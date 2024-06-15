@@ -33,23 +33,57 @@ javaxt.express.app.Horizon = function(parent, config) {
         style: {
             javaxt: javaxt.dhtml.style.default,
             header: {
+
+              /** Style for the header that appears at the top of the app.
+               */
                 div: "app-header",
+
+
+              /** Style for the app icon/logo that appears on the left side of
+               *  the header.
+               */
                 icon: "app-header-icon noselect",
+
+
+              /** Style for the user profile button that appears on the right
+               *  side of the header.
+               */
                 profileButton: "app-header-profile noselect",
+
+
+              /** Style for the menu button that appears on the right side of
+               *  the header. The menu button consists of an icon and label.
+               *  The CSS class should include definitions for "icon" and
+               *  "label".
+               */
                 menuButton: "app-header-menu noselect",
+
+
                 menuPopup: "app-menu",
+
                 menuItem: "app-menu-item noselect"
             },
+
             navbar: {
                 div: "app-nav-bar",
                 tabs: "app-tab-container"
             },
+
             body: {
                 div: "app-body"
             },
+
             footer: {
                 div: "app-footer"
-            }
+            },
+
+          /** Style for the communication error popup that is rendered when the
+           *  connection to the server is lost. The popup consists of an icon,
+           *  title, message, and a close button. The CSS class should include
+           *  definitions for "icon", "title", "message", and "close".
+           */
+            communicationError: "communication-error center"
+
         },
 
 
@@ -389,6 +423,7 @@ javaxt.express.app.Horizon = function(parent, config) {
 
 
       //Update the profile button
+        if (user) profileButton.show();
         if (config.renderers.profileButton){
             config.renderers.profileButton(user, profileButton);
         }
@@ -465,6 +500,7 @@ javaxt.express.app.Horizon = function(parent, config) {
             if (currUser){
                 if (op==="connect"){
                     if (communicationError) communicationError.hide();
+                    menuButton.hideMessage();
                 }
                 else{
                     if (!communicationError) createErrorMessage();
@@ -509,36 +545,19 @@ javaxt.express.app.Horizon = function(parent, config) {
   //** createHeader
   //**************************************************************************
     var createHeader = function(parent){
-
         var tr = createTable(parent).addRow();
-        var td;
+
+      //Render app icon/logo
+        createElement("div", tr.addColumn(), config.style.header.icon);
 
 
-        td = tr.addColumn();
-        createElement("div", td, config.style.header.icon);
+      //Add spacer
+        tr.addColumn().style.width = "100%";
 
 
-        td = tr.addColumn();
-        td.style.width = "100%";
-
-
-      //Create profile button
-        td = tr.addColumn();
-        profileButton = createElement("div", td, config.style.header.profileButton);
-        profileButton.onclick = function(e){
-            if (currUser) showMenu(getProfileMenu(), this);
-        };
-        addShowHide(profileButton);
-
-
-      //Create menu button
-        td = tr.addColumn();
-        menuButton = createElement("div", td, config.style.header.menuButton);
-        createElement("i", menuButton, "fas fa-ellipsis-v");
-        menuButton.onclick = function(e){
-            if (currUser) showMenu(getMainMenu(), this);
-        };
-        addShowHide(menuButton);
+      //Create buttons
+        createProfileButton(tr.addColumn());
+        createMenuButton(tr.addColumn());
     };
 
 
@@ -692,6 +711,37 @@ javaxt.express.app.Horizon = function(parent, config) {
 
 
   //**************************************************************************
+  //** createMenuButton
+  //**************************************************************************
+    var createMenuButton = function(parent){
+        menuButton = createElement("div", parent, config.style.header.menuButton);
+        menuButton.label = createElement("div", menuButton, "label");
+        menuButton.icon = createElement("div", menuButton, "icon");
+        menuButton.label.style.opacity = 0;
+        menuButton.showMessage = function(msg){
+            if (!msg) msg = "Warning";
+            menuButton.classList.add("warning");
+            menuButton.label.innerText = msg;
+            menuButton.label.style.opacity = 1;
+        };
+        menuButton.hideMessage = function(){
+            menuButton.label.style.opacity = 0;
+            menuButton.label.style.display = "none";
+            menuButton.classList.remove("warning");
+
+            setTimeout(()=>{
+                menuButton.label.style.display = "";
+                menuButton.label.style.opacity = 0;
+            }, 500);
+        };
+        menuButton.onclick = function(e){
+            if (currUser) showMenu(getMainMenu(), this);
+        };
+        addShowHide(menuButton);
+    };
+
+
+  //**************************************************************************
   //** showMenu
   //**************************************************************************
     var showMenu = function(menu, target){
@@ -716,6 +766,18 @@ javaxt.express.app.Horizon = function(parent, config) {
         var x = rect.x + (rect.width/2);
         var y = rect.y + rect.height + 3;
         callout.showAt(x, y, "below", "right");
+    };
+
+
+  //**************************************************************************
+  //** createProfileButton
+  //**************************************************************************
+    var createProfileButton = function(parent){
+        profileButton = createElement("div", parent, config.style.header.profileButton);
+        profileButton.onclick = function(e){
+            if (currUser) showMenu(getProfileMenu(), this);
+        };
+        addShowHide(profileButton);
     };
 
 
@@ -777,23 +839,19 @@ javaxt.express.app.Horizon = function(parent, config) {
 
       //Create show/hide functions
         var fx = config.fx;
-        var transitionEffect = "ease";
+        var transitionEffect = "easeInBack";
         var duration = 1000;
         var isVisible = false;
 
         div.show = function(){
             if (isVisible) return;
             isVisible = true;
-            fx.fadeIn(div, transitionEffect, duration, function(){
-                menuButton.className += " warning";
-            });
+            fx.fadeIn(div, transitionEffect, duration);
         };
         div.hide = function(){
             if (!isVisible) return;
             isVisible = false;
-            fx.fadeOut(div, transitionEffect, duration/2, function(){
-                menuButton.className = menuButton.className.replaceAll("warning","").trim();
-            });
+            fx.fadeOut(div, transitionEffect, duration/2);
         };
         div.isVisible = function(){
             return isVisible;
@@ -801,10 +859,18 @@ javaxt.express.app.Horizon = function(parent, config) {
 
 
       //Add content
-        var error = createElement("div", div, "communication-error center");
+        var error = createElement("div", div, config.style.communicationError);
         createElement("div", error, "icon");
         createElement("div", error, "title").innerText = "Connection Lost";
         createElement("div", error, "message").innerText = config.messages.connectionLost;
+        var closeButton = createElement("div", error, "close");
+        closeButton.onclick = function(){
+            div.style.display = "none";
+            div.hide();
+            setTimeout(()=>{
+                menuButton.showMessage("Offline");
+            }, 500);
+        };
 
 
       //Add main div to windows array so it closes automatically on logoff
@@ -830,9 +896,20 @@ javaxt.express.app.Horizon = function(parent, config) {
         waitmask.show();
         currUser = null;
 
+
+      //Update URL
+        var state = window.history.state;
+        if (!state) state = {};
+        var url = window.location.href;
+        var idx = url.indexOf("?");
+        if (idx>-1) url = url.substring(0, idx);
+        history.replaceState(state, config.name, url);
+
+
       //Disable event listeners
         disableEventListeners();
         disablePopstateListener();
+
 
       //Stop websocket listener
         if (ws){
@@ -871,12 +948,17 @@ javaxt.express.app.Horizon = function(parent, config) {
         panels = {};
 
 
-      //Remove menus
+      //Update menu
+        menuButton.hideMessage();
         if (mainMenu){
             var parent = mainMenu.parentNode;
             if (parent) parent.removeChild(mainMenu);
             mainMenu = null;
         }
+
+
+      //Update profile
+        profileButton.hide();
         if (profileMenu){
             var parent = profileMenu.parentNode;
             if (parent) parent.removeChild(profileMenu);
