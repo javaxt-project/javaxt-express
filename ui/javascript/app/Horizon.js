@@ -328,6 +328,7 @@ javaxt.express.app.Horizon = function(parent, config) {
                 }
             },
             onTimeout: function(){
+                connected = false;
                 if (communicationError) communicationError.hide(true);
                 if (!timeoutWarning) createTimeoutWarning();
                 timeoutWarning.show();
@@ -526,12 +527,28 @@ javaxt.express.app.Horizon = function(parent, config) {
             if (currUser && currUser.preferences){
                 var autoReload = currUser.preferences.get("AutoReload");
                 if (autoReload===true || autoReload==="true"){
-                    console.log("reload!");
                     location.reload();
                 }
                 else{
-                    console.log("prompt to reload!");
-                    location.reload();
+                    confirm({
+                        title: "Update Available",
+                        text: "An update is available for this application. " +
+                        "Would you like to update now?",
+                        leftButton: {
+                            label: "Yes",
+                            value: true
+                        },
+                        rightButton: {
+                            label: "No",
+                            value: false
+                        },
+                        callback: function(answer){
+                            if (answer===true) location.reload();
+                            else{
+                                menuButton.showMessage("Update Available");
+                            }
+                        }
+                    });
                 }
             }
         }
