@@ -123,6 +123,12 @@ javaxt.express.DBView = function(parent, config) {
                 padding: "7px 0 7px 0px",
                 backgroundColor: "",
                 li: "tree-node"
+            },
+
+            error: {
+                fontFamily: '"Consolas", "Bitstream Vera Sans Mono", "Courier New", Courier, monospace',
+                color: "#6c6c6c",
+                padding: "10px"
             }
         },
 
@@ -628,10 +634,31 @@ javaxt.express.DBView = function(parent, config) {
     var showError = function(msg){
         cancelButton.disable();
 
-        if (msg.responseText){
+      //Update message
+        if (msg && msg.responseText){
             msg = (msg.responseText.length>0 ? msg.responseText : msg.statusText);
         }
-        gridContainer.innerHTML = msg;
+        if (msg) msg = msg.replaceAll("\n","<br>");
+
+
+      //Populate the bottom panel
+        gridContainer.innerHTML = "";
+        var outerDiv = createElement("div", gridContainer, {
+            width: "100%",
+            height: "100%",
+            position: "relative",
+            overflow: "auto"
+        });
+        var innerDiv = createElement("div", outerDiv, {
+            width: "100%",
+            height: "100%",
+            position: "absolute"
+        });
+        var div = createElement("div", innerDiv, config.style.error);
+        div.innerHTML = msg;
+
+
+      //Hide waitmask
         if (waitmask) waitmask.hide();
     };
 
@@ -776,7 +803,10 @@ javaxt.express.DBView = function(parent, config) {
   /** Used to render query results in a grid
    */
     var render = function(records, columns){
-        if (columns.length===0) return;
+        if (!columns || columns.length===0){
+            showError("No records");
+            return;
+        }
 
         //mainMask.hide();
 
