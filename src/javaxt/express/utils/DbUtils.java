@@ -118,6 +118,18 @@ public class DbUtils {
             try (Connection conn = database.getConnection()){
                 conn.execute("CREATE domain IF NOT EXISTS text AS varchar");
                 conn.execute("CREATE domain IF NOT EXISTS jsonb AS varchar");
+
+                /*
+              //If H2 GIS is not present, we need something like this for
+              //models with geometry types
+                conn.execute("CREATE ALIAS ST_AsText AS '\n" +
+                "String geomAsText(org.h2.value.Value value) {\n" +
+                "    return value.toString();\n" +
+                "}\n" +
+                "';");
+                */
+
+
                 schemaInitialized = initSchema(arr, conn);
             }
             catch(Exception e){
@@ -1172,21 +1184,31 @@ public class DbUtils {
   //**************************************************************************
   //** getJson
   //**************************************************************************
-  /** Returns a JSON representation of a record in a Recordset. Note that the
-   *  column names are represented using camel case.
+  /** Returns a JSON representation of a record in a Recordset. Column names
+   *  are used as keys and the corresponding value is used as the value.
+   *  Note that the column names are represented using camel case. If there
+   *  are duplicate column names in the Recordset (e.g. "select user.id,
+   *  contact.id from ...") the first column name and value is used (e.g.
+   *  "user.id" column).
    */
     public static JSONObject getJson(Recordset rs){
         return getJson(rs.getFields());
     }
+
     public static JSONObject getJson(javaxt.sql.Record record){
         return getJson(record.getFields());
     }
+    
     public static JSONObject getJson(javaxt.sql.Field[] fields){
         JSONObject json = new JSONObject();
+        HashSet<String> fieldNames = new HashSet<>();
         for (javaxt.sql.Field field : fields){
 
             String fieldName = field.getName().toLowerCase();
             fieldName = StringUtils.underscoreToCamelCase(fieldName);
+
+            if (fieldNames.contains(fieldName)) continue;
+            fieldNames.add(fieldName);
 
             JSONObject f = field.toJson();
             json.set(fieldName, f.get("value"));
