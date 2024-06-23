@@ -176,7 +176,7 @@ public abstract class WebService {
                     if (Modifier.isPrivate(m.getModifiers())) continue;
 
                     if (m.getReturnType().equals(ServiceResponse.class)){
-                        
+
                         Class<?>[] params = m.getParameterTypes();
                         if (params.length>0){
                             if (ServiceRequest.class.isAssignableFrom(params[0])){
@@ -486,25 +486,57 @@ public abstract class WebService {
                     while (rs.next()){
                         if (x>0) csv.append("\r\n");
 
+
+                      //Add header row as needed
                         if (x==0){
                             int i = 0;
+                            HashSet<String> fieldNames = new HashSet<>();
                             for (javaxt.sql.Field field : rs.getFields()){
+                                String fieldName = field.getName().toLowerCase();
+
+                                if (fieldNames.contains(fieldName)) continue;
+                                fieldNames.add(fieldName);
+
                                 if (i>0) csv.append(",");
-                                csv.append(field.getName());
+                                csv.append(fieldName);
                                 i++;
                             }
                             csv.append("\r\n");
                         }
 
+
+                      //Add data row
                         int i = 0;
+                        HashSet<String> fieldNames = new HashSet<>();
                         for (javaxt.sql.Field field : rs.getFields()){
+                            String fieldName = field.getName().toLowerCase();
+
+                            if (fieldNames.contains(fieldName)) continue;
+                            fieldNames.add(fieldName);
+
                             if (i>0) csv.append(",");
                             javaxt.sql.Value value = field.getValue();
+
                             if (!value.isNull()){
                                 String val = value.toString();
-                                if (val.contains("\"")) val = "\"" + val + "\"";
+
+
+                              //Update spatial data as needed
+                                fieldName = StringUtils.underscoreToCamelCase(fieldName);
+                                if (spatialFields.contains(fieldName)){
+                                    if (database.getDriver().equals("PostgreSQL")){
+                                        val = createGeom(val.toString()).toString();
+                                    }
+                                }
+
+
+                                if (val.contains("\"") || val.contains(",")){
+                                    val = "\"" + val + "\"";
+                                }
+
                                 csv.append(val);
                             }
+
                             i++;
                         }
 
@@ -518,18 +550,32 @@ public abstract class WebService {
 
                 }
                 else if (format.equals("json")){
-
-                    StringBuilder json = new StringBuilder("[");
+                    StringBuilder arr = new StringBuilder("[");
 
                     long x = 0;
                     while (rs.next()){
-                        if (x>0) json.append(",");
-                        json.append(DbUtils.getJson(rs));
+                        JSONObject json = DbUtils.getJson(rs);
+
+                      //Update spatial data as needed
+                        for (String fieldName : json.keySet()){
+                            JSONValue val = json.get(fieldName);
+                            if (!val.isNull()){
+                                if (spatialFields.contains(fieldName)){
+                                    if (database.getDriver().equals("PostgreSQL")){
+                                        val = new JSONValue(createGeom(val.toString()));
+                                        json.set(fieldName, val);
+                                    }
+                                }
+                            }
+                        }
+
+                        if (x>0) arr.append(",");
+                        arr.append(json);
                         x++;
                     }
-                    json.append("]");
+                    arr.append("]");
 
-                    response = new ServiceResponse(json.toString());
+                    response = new ServiceResponse(arr.toString());
                     response.setContentType("application/json");
 
                 }
@@ -542,13 +588,20 @@ public abstract class WebService {
                     while (rs.next()){
                         JSONArray row = new JSONArray();
 
-                        JSONObject record = DbUtils.getJson(rs);
+                        HashSet<String> fieldNames = new HashSet<>();
                         for (javaxt.sql.Field field : rs.getFields()){
                             String fieldName = field.getName().toLowerCase();
                             fieldName = StringUtils.underscoreToCamelCase(fieldName);
+
+                            if (fieldNames.contains(fieldName)) continue;
+                            fieldNames.add(fieldName);
                             if (x==0) cols.add(fieldName);
 
-                            JSONValue val = record.get(fieldName);
+                            JSONObject f = field.toJson();
+                            JSONValue val = f.get("value");
+
+
+                          //Update spatial data as needed
                             if (!val.isNull()){
                                 if (spatialFields.contains(fieldName)){
                                     if (database.getDriver().equals("PostgreSQL")){
@@ -556,6 +609,7 @@ public abstract class WebService {
                                     }
                                 }
                             }
+
                             row.add(val);
                         }
 
@@ -869,7 +923,7 @@ public abstract class WebService {
   //**************************************************************************
   //** createGeom
   //**************************************************************************
-  /** Used to create a geometry from a EWKT formatted string returned from
+  /** Used to create a JTS Geometry from a EWKT formatted string returned from
    *  PostgreSQL/PostGIS
    */
     public Object createGeom(String hex) throws Exception {
