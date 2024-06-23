@@ -1340,9 +1340,10 @@ public class ServiceRequest {
   //**************************************************************************
   /** Returns a SQL "select" statement for the current request. Compiles the
    *  select statement using an array of Fields returned by the getFields()
-   *  method. If no fields are found in the request, a "select *" statement is
-   *  returned. Otherwise, a select statement is returned, starting with
-   *  "select " for convenience.
+   *  method. Prepends a table name to each field, if given. If no fields are
+   *  found in the request, a "select *" statement is returned. Otherwise, a
+   *  select statement is returned, starting with "select ".
+   *
    *  @param tableName If given, fields that are not functions are prepended
    *  with a table name. This parameter is optional.
    */
@@ -1379,88 +1380,170 @@ public class ServiceRequest {
   //**************************************************************************
   /** Returns a SQL "select" statement for the current request. Compiles the
    *  "select" statement using using an array of Fields returned by the
-   *  getFields() method. If no fields are found in the request, a
-   *  "select *" statement is returned. Otherwise, a select statement is
-   *  returned, starting with "select " for convenience.
+   *  getFields() method. Prepends a table name to each field by mapping
+   *  fields to models.
    *
-   *  @param c Model classes used to identify fields. If a field is matched to
-   *  a model the field name (column name) is prepended with a table name.
-   *  This parameter is optional.
+   *  @param model One or more Model classes used to identify fields. If a
+   *  field is matched to a model the field name (column name) is prepended
+   *  with a table name. Order is important.
    */
-    public String getSelectStatement(Class... c){
-        ArrayList<HashMap<String, Object>> arr = new ArrayList<>();
-        try{
-            for (Class cls : c){
-                if (Model.class.isAssignableFrom(cls)){
-                    try{
-                        arr.add(WebService.getTableAndFields(cls));
-                    }
-                    catch(Exception e){}
-                }
+    public String getSelectStatement(Class... model){
+
+      //Get fields
+        Field[] fields = getFields();
+        if (fields==null) fields = new Field[0];
+
+
+      //Get models
+        ArrayList<Class> models = new ArrayList<>();
+        for (Class cls : model){
+            if (Model.class.isAssignableFrom(cls)){
+                models.add(cls);
+            }
+            else{
+                throw new IllegalArgumentException(
+                cls.getSimpleName() + " is not a javaxt.sql.Model");
             }
         }
-        catch(Exception e){}
-        return "select " + getSelectStatement(arr);
-    }
 
 
-    protected String getSelectStatement(HashMap<String, Object> tablesAndFields){
-        ArrayList<HashMap<String, Object>> arr = new ArrayList<>();
-        arr.add(tablesAndFields);
-        return getSelectStatement(arr);
-    }
+      //If there are no models, call the other getSelectStatement() method
+        if (models.isEmpty()){
+            HashMap<String, Object> tablesAndFields = null;
+            return "select " + getSelectStatement(tablesAndFields);
+        }
 
 
-    private String getSelectStatement(ArrayList<HashMap<String, Object>> tablesAndFields){
-        StringBuilder sql = new StringBuilder();
-        Field[] fields = getFields();
-        if (fields!=null){
-            for (int i=0; i<fields.length; i++){
-                if (i>0) sql.append(", ");
-                Field field = fields[i];
-
-                if (field.isFunction()){
-                    sql.append(field.toString());
+      //Compile "select" statement
+        String[] select = new String[fields.length];
+        ArrayList<String> unmatchedTables = new ArrayList<>();
+        for (Class cls : models){
+            try{
+                int numMatches = 0;
+                HashMap<String, Object> tablesAndFields = WebService.getTableAndFields(cls);
+                String[] selectStatements = getSelectStatements(fields, tablesAndFields);
+                for (int i=0; i<selectStatements.length; i++){
+                    String selectStatement = selectStatements[i];
+                    if (selectStatement==null) continue;
+                    if (select[i]==null){
+                        select[i] = selectStatement;
+                        numMatches++;
+                    }
                 }
-                else{
+
+                if (numMatches==0){
+                    String tableName = (String) tablesAndFields.get("tableName");
+                    unmatchedTables.add(tableName);
+                }
+
+            }
+            catch(Exception e){}
+        }
 
 
-                  //Find table that corresponds to the field
-                    String tableName = null;
-                    if (tablesAndFields!=null){
-                        String col = field.getColumn();
-                        for (HashMap<String, Object> map : tablesAndFields){
-                            HashMap<String, String> fieldMap = (HashMap<String, String>) map.get("fieldMap");
-                            Iterator<String> it = fieldMap.keySet().iterator();
-                            while (it.hasNext()){
-                                String fieldName = it.next();
-                                String columnName = fieldMap.get(fieldName);
-                                if (col.equalsIgnoreCase(fieldName) || col.equalsIgnoreCase(columnName)){
-                                    tableName = (String) map.get("tableName");
-                                    break;
-                                }
-                            }
-                            if (tableName!=null) break;
+
+        StringBuilder sql = new StringBuilder();
+        for (String s : select){
+            if (s==null) continue;
+            if (sql.length()>0) sql.append(", ");
+            sql.append(s);
+        }
+
+
+        if (sql.length()==0){
+            if (models.size()>1){
+                for (String tableName : unmatchedTables){
+                    if (sql.length()>0) sql.append(", ");
+                    sql.append(tableName + ".*");
+                }
+                return "select " + sql.toString();
+            }
+            else{
+                return "select *";
+            }
+        }
+        else{
+            return "select " + sql.toString();
+        }
+    }
+
+
+  //**************************************************************************
+  //** getSelectStatement
+  //**************************************************************************
+    protected String getSelectStatement(HashMap<String, Object> tablesAndFields){
+        StringBuilder sql = new StringBuilder();
+        for (String select : getSelectStatements(getFields(), tablesAndFields)){
+            if (select==null) continue;
+            if (sql.length()>0) sql.append(", ");
+            sql.append(select);
+        }
+        if (sql.length()==0) return "*";
+        else return sql.toString();
+    }
+
+
+  //**************************************************************************
+  //** getSelectStatements
+  //**************************************************************************
+  /** Used to match fields to columns in the database. Returns an array with
+   *  the exact same size as the given fields array. Note that entries in the
+   *  array may contain null values, indicating that the field was not mapped.
+   */
+    private String[] getSelectStatements(Field[] fields, HashMap<String, Object> tablesAndFields){
+        if (fields==null || fields.length==0) return new String[0];
+
+        String[] select = new String[fields.length];
+        for (int i=0; i<fields.length; i++){
+            Field field = fields[i];
+
+            if (field.isFunction()){
+                select[i] = field.toString();
+            }
+            else{
+
+
+              //Find table that corresponds to the field
+                String tableName = null;
+                if (tablesAndFields!=null){
+                    String col = field.getColumn();
+
+                    HashMap<String, String> fieldMap = (HashMap<String, String>) tablesAndFields.get("fieldMap");
+                    Iterator<String> it = fieldMap.keySet().iterator();
+                    while (it.hasNext()){
+                        String fieldName = it.next();
+                        String columnName = fieldMap.get(fieldName);
+                        if (col.equalsIgnoreCase(fieldName) || col.equalsIgnoreCase(columnName)){
+                            tableName = (String) tablesAndFields.get("tableName");
+                            break;
                         }
                     }
 
 
 
-                  //Add field, along with the table name and alias
-                    if (tableName!=null && !tableName.isEmpty()){
-                        sql.append(tableName + ".");
-                    }
-                    sql.append(StringUtils.camelCaseToUnderScore(field.getColumn()));
-                    String alias = field.getAlias();
-                    if (alias!=null && !alias.isBlank()){
-                        sql.append(" as ");
-                        sql.append(alias.trim());
-                    }
+                  //If tablesAndFields are given, yet we can't find a table for
+                  //the field, and field is not a function, is it a valid field?
+                    if (tableName==null) continue;
                 }
+
+
+
+              //Add field, along with the table name and alias
+                StringBuilder sql = new StringBuilder();
+                if (tableName!=null && !tableName.isEmpty()){
+                    sql.append(tableName + ".");
+                }
+                sql.append(StringUtils.camelCaseToUnderScore(field.getColumn()));
+                String alias = field.getAlias();
+                if (alias!=null && !alias.isBlank()){
+                    sql.append(" as ");
+                    sql.append(alias.trim());
+                }
+                select[i] = sql.toString();
             }
         }
-        if (sql.length()==0) sql.append("*");
-        return sql.toString();
+
+        return select;
     }
 
 
