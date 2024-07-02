@@ -186,7 +186,8 @@ javaxt.express.app.Horizon = function(parent, config) {
       //Set global configuration variables
         if (!config.fx) config.fx = new javaxt.dhtml.Effects();
 
-        if (!config.waitmask) config.waitmask = new javaxt.express.WaitMask(document.body);
+        if (!config.waitmask || !config.waitmask.el.parentNode)
+        config.waitmask = new javaxt.express.WaitMask(document.body);
         waitmask = config.waitmask;
 
 
@@ -244,21 +245,8 @@ javaxt.express.app.Horizon = function(parent, config) {
         document.title = config.name;
 
 
-      //Add tabs
-        if (tabs){
-            if (isArray(tabs)){
-                tabs.forEach((tab)=>{
-                    addTab(tab.name, tab.cls);
-                });
-            }
-            else{
-                for (var key in tabs) {
-                    if (tabs.hasOwnProperty(key)){
-                        addTab(key, tabs[key]);
-                    }
-                }
-            }
-        }
+      //Update tabs
+        updateTabs(tabs);
 
 
       //Update user
@@ -449,7 +437,7 @@ javaxt.express.app.Horizon = function(parent, config) {
                 var tab = tabs[key];
                 if (tab.isVisible()){
                     if (tab.className==="active"){
-                        currTab = tab;
+                        currTab = key;
                     }
                     if (key.toLowerCase()===t){
                         requestedTab = tab;
@@ -489,7 +477,8 @@ javaxt.express.app.Horizon = function(parent, config) {
                     tabs[currTab].click();
                 }
                 else{
-                    Object.values(tabs)[0].click();
+                    var tab = Object.values(tabs)[0];
+                    if (tab) tab.click();
                 }
             }
 
@@ -531,6 +520,7 @@ javaxt.express.app.Horizon = function(parent, config) {
                 }
                 else{
                     confirm({
+                        width: 515,
                         title: "Update Available",
                         text: "An update is available for this application. " +
                         "Would you like to update now?",
@@ -590,9 +580,75 @@ javaxt.express.app.Horizon = function(parent, config) {
 
 
   //**************************************************************************
-  //** addTab
+  //** updateTabs
   //**************************************************************************
-    var addTab = function(label, className){
+    var updateTabs = function(obj){
+
+      //Generate a list of tabs to render in the tabbar
+        var newTabs = {};
+        if (obj){
+            if (isArray(obj)){
+                obj.forEach((tab)=>{
+                    newTabs[tab.name] = tab.cls;
+                });
+            }
+            else{
+                newTabs = obj;
+            }
+        }
+
+
+      //Remove any existing tabs from the tabbar
+        var activeTab;
+        for (var key in tabs) {
+            if (tabs.hasOwnProperty(key)){
+                var tab = tabs[key];
+                if (tab.parentNode) tabbar.removeChild(tab);
+                if (tab.className==="active"){
+                    activeTab = key;
+                }
+            }
+        }
+
+
+      //Update tabbar
+        for (var key in newTabs) {
+            if (newTabs.hasOwnProperty(key)){
+                if (tabs[key]){
+                    var tab = tabs[key];
+                    tabbar.appendChild(tab);
+                    tab.show();
+                }
+                else{
+                    createTab(key, newTabs[key]);
+                }
+            }
+        }
+
+
+
+      //Raise previously active tab
+        if (activeTab){
+            if (newTabs[activeTab]){
+                tabs[activeTab].className="active";
+                var panel = panels[activeTab];
+                if (panel) panel.show();
+            }
+            else{
+                tabs[activeTab].className="";
+                var panel = panels[activeTab];
+                if (panel) panel.hide();
+            }
+        }
+    };
+
+
+  //**************************************************************************
+  //** createTab
+  //**************************************************************************
+    var createTab = function(label, className){
+        if (tabs[label]) return;
+
         var tab = createElement("div", tabbar);
         tab.innerText = label;
 
