@@ -1606,7 +1606,7 @@ public class ServiceRequest {
                   //Check if the column name is a function
                     Field[] fields = getFields(name);
                     Field field = null;
-                    if (fields!=null){
+                    if (fields!=null && fields.length>0){
                         field = fields[0];
                         if (field.isFunction()){
                             arr.add("(" + item.toString() + ")");
