@@ -50,6 +50,20 @@ public class ServiceRequest {
     };
 
 
+    private Map<String, String> keywords = Map.ofEntries(
+        Map.entry("fields", "fields"),
+        Map.entry("orderby", "orderby"),
+        Map.entry("limit", "limit"),
+        Map.entry("offset", "offset"),
+
+      //Legacy - may be removed in the future
+        Map.entry("filter", "filter"),
+        Map.entry("count", "count"),
+        Map.entry("where", "where"),
+        Map.entry("page", "page")
+    );
+
+
   //**************************************************************************
   //** Constructor
   //**************************************************************************
@@ -453,9 +467,9 @@ public class ServiceRequest {
   //** updateOffsetLimit
   //**************************************************************************
     private void updateOffsetLimit(){
-        offset = getParameter("offset").toLong();
-        limit = getParameter("limit").toLong();
-        Long page = getParameter("page").toLong();
+        offset = getParameter(getKeyword("offset")).toLong();
+        limit = getParameter(getKeyword("limit")).toLong();
+        Long page = getParameter(getKeyword("page")).toLong();
         if (offset==null && page!=null){
             if (limit==null) limit = 25L;
             offset = (page*limit)-limit;
@@ -653,7 +667,7 @@ public class ServiceRequest {
    */
     public Field[] getFields(){
         if (fields!=null) return fields;
-        String fields = getParameter("fields").toString();
+        String fields = getParameter(getKeyword("fields")).toString();
 
 
       //If fields are empty, simply return an ampty array
@@ -779,9 +793,9 @@ public class ServiceRequest {
 
       //Parse querystring
         LinkedHashMap<String, javaxt.utils.Value> params = new LinkedHashMap<>();
-        if (hasParameter("filter")){
+        if (hasParameter(getKeyword("filter"))){
 
-            String str = getParameter("filter").toString();
+            String str = getParameter(getKeyword("filter")).toString();
             if (str.startsWith("{") && str.endsWith("}")){
                 JSONObject json = new JSONObject(str);
                 for (String key : json.keySet()){
@@ -807,10 +821,13 @@ public class ServiceRequest {
 
       //Create filter
         filter = new Filter();
+        HashSet<String> reservedKeywords = getKeywords();
         Iterator<String> it = params.keySet().iterator();
         while (it.hasNext()){
             String key = it.next().trim();
             if (key.isEmpty()) continue;
+            if (key.equals("_")) continue;
+            if (reservedKeywords.contains(key.toLowerCase())) continue;
 
 
           //Parse val
@@ -992,7 +1009,7 @@ public class ServiceRequest {
   /** Returns the value for the "where" parameter in the HTTP request.
    */
     public String getWhere(){
-        return getParameter("where").toString();
+        return getParameter(getKeyword("where")).toString();
     }
 
 
@@ -1010,7 +1027,7 @@ public class ServiceRequest {
         if (sort!=null) return sort;
 
         LinkedHashMap<String, String> fields = new LinkedHashMap<>();
-        String orderBy = getParameter("orderby").toString();
+        String orderBy = getParameter(getKeyword("orderby")).toString();
 
 
         if (orderBy!=null){
@@ -1053,6 +1070,53 @@ public class ServiceRequest {
 
         sort = new Sort(fields);
         return sort;
+    }
+
+
+  //**************************************************************************
+  //** getKeywords
+  //**************************************************************************
+  /** Returns a copy of all the keywords used to identify parameters (e.g.
+   *  "fields", "orderby", "offset", "limit", etc)
+   */
+    public HashSet<String> getKeywords(){
+        HashSet<String> reservedKeywords = new HashSet<>();
+        for (String key : keywords.keySet()){
+            reservedKeywords.add(getKeyword(key).toLowerCase());
+        }
+        return reservedKeywords;
+    }
+
+
+  //**************************************************************************
+  //** setKeyword
+  //**************************************************************************
+  /** Used to add or update an entry in the keyword map. For example, the
+   *  default keyword used to identify fields in the getFields() method is
+   *  "fields" and the default keyword used to identify sorting in getSort()
+   *  if "orderby". This method provides a mechanism for overridding these
+   *  defaults. For example, suppose in your application you wish to use
+   *  "columns" instead of "fields" for the getFields() method. You would set
+   *  the keyword to "columns" and type to "fields".
+   *  @param keyword A parameter keyword.
+   *  @param type What the given parameter should map to (e.g. "fields")
+   */
+    public void setKeyword(String keyword, String type){
+        if (keyword==null) return;
+        keyword = keyword.trim();
+        if (keyword.isEmpty()) return;
+        keywords.put(type.toLowerCase(), keyword.toLowerCase());
+    }
+
+
+  //**************************************************************************
+  //** getKeyword
+  //**************************************************************************
+  /** Returns a keyword for a given type (see setKeyword for more information)
+   */
+    public String getKeyword(String type){
+        if (type==null) return null;
+        return keywords.get(type.toLowerCase());
     }
 
 
