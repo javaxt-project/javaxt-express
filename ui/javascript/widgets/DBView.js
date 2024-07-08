@@ -5,9 +5,14 @@ if(!javaxt.express) javaxt.express={};
 //**  DBView
 //******************************************************************************
 /**
- *   Panel used to execute queries and view results in a grid. This widget is
- *   designed to work with REST services provided by implementations of the
- *   javaxt.express.services.QueryService class.
+ *   Component used to compile queries and view results in a table. The
+ *   component consists of three elements: a list of tables on the left, a
+ *   query editor in the center, and a table/grid on the bottom (below the
+ *   editor). Queries are executed on the server via REST web services. The
+ *   queries are queued by the server and executed asynchronously. The server
+ *   provides web methods to submit jobs, check job status, and pick up
+ *   completed jobs. See the javaxt.express.services.QueryService class for
+ *   more information.
  *
  ******************************************************************************/
 
@@ -242,6 +247,9 @@ javaxt.express.DBView = function(parent, config) {
   //**************************************************************************
   //** setQuery
   //**************************************************************************
+  /** Used to update the query in the query editor. Will clear records in the
+   *  table from any previous query.
+   */
     this.setQuery = function(query){
         if (query){
             if (query===editor.getValue()){
@@ -261,6 +269,8 @@ javaxt.express.DBView = function(parent, config) {
   //**************************************************************************
   //** getQuery
   //**************************************************************************
+  /** Returns text from the query editor
+   */
     this.getQuery = function(){
         return editor.getValue();
     };
@@ -269,6 +279,9 @@ javaxt.express.DBView = function(parent, config) {
   //**************************************************************************
   //** executeQuery
   //**************************************************************************
+  /** Used to execute a query by submitting whatever is in the query editor to
+   *  the server. Note that there is no client-side validation.
+   */
     this.executeQuery = function(){
 
       //Cancel current query (if running)
@@ -305,6 +318,8 @@ javaxt.express.DBView = function(parent, config) {
   //**************************************************************************
   //** clear
   //**************************************************************************
+  /** Used to remove text from the query editor and clear the results table.
+   */
     this.clear = function(){
         editor.setValue("");
         me.clearResults();
@@ -314,10 +329,15 @@ javaxt.express.DBView = function(parent, config) {
   //**************************************************************************
   //** clearResults
   //**************************************************************************
+  /** Used to clear the results table.
+   */
     this.clearResults = function(){
         if (grid){
-            grid.clear();
-            destroy(grid);
+            try{
+                grid.clear();
+                destroy(grid);
+            }
+            catch(e){}
         }
         gridContainer.innerHTML = "";
     };
@@ -326,7 +346,14 @@ javaxt.express.DBView = function(parent, config) {
   //**************************************************************************
   //** getComponents
   //**************************************************************************
-  /** Returns a handle to individual components of this view
+  /** Returns a json object with individual components that make up this
+   *  component.
+   *  <ul>
+   *  <li>tree: javaxt.dhtml.Tree used to render table names</li>
+   *  <li>grid: javaxt.dhtml.DataGrid used to render query results</li>
+   *  <li>editor: the component used edit queries</li>
+   *  <li>toolbar: DOM object (table) with buttons</li>
+   *  </ul>
    */
     this.getComponents = function(){
         return {
