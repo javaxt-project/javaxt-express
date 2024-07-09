@@ -440,7 +440,7 @@ javaxt.express.app.Horizon = function(parent, config) {
                         currTab = key;
                     }
                     if (key.toLowerCase()===t){
-                        requestedTab = tab;
+                        requestedTab = key;
                     }
                 }
             }
@@ -452,21 +452,26 @@ javaxt.express.app.Horizon = function(parent, config) {
         user.preferences = new javaxt.express.UserPreferences(()=>{
 
 
-          //Click on a tab
+          //Raise tab
             if (requestedTab){
 
-              //Click on the requested tab
-                requestedTab.click();
-
-
               //Remove tab parameter from the url
-                var state = window.history.state;
-                if (!state) state = {};
                 var url = window.location.href;
                 url = url.replace("tab="+getParameter("tab"),"");
                 if (url.lastIndexOf("&")===url.length-1) url = url.substring(0, url.length-1);
                 if (url.lastIndexOf("?")===url.length-1) url = url.substring(0, url.length-1);
-                history.replaceState(state, document.title, url);
+
+
+              //Update history
+                updateHistory({
+                    title: config.name + " - " + requestedTab,
+                    tab: requestedTab,
+                    url: url
+                });
+
+
+              //Raise the tab
+                tabs[requestedTab].raise();
 
             }
             else{
@@ -474,11 +479,30 @@ javaxt.express.app.Horizon = function(parent, config) {
               //Click on user's last tab
                 if (!currTab) currTab = user.preferences.get("Tab");
                 if (currTab && tabs[currTab]){
-                    tabs[currTab].click();
+
+                    updateHistory({
+                        title: config.name + " - " + currTab,
+                        tab: currTab
+                    });
+
+                    tabs[currTab].raise();
                 }
                 else{
-                    var tab = Object.values(tabs)[0];
-                    if (tab) tab.click();
+
+                    for (var tabLabel in tabs) {
+                        if (tabs.hasOwnProperty(tabLabel)){
+
+                            updateHistory({
+                                title: config.name + " - " + tabLabel,
+                                tab: tabLabel
+                            });
+
+                            tabs[tabLabel].raise();
+
+                            break;
+                        }
+                    }
+
                 }
             }
 
@@ -717,18 +741,11 @@ javaxt.express.app.Horizon = function(parent, config) {
             if (this.className==="active") return;
 
           //Update history. Do this BEFORE raising the tab so that whatever
-          //history the tab panel has happens AFTER the tab change event.
-            var state = window.history.state;
-            if (state==null) state = {};
-            state[me.className] = {
-                tab: label,
-                lastUpdate: {
-                    date: new Date().getTime(),
-                    event: "pushState"
-                }
-            };
-            var url = "";
-            history.pushState(state, document.title, url);
+          //history the tab panel wants to modify happens AFTER the tab change.
+            addHistory({
+                title: config.name + " - " + label,
+                tab: label
+            });
 
 
           //Raise the tab
@@ -737,6 +754,56 @@ javaxt.express.app.Horizon = function(parent, config) {
 
         tabs[label] = tab;
         addShowHide(tab);
+    };
+
+
+  //**************************************************************************
+  //** addHistory
+  //**************************************************************************
+    var addHistory = function(params){
+        updateState(params, false);
+    };
+
+
+  //**************************************************************************
+  //** updateHistory
+  //**************************************************************************
+    var updateHistory = function(params){
+        updateState(params, true);
+    };
+
+
+  //**************************************************************************
+  //** updateState
+  //**************************************************************************
+    var updateState = function(params, replace){
+
+        var title = params.title;
+        if (!title) title = document.title;
+
+        var url = "";
+        if (params.url){
+            url = params.url;
+            delete params.url;
+        }
+
+        var state = window.history.state;
+        if (!state) state = {};
+
+        state[me.className] = params;
+        state[me.className].lastUpdate = {
+            date: new Date().getTime(),
+            event: replace ? "replaceState" : "pushState"
+        };
+
+        if (replace){
+            document.title = title;
+            history.replaceState(state, title, url);
+        }
+        else{
+            history.pushState(state, title, url);
+            document.title = title;
+        }
     };
 
 
@@ -1040,6 +1107,7 @@ javaxt.express.app.Horizon = function(parent, config) {
         var url = window.location.href;
         var idx = url.indexOf("?");
         if (idx>-1) url = url.substring(0, idx);
+        document.title = config.name;
         history.replaceState(state, config.name, url);
 
 
