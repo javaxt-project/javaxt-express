@@ -326,6 +326,21 @@ javaxt.express.app.Horizon = function(parent, config) {
 
 
   //**************************************************************************
+  //** beforeTabChange
+  //**************************************************************************
+  /** Called immediately before a tab is raised in the tab bar.
+   *  @param currTab Object representing the current tab. Example:
+   *  <ul>
+   *  <li>name: Name/label of the tab (String)</li>
+   *  <li>tab: Tab in the tab bar (DOM Object)</li>
+   *  <li>panel: The panel that is rendered in the body (Object)</li>
+   *  </ul>
+   *  @param nextTab Object representing the tab that will be raised.
+   */
+    this.beforeTabChange = function(currTab, nextTab){};
+
+
+  //**************************************************************************
   //** onTabChange
   //**************************************************************************
   /** Called whenever a tab is raised in the tab bar.
@@ -463,7 +478,7 @@ javaxt.express.app.Horizon = function(parent, config) {
 
 
               //Update history
-                updateHistory({
+                me.updateHistory({
                     title: config.name + " - " + requestedTab,
                     tab: requestedTab,
                     url: url
@@ -480,7 +495,7 @@ javaxt.express.app.Horizon = function(parent, config) {
                 if (!currTab) currTab = user.preferences.get("Tab");
                 if (currTab && tabs[currTab]){
 
-                    updateHistory({
+                    me.updateHistory({
                         title: config.name + " - " + currTab,
                         tab: currTab
                     });
@@ -492,7 +507,7 @@ javaxt.express.app.Horizon = function(parent, config) {
                     for (var tabLabel in tabs) {
                         if (tabs.hasOwnProperty(tabLabel)){
 
-                            updateHistory({
+                            me.updateHistory({
                                 title: config.name + " - " + tabLabel,
                                 tab: tabLabel
                             });
@@ -740,9 +755,33 @@ javaxt.express.app.Horizon = function(parent, config) {
         tab.onclick = function(){
             if (this.className==="active") return;
 
+
+            var currTab;
+            for (var i=0; i<tabbar.childNodes.length; i++){
+                var t = tabbar.childNodes[i];
+                if (t.className==="active"){
+
+                    var l = t.innerText;
+                    currTab = {
+                        name: l,
+                        tab: t,
+                        panel: panels[l]
+                    };
+                    break;
+                }
+            }
+
+            me.beforeTabChange(currTab, {
+                name: label,
+                tab: this,
+                panel: panels[label]
+            });
+
+
+
           //Update history. Do this BEFORE raising the tab so that whatever
           //history the tab panel wants to modify happens AFTER the tab change.
-            addHistory({
+            me.addHistory({
                 title: config.name + " - " + label,
                 tab: label
             });
@@ -760,7 +799,7 @@ javaxt.express.app.Horizon = function(parent, config) {
   //**************************************************************************
   //** addHistory
   //**************************************************************************
-    var addHistory = function(params){
+    this.addHistory = function(params){
         updateState(params, false);
     };
 
@@ -768,7 +807,7 @@ javaxt.express.app.Horizon = function(parent, config) {
   //**************************************************************************
   //** updateHistory
   //**************************************************************************
-    var updateHistory = function(params){
+    this.updateHistory = function(params){
         updateState(params, true);
     };
 
