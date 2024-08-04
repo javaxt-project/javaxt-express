@@ -113,6 +113,16 @@ javaxt.express.app.Horizon = function(parent, config) {
         },
 
 
+      /** Map of keywords
+       */
+        keywords: {
+
+          /** URL parameter used to indicate a preferred tab to raise
+           */
+            requestedTab: "tab"
+        },
+
+
       /** Used to define the maximum idle time for a user before calling
        *  logoff(). Units are in milliseconds. Default is false (i.e. no
        *  auto-logoff).
@@ -326,6 +336,50 @@ javaxt.express.app.Horizon = function(parent, config) {
 
 
   //**************************************************************************
+  //** getTabs
+  //**************************************************************************
+  /** Returns an array of tabs. Each entry includes:
+   *  <ul>
+   *  <li>name: Name/label of the tab (String)</li>
+   *  <li>tab: Tab in the tab bar (DOM Object)</li>
+   *  <li>panel: The panel that is rendered in the body (Object). Note that
+   *  the panel might be null/undefined if it has never been raised. This is
+   *  because panels are only instantiated if a user clicks on a tab.
+   *  </li>
+   *  </ul>
+   */
+    this.getTabs = function(){
+        var arr = [];
+        for (var key in tabs) {
+            if (tabs.hasOwnProperty(key)){
+                arr.push({
+                    name: key,
+                    tab: tabs[key],
+                    panel: panels[key]
+                });
+            }
+        }
+        return arr;
+    };
+
+
+  //**************************************************************************
+  //** getTab
+  //**************************************************************************
+  /** Returns an individual tab for a given label.
+   */
+    this.getTab = function(name){
+        var tab = tabs[name];
+        if (!tab) return null;
+        return {
+            name: name,
+            tab: tab,
+            panel: panels[name]
+        };
+    };
+
+
+  //**************************************************************************
   //** beforeTabChange
   //**************************************************************************
   /** Called immediately before a tab is raised in the tab bar.
@@ -446,7 +500,7 @@ javaxt.express.app.Horizon = function(parent, config) {
 
       //Get active and requested tab
         var currTab, requestedTab;
-        var t = getParameter("tab").toLowerCase();
+        var t = getParameter(config.keywords.requestedTab).toLowerCase();
         for (var key in tabs) {
             if (tabs.hasOwnProperty(key)){
                 var tab = tabs[key];
@@ -472,7 +526,7 @@ javaxt.express.app.Horizon = function(parent, config) {
 
               //Remove tab parameter from the url
                 var url = window.location.href;
-                url = url.replace("tab="+getParameter("tab"),"");
+                url = url.replace("tab="+getParameter(config.keywords.requestedTab),"");
                 if (url.lastIndexOf("&")===url.length-1) url = url.substring(0, url.length-1);
                 if (url.lastIndexOf("?")===url.length-1) url = url.substring(0, url.length-1);
 
@@ -875,6 +929,25 @@ javaxt.express.app.Horizon = function(parent, config) {
 
         if (e.state[me.className]){
             var label = e.state[me.className].tab;
+
+          //Check if the label matches the requested tab in the url
+            var t = getParameter(config.keywords.requestedTab).toLowerCase();
+            if (t && t.length>0){
+                if (t!==label.toLowerCase()){
+                    for (var key in tabs) {
+                        if (tabs.hasOwnProperty(key)){
+                            var tab = tabs[key];
+                            if (tab.isVisible()){
+                                if (key.toLowerCase()===t){
+                                    label = key;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             var tab = tabs[label];
             if (tab) tab.raise();
         }
