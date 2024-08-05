@@ -56,9 +56,12 @@ public class ServiceRequest {
         Map.entry("limit", "limit"),
         Map.entry("offset", "offset"),
 
+      //Used by the list method in the WebService class
+        Map.entry("format", "format"),
+        Map.entry("count", "count"),
+
       //Legacy - may be removed in the future
         Map.entry("filter", "filter"),
-        Map.entry("count", "count"),
         Map.entry("where", "where"),
         Map.entry("page", "page")
     );
@@ -422,7 +425,9 @@ public class ServiceRequest {
 
           //Update offset and limit as needed
             String k = key.toLowerCase();
-            if (k.equals("offset") || k.equals("limit") || k.equals("page")){
+            if (k.equals(getKeyword("offset")) ||
+                k.equals(getKeyword("limit")) ||
+                k.equals(getKeyword("page"))){
                 updateOffsetLimit();
             }
         }
@@ -498,6 +503,30 @@ public class ServiceRequest {
    */
     public Long getLimit(){
         return limit;
+    }
+
+
+  //**************************************************************************
+  //** getFormat
+  //**************************************************************************
+  /** Returns the value of the "format" parameter in the request.
+   */
+    protected String getFormat(){
+        String format = getParameter(getKeyword("format")).toString();
+        if (format==null) return "";
+        else return format.toLowerCase();
+    }
+
+
+  //**************************************************************************
+  //** getCount
+  //**************************************************************************
+  /** Returns the value of the "count" parameter in the request.
+   */
+    protected boolean getCount(){
+        Boolean count = getParameter(getKeyword("count")).toBoolean();
+        if (count==null) return false;
+        else return count;
     }
 
 
