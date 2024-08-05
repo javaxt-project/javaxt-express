@@ -469,8 +469,7 @@ public abstract class WebService {
 
 
       //Get output format
-        String format = request.getParameter("format").toString();
-        if (format==null) format = ""; else format = format.toLowerCase();
+        String format = request.getFormat();
 
 
       //Excute query and generate response
@@ -621,12 +620,25 @@ public abstract class WebService {
                     json.append("]");
 
 
+                  //Append columns
                     json.append(",\"cols\":");
                     json.append(cols.toString());
+
+
+                  //Append count as needed
+                    if (request.getCount()){
+                        rs.close();
+                        Record r = conn.getRecord("select count(id) from " +
+                        tableName + (where==null ? "" : " where " + where));
+                        if (r!=null){
+                            json.append(",\"count\":");
+                            json.append(r.get(0).toLong());
+                        }
+                    }
+
                     json.append("}");
                     response = new ServiceResponse(json.toString());
                     response.setContentType("application/json");
-
                 }
 
                 return response;
