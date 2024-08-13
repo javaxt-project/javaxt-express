@@ -110,13 +110,15 @@ public class CSV {
   //**************************************************************************
   //** readLine
   //**************************************************************************
-  /** Returns a substring for the given data, ending at the first line break
-   *  that is not inside a quote. Example usage:
+  /** Returns a row of data from an InputStream. This method will read
+   *  characters one at a time until it reaches a line break that is not
+   *  inside a double quote. Depending on the source of the InputStream, this
+   *  method may be significantly slower than the other readLine() method that
+   *  uses a BufferedReader. Example usage:
     <pre>
 
-      //Get input stream
-        javaxt.io.File file; //create file!
-        java.io.InputStream is = file.getInputStream();
+      //Create an input stream
+        java.io.InputStream is = ...
 
       //Read header
         String header = CSV.readLine(is);
@@ -130,16 +132,66 @@ public class CSV {
             console.log(row);
         }
 
-      //Close input stream
-        is.close();
     </pre>
    */
     public static String readLine(java.io.InputStream is) throws java.io.IOException {
 
         StringBuilder str = new StringBuilder();
         boolean insideDoubleQuotes = false;
-        int i = 0;
+        int i;
         while((i=is.read())!=-1) {
+            char c = (char) i;
+
+            if ((c=='\r' || c=='\n') && str.length()==0) continue;
+
+            if (c=='"'){
+                if (insideDoubleQuotes) insideDoubleQuotes = false;
+                else insideDoubleQuotes = true;
+            }
+
+            if (c=='\r' || c=='\n'){
+                if (!insideDoubleQuotes) break;
+            }
+            str.append(c);
+        }
+        return str.toString();
+    }
+
+
+  //**************************************************************************
+  //** readLine
+  //**************************************************************************
+  /** Returns a row of data from a BufferedReader. Unlike the BufferedReader
+   *  readLine() method, this method will not stop at line breaks inside a
+   *  double quote. Note that a BufferedReader is significantly faster than
+   *  an InputStream when reading files. Example usage:
+    <pre>
+
+      //Open input stream from an javaxt.io.File
+        try (java.io.BufferedReader is = file.getBufferedReader("UTF-8)){
+
+          //Read header
+            String header = CSV.readLine(is);
+            int bom = CSV.getByteOrderMark(header);
+            if (bom>-1) header = header.substring(bom);
+            console.log(header);
+
+          //Read rows
+            String row;
+            while (!(row=CSV.readLine(is)).isEmpty()){
+                console.log(row);
+            }
+
+        }
+    </pre>
+   */
+    public static String readLine(java.io.BufferedReader reader) throws java.io.IOException {
+
+        StringBuilder str = new StringBuilder();
+        boolean insideDoubleQuotes = false;
+        int i;
+
+        while((i=reader.read())!=-1) {
             char c = (char) i;
 
             if ((c=='\r' || c=='\n') && str.length()==0) continue;
