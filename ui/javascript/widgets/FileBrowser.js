@@ -13,18 +13,6 @@ javaxt.express.FileBrowser = function(parent, config) {
     this.className = "javaxt.express.FileBrowser";
 
     var me = this;
-    var win, grid, addressBar;
-    var button = {};
-
-    var params = {};
-    var history = [];
-
-    var currDir;
-    var pathSeparator = "\\"; //updated dynamically using response from fileService
-    var totalCount = 0;
-    var totalSize = 0;
-
-
     var defaultConfig = {
 
       //Service config
@@ -154,6 +142,21 @@ javaxt.express.FileBrowser = function(parent, config) {
     };
 
 
+    var win, grid, addressBar;
+    var button = {};
+
+    var params = {};
+    var history = [];
+
+    var currDir;
+    var pathSeparator = "\\"; //updated dynamically using response from fileService
+    var totalCount = 0;
+    var totalSize = 0;
+
+    var waitmask;
+
+
+
   //**************************************************************************
   //** Constructor
   //**************************************************************************
@@ -173,9 +176,22 @@ javaxt.express.FileBrowser = function(parent, config) {
         config = merge(config, defaultConfig);
 
 
+      //Create main div
+        var mainDiv = createElement("div", {
+            width: "100%",
+            height: "100%",
+            position: "relative"
+        });
+        addShowHide(mainDiv);
+        me.el = mainDiv;
+
+
+      //Create waitmask
+        waitmask = new javaxt.express.WaitMask(mainDiv);
+
 
       //Create main table
-        var table = createTable();
+        var table = createTable(mainDiv);
         var td;
 
         td = table.addRow().addColumn();
@@ -197,7 +213,7 @@ javaxt.express.FileBrowser = function(parent, config) {
                 closable: config.closable,
                 footer: config.footer,
                 style: config.style.window,
-                body: table
+                body: mainDiv
             });
 
 
@@ -209,10 +225,35 @@ javaxt.express.FileBrowser = function(parent, config) {
             }
         }
         else{
-            parent.appendChild(table);
+            parent.appendChild(mainDiv);
         }
     };
 
+
+  //**************************************************************************
+  //** clear
+  //**************************************************************************
+    this.clear = function(){
+        grid.clear();
+        addressBar.clear();
+        history = [];
+        Object.keys(params).forEach((key)=>{
+            delete params[key];
+        });
+        Object.values(button).forEach((button)=>{
+            button.disable();
+        });
+        totalCount = 0;
+        totalSize = 0;
+    };
+
+
+  //**************************************************************************
+  //** refresh
+  //**************************************************************************
+    this.refresh = function(){
+        grid.refresh();
+    };
 
 
   //**************************************************************************
@@ -303,6 +344,14 @@ javaxt.express.FileBrowser = function(parent, config) {
             arr[i] = parseRecord(arr[i]);
         }
         return arr;
+    };
+
+
+  //**************************************************************************
+  //** getGrid
+  //**************************************************************************
+    this.getGrid = function(){
+        return grid;
     };
 
 
@@ -477,16 +526,8 @@ javaxt.express.FileBrowser = function(parent, config) {
             style: config.style.table,
             url: config.fileService,
             limit: config.pageSize,
-            getResponse: function(url, payload, callback){
-                post(url, JSON.stringify(params), {
-                    success: function(txt,xml,url,req){
-                        callback.apply(me, [req]);
-                    },
-                    failure: function(req){
-                        alert(req);
-                    }
-                });
-            },
+            params: params,
+            post: true,
             parseResponse: function(request){
                 var data = JSON.parse(request.responseText);
                 currDir = data.dir;
@@ -511,6 +552,10 @@ javaxt.express.FileBrowser = function(parent, config) {
         setStyle(td, config.style.info);
 
         var info = createElement("div", td, {
+            position: "relative",
+            height: "100%"
+        });
+        info = createElement("div", info, {
             position: "absolute"
         });
 
@@ -521,11 +566,17 @@ javaxt.express.FileBrowser = function(parent, config) {
         sizeInfo.style.display = "inline-block";
         sizeInfo.style.marginLeft = "7px";
 
-        var waitmask;
+        var clear = grid.clear;
+        grid.clear = function(){
+            countInfo.innerHTML = "";
+            sizeInfo.innerHTML = "";
+            clear();
+        };
+
+
         grid.beforeLoad = function(page){
-            //me.onSelectionChange();
-            if (!waitmask) waitmask = new javaxt.express.WaitMask(table);
             waitmask.show(500);
+            //me.onSelectionChange();
             countInfo.innerHTML = "";
             sizeInfo.innerHTML = "";
         };
@@ -534,6 +585,11 @@ javaxt.express.FileBrowser = function(parent, config) {
             waitmask.hide();
             countInfo.innerHTML = totalCount + " items";
             if (totalSize>0) sizeInfo.innerHTML = formatSize(totalSize);
+        };
+
+        grid.onError = function(req){
+            waitmask.hide();
+            alert(req);
         };
 
         grid.onSelectionChange = function(){
@@ -777,6 +833,7 @@ javaxt.express.FileBrowser = function(parent, config) {
     var setStyle = javaxt.dhtml.utils.setStyle;
     var createElement = javaxt.dhtml.utils.createElement;
     var createTable = javaxt.dhtml.utils.createTable;
+    var addShowHide = javaxt.dhtml.utils.addShowHide;
 
     init();
 };
