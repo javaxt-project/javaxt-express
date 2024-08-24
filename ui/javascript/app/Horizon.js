@@ -295,7 +295,9 @@ javaxt.express.app.Horizon = function(parent, config) {
 
 
               //Parse id as needed
-                if (id.indexOf("_")===-1 && id.indexOf("-")===-1){
+                var n = id+"";
+                var isNumber = !isNaN(parseFloat(n)) && !isNaN(n - 0);
+                if (isNumber){
                     try {
                         var i = parseInt(id);
                         if (!isNaN(i)) id = i;
