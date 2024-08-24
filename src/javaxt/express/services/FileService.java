@@ -2,14 +2,12 @@ package javaxt.express.services;
 
 import javaxt.express.*;
 import javaxt.express.ServiceRequest.Sort;
-import javaxt.http.servlet.ServletException;
 import javaxt.http.servlet.FormInput;
 import javaxt.http.servlet.FormValue;
 
 import javaxt.json.*;
 import javaxt.io.File;
 import javaxt.io.Directory;
-import static javaxt.utils.Console.console;
 
 import java.util.*;
 
@@ -22,7 +20,7 @@ import java.util.*;
  *
  ******************************************************************************/
 
-public class FileService {
+public class FileService extends WebService {
 
     private javaxt.io.Directory baseDir;
     private static int numDigits = (Long.MAX_VALUE+"").length();
@@ -57,7 +55,7 @@ public class FileService {
    *  folders in a given path. Optional parameters include filter, sort,
    *  hidden, offset, and limit.
    */
-    public ServiceResponse getList(ServiceRequest request) throws ServletException {
+    public ServiceResponse getList(ServiceRequest request) throws Exception {
 
       //Parse params
         String path = getPath(request);
@@ -292,11 +290,22 @@ public class FileService {
 
       //Return json response
         JSONObject json = new JSONObject();
-        json.set("dir", dir);
+        if (baseDir==null){
+            json.set("dir", dir);
+            json.set("pathSeparator", Directory.PathSeparator);
+        }
+        else{
+            String a = baseDir.toString().replace("\\", "/");
+            String b = dir.toString().replace("\\", "/");
+            String d = b.substring(a.length());
+            if (!d.startsWith("/")) d = "/" + d;
+            json.set("dir", d);
+            json.set("pathSeparator", "/");
+        }
         json.set("items", arr);
         json.set("count", files.size()+folders.size());
         json.set("size", totalSize);
-        json.set("pathSeparator", Directory.PathSeparator);
+
         return new ServiceResponse(json);
     }
 
@@ -304,7 +313,7 @@ public class FileService {
   //**************************************************************************
   //** getDirectory
   //**************************************************************************
-    private Directory getDirectory(String path) throws ServletException{
+    private Directory getDirectory(String path) throws Exception {
 
         Directory dir;
         if (path==null) path = "";
@@ -324,13 +333,24 @@ public class FileService {
             }
             else{
                 path = path.replace("\\", "/");
+
+
+              //Check if path starts with baseDir. Trim as needed.
+                String a = baseDir.toString().replace("\\", "/");
+                String b = path;
+                if (!b.endsWith("/")) b += "/";
+                if (b.startsWith(a)){
+                    path = path.substring(a.length());
+                }
+
+
                 String[] arr = path.split("/");
                 path = baseDir.toString();
 
                 for (String str : arr){
                     str = str.trim();
                     if (str.equals(".") || str.equals("..")){
-                        throw new ServletException("Illegal path");
+                        throw new Exception("Illegal path");
                     }
                     path += str + "/";
                 }
@@ -499,23 +519,86 @@ public class FileService {
     }
 
 
-//  //**************************************************************************
-//  //** upload
-//  //**************************************************************************
-//    private ServiceResponse upload(ServiceRequest req) throws Exception {
-//        if (uploadDir==null) return new ServiceResponse(501);
-//
-//        java.util.Iterator<FormInput> it = req.getRequest().getFormInputs();
-//        while (it.hasNext()){
-//            FormInput input = it.next();
-//            if (input.isFile()){
-//                String fileName = input.getFileName();
-//                FormValue value = input.getValue();
-//                value.toFile(new java.io.File(uploadDir.toFile(), fileName));
-//            }
-//        }
-//
-//        return new ServiceResponse(200);
-//    }
+  //**************************************************************************
+  //** upload
+  //**************************************************************************
+  /** Used to upload files to the server
+   *  @param request ServiceRequest with "multipart/form-data" encoded data
+   */
+    public ServiceResponse upload(ServiceRequest request) throws Exception {
+        return upload(request, null);
+    }
+
+
+  //**************************************************************************
+  //** upload
+  //**************************************************************************
+  /** Used to upload files to the server
+   *  @param request ServiceRequest with "multipart/form-data" encoded data
+   *  @param callback Optional callback. Called after a file has been uploaded.
+   *  The callback record will contain the "file", "path", and "op".
+   */
+    public ServiceResponse upload(ServiceRequest request, Callback callback) throws Exception {
+
+
+        javaxt.io.Directory dir = null;
+
+        java.util.Iterator<FormInput> it = request.getRequest().getFormInputs();
+        while (it.hasNext()){
+            FormInput input = it.next();
+            if (input.isFile()){
+                String fileName = input.getFileName();
+                FormValue value = input.getValue();
+                if (dir!=null){
+                    javaxt.io.File file = new javaxt.io.File(dir, fileName);
+                    String op = file.exists() ? "update" : "create";
+
+                  //Save file
+                    value.toFile(file.toFile());
+
+
+                  //Call the callback
+                    if (callback!=null){
+                        String path;
+                        if (baseDir==null){
+                            path = dir.toString();
+                        }
+                        else{
+                            String a = baseDir.toString().replace("\\", "/");
+                            String b = dir.toString().replace("\\", "/");
+                            path = b.substring(a.length());
+                            if (!path.startsWith("/")) path = "/" + path;
+                        }
+
+                        javaxt.utils.Record record = new javaxt.utils.Record();
+                        record.set("op", op);
+                        record.set("path", path);
+                        record.set("file", file);
+
+                        callback.call(record);
+                    }
+                }
+            }
+            else{
+                String param = input.getName();
+
+                if (param.equalsIgnoreCase("path")){
+                    String path = input.getValue().toString();
+                    if (path==null) path = "";
+                    else path = path.trim();
+                    dir = getDirectory(path);
+                }
+            }
+        }
+        return new ServiceResponse(200);
+    }
+
+
+  //**************************************************************************
+  //** Callback Interface
+  //**************************************************************************
+    public static interface Callback {
+        public void call(javaxt.utils.Record record);
+    }
 
 }
