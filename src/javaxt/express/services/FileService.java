@@ -332,28 +332,7 @@ public class FileService extends WebService {
                 dir = new Directory(path);
             }
             else{
-                path = path.replace("\\", "/");
-
-
-              //Check if path starts with baseDir. Trim as needed.
-                String a = baseDir.toString().replace("\\", "/");
-                String b = path;
-                if (!b.endsWith("/")) b += "/";
-                if (b.startsWith(a)){
-                    path = path.substring(a.length());
-                }
-
-
-                String[] arr = path.split("/");
-                path = baseDir.toString();
-
-                for (String str : arr){
-                    str = str.trim();
-                    if (str.equals(".") || str.equals("..")){
-                        throw new Exception("Illegal path");
-                    }
-                    path += str + "/";
-                }
+                path = getPath(path);
                 dir = new Directory(path);
             }
         }
@@ -402,7 +381,7 @@ public class FileService extends WebService {
    *  Headers for the ServiceResponse are set with file metadata (e.g. content
    *  type, file size, and date). Caller can add additional response headers
    *  such as the content disposition to make the file "downloadable". See
-   *  setContentDisposition() for more information.
+   *  ServiceResponse.setContentDisposition() for more information.
    */
     public ServiceResponse getFile(ServiceRequest request) throws Exception {
 
@@ -415,6 +394,7 @@ public class FileService extends WebService {
 
         try{
             ServiceResponse response = new ServiceResponse(file.getInputStream());
+            response.set("name", file.getName());
             //response.setContentDisposition(file.getName());
             response.setContentLength(file.getSize());
             response.setContentType(file.getContentType());
@@ -484,19 +464,8 @@ public class FileService extends WebService {
             file = new File(path);
         }
         else{
-            path = path.replace("\\", "/");
-            String[] arr = path.split("/");
-            path = baseDir.toString();
-
-            for (String str : arr){
-                str = str.trim();
-                if (str.equals("") || str.equals(".") || str.equals("..")){
-                    throw new RuntimeException("Illegal path");
-                }
-                path += str + "/";
-            }
+            path = getPath(path);
             if (path.endsWith("/")) path = path.substring(0, path.length()-1);
-
             file = new File(path);
         }
         return file;
@@ -506,6 +475,51 @@ public class FileService extends WebService {
   //**************************************************************************
   //** getPath
   //**************************************************************************
+  /** Returns a string representing a fully qualified path to a file or
+   *  directory. Throws a RuntimeException if the relative path contains
+   *  illegal path directives (e.g. ".."). Note that the returned path always
+   *  ends with a "/" character. Trim as needed (e.g. file path).
+   *  @param path Either a relative path or a fully qualified path to a file
+   *  or directory.
+   */
+    private String getPath(String path){
+        path = path.replace("\\", "/");
+
+
+      //Check if path starts with baseDir. Trim as needed.
+        String a = baseDir.toString().replace("\\", "/");
+        String b = path;
+        if (!b.endsWith("/")) b += "/";
+        if (b.startsWith(a)){
+            path = path.substring(a.length());
+        }
+
+
+      //Remove leading "/" character
+        if (path.startsWith("/")) path = path.substring(1).trim();
+
+
+        String[] arr = (path.length()>0) ? path.split("/") : new String[0];
+        path = baseDir.toString();
+
+      //Append relative path to the baseDir
+        for (String str : arr){
+            str = str.trim();
+            if (str.equals("") || str.equals(".") || str.equals("..")){
+                throw new RuntimeException("Illegal path");
+            }
+            path += str + "/";
+        }
+
+        return path;
+    }
+
+
+  //**************************************************************************
+  //** getPath
+  //**************************************************************************
+  /** Returns the "path" parameter in the ServiceRequest
+   */
     private String getPath(ServiceRequest request){
 
         //TODO: check url path
