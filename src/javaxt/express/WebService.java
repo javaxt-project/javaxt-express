@@ -691,11 +691,13 @@ public abstract class WebService {
             Object obj;
             if (id!=null){
                 obj = newInstance(c, id);
+                beforeUpdate(obj, request);
                 Method update = c.getDeclaredMethod("update", JSONObject.class);
                 update.invoke(obj, new Object[]{json});
             }
             else{
                 obj = newInstance(c, json);
+                beforeCreate(obj, request);
                 isNew = true;
             }
 
@@ -729,8 +731,8 @@ public abstract class WebService {
   //**************************************************************************
   //** delete
   //**************************************************************************
-  /** Used to delete an object in the database. Returns a 200 status code if
-   *  the object was successfully deleted.
+  /** Used to delete an object in the database. Returns a JSON representation
+   *  of the object that was deleted.
    */
     private ServiceResponse delete(Class c, ServiceRequest request, Database database) {
         try (Connection conn = database.getConnection()){
@@ -754,15 +756,24 @@ public abstract class WebService {
           //Create new instance of the class
             Object obj = newInstance(c, id);
 
+
+          //Fire event
+            beforeDelete(obj, request);
+
+
           //Delete object
             Method delete = getMethod("delete", c);
             delete.invoke(obj);
 
+
           //Fire event
             onDelete(obj, request);
 
+
           //Return response
-            return new ServiceResponse(200);
+            Method toJson = getMethod("toJson", c);
+            JSONObject json = (JSONObject) toJson.invoke(obj);
+            return new ServiceResponse(json);
         }
         catch(Exception e){
             return getServiceResponse(e);
@@ -770,8 +781,69 @@ public abstract class WebService {
     }
 
 
+  //**************************************************************************
+  //** beforeCreate
+  //**************************************************************************
+  /** This method is called immediately before a record is inserted into the
+   *  database. Override this method to process the event.
+   *  @param obj Object. If this method is called by this class, the Object
+   *  will correspond to an instance of a javaxt.sql.Model
+   */
+    public void beforeCreate(Object obj, ServiceRequest request){};
+
+
+  //**************************************************************************
+  //** onCreate
+  //**************************************************************************
+  /** This method is called immediately after a record is inserted into the
+   *  database. Override this method to process the event.
+   *  @param obj Object. If this method is called by this class, the Object
+   *  will correspond to an instance of a javaxt.sql.Model
+   */
     public void onCreate(Object obj, ServiceRequest request){};
+
+
+  //**************************************************************************
+  //** beforeUpdate
+  //**************************************************************************
+  /** This method is called immediately before a record is updated in the
+   *  database. Override this method to process the event.
+   *  @param obj Object. If this method is called by this class, the Object
+   *  will correspond to an instance of a javaxt.sql.Model
+   */
+    public void beforeUpdate(Object obj, ServiceRequest request){};
+
+
+  //**************************************************************************
+  //** onUpdate
+  //**************************************************************************
+  /** This method is called immediately after a record is updated in the
+   *  database. Override this method to process the event.
+   *  @param obj Object. If this method is called by this class, the Object
+   *  will correspond to an instance of a javaxt.sql.Model
+   */
     public void onUpdate(Object obj, ServiceRequest request){};
+
+
+  //**************************************************************************
+  //** beforeDelete
+  //**************************************************************************
+  /** This method is called immediately before a record is deleted in the
+   *  database. Override this method to process the event.
+   *  @param obj Object. If this method is called by this class, the Object
+   *  will correspond to an instance of a javaxt.sql.Model
+   */
+    public void beforeDelete(Object obj, ServiceRequest request){};
+
+
+  //**************************************************************************
+  //** onDelete
+  //**************************************************************************
+  /** This method is called immediately after a record is deleted in the
+   *  database. Override this method to process the event.
+   *  @param obj Object. If this method is called by this class, the Object
+   *  will correspond to an instance of a javaxt.sql.Model
+   */
     public void onDelete(Object obj, ServiceRequest request){};
 
 
