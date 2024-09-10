@@ -306,7 +306,7 @@ public abstract class WebSite extends HttpServlet {
 
       //Loop through possible file combinations
         for (String str : files){
-            java.io.File file = fileManager.getFile(path);
+            java.io.File file = fileManager.getFile(str);
             if (file!=null) return new javaxt.io.File(file);
         }
 
@@ -340,6 +340,9 @@ public abstract class WebSite extends HttpServlet {
             if (templateParam.equals("false")){
                 useTemplate = false;
             }
+        }
+        if (useTemplate){
+            if (template==null || !template.exists()) useTemplate = false;
         }
 
 
