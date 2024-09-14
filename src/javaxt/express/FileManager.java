@@ -274,6 +274,12 @@ public class FileManager {
               //Instantiate html parser and get header
                 javaxt.html.Parser parser = new javaxt.html.Parser(html);
                 javaxt.html.Element head = parser.getElementByTagName("head");
+                if (head==null){
+                    long lastUpdate = htmlFile.getLastModifiedTime().getTime();
+                    response.setContentType("text/html");
+                    sendResponse(html, lastUpdate, request, response);
+                    return;
+                }
                 String header = head.getOuterHTML();
 
 
