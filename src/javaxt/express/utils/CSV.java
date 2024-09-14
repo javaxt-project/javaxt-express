@@ -5,7 +5,53 @@ import java.util.ArrayList;
 //**  CSV
 //******************************************************************************
 /**
- *   Provides static methods used to parse comma and tab delimited files
+ *   Provides static methods used to parse tabular data stored in plain text
+ *   where records (aka rows) are separated with a line break and columns are
+ *   delimited with a character (comma, tab, pipe, etc). CSV files is an
+ *   example of such tabular data which uses commas to separate values in a
+ *   row. <p/>
+ *
+ *   Here's an example of how to parse a CSV file using the static methods
+ *   found in this class:
+ <pre>
+    javaxt.io.File csvFile = new javaxt.io.File("/temp/employees.csv");
+    try (java.io.BufferedReader is = csvFile.getBufferedReader("UTF-8")){
+
+
+      //Read header
+        String header = CSV.readLine(is);
+
+      //Remove the Byte Order Mark (BOM) if there is one
+        int bom = CSV.getByteOrderMark(header);
+        if (bom>-1) header = header.substring(bom);
+
+
+      //Parse header
+        ArrayList&lt;String> headers = new ArrayList&lt;>();
+        for (javaxt.utils.Value col : CSV.getColumns(header, ",")){
+            headers.add(col.toString());
+        }
+
+
+      //Read rows
+        String row;
+        while (!(row=CSV.readLine(is)).isEmpty()){
+
+
+          //Parse row
+            CSV.Columns columns = CSV.getColumns(row, ",");
+            for (int i=0; i&lt;columns.length(); i++){
+                String colName = headers.get(i);
+                String colValue = columns.get(i).toString();
+                System.out.println(colName + ": " + colValue);
+            }
+
+            System.out.println("---------------------------");
+        }
+
+    }
+ </pre>
+ *
  *
  ******************************************************************************/
 
@@ -15,12 +61,13 @@ public class CSV {
     public static final String COMMA_DELIMITER = ",";
     //public static final String UTF8_BOM = "\uFEFF";
 
+
   //**************************************************************************
   //** Columns
   //**************************************************************************
-  /** Used to represent column values
+  /** Class used to encapsulate columns in a row
    */
-    public static class Columns {
+    public static class Columns implements Iterable<javaxt.utils.Value> {
         private ArrayList<javaxt.utils.Value> cols;
         public Columns(){
             cols = new ArrayList<>();
@@ -38,6 +85,11 @@ public class CSV {
         }
         public int length(){
             return cols.size();
+        }
+
+        @Override
+        public java.util.Iterator<javaxt.utils.Value> iterator() {
+            return cols.iterator();
         }
     }
 
@@ -168,7 +220,7 @@ public class CSV {
     <pre>
 
       //Open input stream from an javaxt.io.File
-        try (java.io.BufferedReader is = file.getBufferedReader("UTF-8)){
+        try (java.io.BufferedReader is = file.getBufferedReader("UTF-8")){
 
           //Read header
             String header = CSV.readLine(is);
