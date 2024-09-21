@@ -547,10 +547,32 @@ public class FileService extends WebService {
   //**************************************************************************
   //** upload
   //**************************************************************************
-  /** Used to upload files to the server
+  /** Used to upload files to the server. The ServiceRequest must contain
+   *  "multipart/form-data" encoded data. The form data must includes a "path"
+   *  variable and at least one file.
    *  @param request ServiceRequest with "multipart/form-data" encoded data
    *  @param callback Optional callback. Called after a file has been uploaded.
-   *  The callback record will contain the "file", "path", and "op".
+   *  If the request payload contains multiple files, the callback will be
+   *  called multiple times - once for each file after it had been uploaded.
+   *  The callback record will contain the following fields:
+   *  <ul>
+   *  <li>file: A javaxt.io.File representing uploaded file on the server</li>
+   *  <li>path: String representing the relative or absolute path to the
+   *  upload directory</li>
+   *  <li>op: String representing the operation that was performed (e.g.
+   *  "create" or "update")</li>
+   *  </ul>
+   *  Example:
+   <pre>
+    fileService.upload(request, (Record record)->{
+
+        String path = record.get("path").toString();
+        javaxt.io.File file = (javaxt.io.File) record.get("file").toObject();
+        path += file.getName();
+
+        NotificationService.notify(record.get("op").toString(), "File", new javaxt.utils.Value(path));
+    });
+   </pre>
    */
     public ServiceResponse upload(ServiceRequest request, Callback callback) throws Exception {
 
