@@ -216,8 +216,8 @@ public class ServiceResponse {
 
 
 
-        if (status==307){
-            response.setStatus(307);
+        if (status==301 || status==307){
+            response.setStatus(status);
             String location = new String((byte[]) this.getResponse());
             response.setHeader("Location", location);
             String msg =
@@ -304,9 +304,9 @@ public class ServiceResponse {
                     response.setHeader("Content-Length", contentLength+"");
                 }
 
-                java.io.InputStream inputStream = (java.io.InputStream) obj;
-                response.write(inputStream, true);
-                inputStream.close();
+                try (java.io.InputStream inputStream = (java.io.InputStream) obj){
+                    response.write(inputStream, true);
+                }
             }
             else{
                 response.write((byte[]) obj, true);
