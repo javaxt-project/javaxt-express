@@ -115,6 +115,16 @@ public class StatusLogger {
 
 
   //**************************************************************************
+  //** getTotalRecords
+  //**************************************************************************
+  /** Returns the total number of records expected to be processed.
+   */
+    public Long getTotalRecords(){
+        return totalRecords.get();
+    }
+
+
+  //**************************************************************************
   //** separateMessages
   //**************************************************************************
   /** By default, status messages are written to a single line and overwritten
