@@ -3,6 +3,8 @@ package javaxt.express.notification;
 import java.util.*;
 import javaxt.utils.Value;
 import javaxt.express.utils.DateUtils;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 
 //******************************************************************************
 //**  NotificationService
@@ -14,8 +16,9 @@ import javaxt.express.utils.DateUtils;
 
 public class NotificationService {
 
-    private static List events = null;
-    private static List<Listener> listeners;
+    private static List events = new LinkedList();
+    private static List<Listener> listeners = new LinkedList();
+    private static AtomicBoolean isRunning = new AtomicBoolean(false);
 
 
   //**************************************************************************
@@ -27,7 +30,7 @@ public class NotificationService {
    *  @param data Additional information related to the event (e.g. User ID)
    */
     public static void notify(String event, String model, Value data){
-        if (events==null) return;
+        if (!isRunning.get()) return;
 
         if (data==null) data = new Value(null);
 
@@ -49,15 +52,14 @@ public class NotificationService {
     }
 
     public static void start(int numThreads){
-        if (events!=null) return;
+        if (isRunning.get()) return;
 
-        listeners = new LinkedList();
 
-        events = new LinkedList();
         for (int i=0; i<numThreads; i++){
             Thread thread = new Thread(new NotificationProcessor());
             thread.start();
         }
+        isRunning.set(true);
     }
 
 
@@ -78,16 +80,22 @@ public class NotificationService {
             events.add(0, null);
             events.notify();
         }
-        events = null;
     }
 
 
   //**************************************************************************
   //** addListener
   //**************************************************************************
-  /** Used to add an event listener that will consume events
+  /** Used to add an event listener that will consume events. Example:
+   <pre>
+    NotificationService.addListener((
+        String event, String model, javaxt.utils.Value data, long timestamp)->{
+        console.log(event, model, data);
+    });
+   </pre>
    */
     public static void addListener(Listener listener){
+        if (!isRunning.get()) return;
         synchronized(listeners){
             listeners.add(listener);
             listeners.notify();
@@ -139,6 +147,7 @@ public class NotificationService {
 
                 }
                 else{
+                    isRunning.set(false);
                     return;
                 }
             }
