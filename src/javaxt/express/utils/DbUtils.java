@@ -6,7 +6,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.*;
 import javaxt.sql.*;
 import javaxt.json.*;
-import static javaxt.utils.Console.console;
 
 
 //******************************************************************************
@@ -119,15 +118,66 @@ public class DbUtils {
                 conn.execute("CREATE domain IF NOT EXISTS text AS varchar");
                 conn.execute("CREATE domain IF NOT EXISTS jsonb AS varchar");
 
-                /*
-              //If H2 GIS is not present, we need something like this for
-              //models with geometry types
-                conn.execute("CREATE ALIAS ST_AsText AS '\n" +
-                "String geomAsText(org.h2.value.Value value) {\n" +
-                "    return value.toString();\n" +
-                "}\n" +
-                "';");
-                */
+
+
+              //Check if we have JTS in the class path. This is a good indicator
+              //that we have spatial data in one of the models.
+                String jtsPackage = null;
+                for (String s : new String[]{"org.locationtech", "com.vividsolutions"}){
+                    try{
+                        Class.forName(s + ".jts.io.WKTReader"); //throws exception if not found
+                        jtsPackage = s;
+                        break;
+                    }
+                    catch(Exception e){}
+                }
+
+
+              //Create spatial functions as needed
+                if (jtsPackage!=null){
+
+                  //Create ST_GeomFromText function as needed
+                    try{
+
+                      //Test if function exists
+                        conn.getRecord("select ST_GeomFromText('POINT(7 52)', 4326)").get(0).toString();
+
+                    }
+                    catch(Exception e){
+
+                      //Create function
+                        conn.execute("create alias ST_GeomFromText AS $$\n" +
+                        jtsPackage + ".jts.geom.Geometry fromText(String wkt, int srid) throws SQLException {\n" +
+                        "    if(wkt == null) {\n" +
+                        "        return null;\n" +
+                        "    }\n" +
+                        "    try {\n" +
+
+                                //Instantiate WKTReader
+                        "       " + jtsPackage + ".jts.io.WKTReader wktReaderSRID = " +
+                        "       new " + jtsPackage + ".jts.io.WKTReader(new " +
+                                jtsPackage + ".jts.geom.GeometryFactory(new " +
+                                jtsPackage + ".jts.geom.PrecisionModel(),srid));\n" +
+
+                                //Get geometry
+                        "       return wktReaderSRID.read(wkt);\n" +
+                        "    } catch (" + jtsPackage + ".jts.io.ParseException ex) {\n" +
+                        "        throw new SQLException(ex);\n" +
+                        "    }\n" +
+                        "}$$");
+
+
+                        conn.execute("CREATE ALIAS ST_AsText AS '\n" +
+                        "String geomAsText(org.h2.value.Value value) {\n" +
+                        "    return value.toString();\n" +
+                        "}\n" +
+                        "';");
+
+                    }
+
+
+
+                }
 
 
                 schemaInitialized = initSchema(arr, conn);
@@ -1198,7 +1248,7 @@ public class DbUtils {
     public static JSONObject getJson(javaxt.sql.Record record){
         return getJson(record.getFields());
     }
-    
+
     public static JSONObject getJson(javaxt.sql.Field[] fields){
         JSONObject json = new JSONObject();
         HashSet<String> fieldNames = new HashSet<>();
