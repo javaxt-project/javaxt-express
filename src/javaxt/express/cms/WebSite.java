@@ -1,6 +1,6 @@
 package javaxt.express.cms;
 import javaxt.express.FileManager;
-import javaxt.express.utils.WebUtils;
+import javaxt.express.utils.DateUtils;
 import javaxt.http.servlet.*;
 import javaxt.utils.Console;
 import java.io.IOException;
@@ -498,7 +498,7 @@ public abstract class WebSite extends HttpServlet {
 
       //Get last modified date
         long lastModified = dates.last();
-        String date = WebUtils.getDate(lastModified); //"EEE, dd MMM yyyy HH:mm:ss zzz"
+        String date = DateUtils.getDate(lastModified); //"EEE, dd MMM yyyy HH:mm:ss zzz"
 
 
       //Create eTag using the combined, uncompressed size of the html

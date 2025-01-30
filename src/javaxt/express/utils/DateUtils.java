@@ -5,7 +5,7 @@ import java.util.*;
 //**  Date Utils
 //******************************************************************************
 /**
- *   Provides static methods
+ *   Provides static methods used to support web applications
  *
  ******************************************************************************/
 
@@ -52,9 +52,9 @@ public class DateUtils {
   //**************************************************************************
   //** getDate
   //**************************************************************************
-  /** Used to convert a UNIX timestamp in milliseconds to a string in GMT (e.g.
-   *  "Mon, 20 Feb 2012 13:04:28 GMT"). Note that this method does not rely on
-   *  the java.text.SimpleDateFormat for performance reasons.
+  /** Used to convert a UNIX timestamp in milliseconds to a string in GMT
+   *  (e.g. "Mon, 20 Feb 2012 13:04:28 GMT"). Note that this method does not
+   *  rely on the java.text.SimpleDateFormat for performance reasons.
    *  @param milliseconds Milliseconds since January 1, 1970, 00:00:00 UTC
    */
     public static String getDate(long milliseconds){
@@ -63,7 +63,16 @@ public class DateUtils {
         return getDate(cal);
     }
 
-    private static String getDate(Calendar cal){
+    
+  //**************************************************************************
+  //** getDate
+  //**************************************************************************
+  /** Used to convert a Calendar to a string in GMT (see above)
+   */
+    public static String getDate(Calendar cal){
+
+        //DO NOT USE java.text.SimpleDateFormat for performance reasons!!!
+
 
         if (!cal.getTimeZone().equals(tz)){
             cal = (java.util.Calendar) cal.clone();
