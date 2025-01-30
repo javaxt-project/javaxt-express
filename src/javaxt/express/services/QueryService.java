@@ -23,8 +23,18 @@ import net.sf.jsqlparser.expression.LongValue;
 //**  QueryService
 //******************************************************************************
 /**
- *   Provides a set of web methods used to query the database. Loosely based
- *   on the CartoDB SQL API: https://carto.com/developers/sql-api/reference/
+ *   WebService used to query a database. Queries are executed asynchronously.
+ *   Clients submit a query and by executing an HTTP POST request to "/job"
+ *   which, in turn returns a job ID. Clients can get job status and, when
+ *   ready, the query results by executinig an HTTP GET request to "/job/{ID}".
+ *   Query results maybe encapsulated using csv, tsv, jsv, or json (default).
+ *   The format is specified when submitting a new job. Additional routes and
+ *   capabilties are documented in the getServiceResponse() method.
+ *   <p/>
+ *   Note that this class requires JSqlParser which is used to validate
+ *   queries and mitigate SQL injection by only allowing "select" statements.
+ *   The validation logic is not foolproof and it is therefore recommended to
+ *   restrict access to this service to authorized, trusted users (e.g. admins).
  *
  ******************************************************************************/
 
@@ -42,6 +52,11 @@ public class QueryService extends WebService {
   //**************************************************************************
   //** Constructor
   //**************************************************************************
+  /** Used to create a new instance of this class
+   *  @param database Database connection info
+   *  @param jobDir Temp directory used to save query results (required)
+   *  @param logDir Directory used to log queries (optional)
+   */
     public QueryService(Database database, javaxt.io.Directory jobDir, javaxt.io.Directory logDir){
         this.database = database;
 
@@ -102,6 +117,10 @@ public class QueryService extends WebService {
    *  <li>GET /jobs - Returns a list of all query jobs associated with the user</li>
    *  <li>GET /tables - Returns a list of all the tables in the database</li>
    *  </ul>
+   *  If no path is provided in the request, the method will wait until the
+   *  query is executed before returning a response. This may result in long
+   *  wait times and the client might hang up or disconnect before the query
+   *  is done (not recommended).
    */
     public ServiceResponse getServiceResponse(ServiceRequest request, Database database) {
         if (database==null) database = this.database;
@@ -142,12 +161,28 @@ public class QueryService extends WebService {
   //**************************************************************************
   //** notify
   //**************************************************************************
+  /** Called whenever a job is created, updated, or deleted. You can override
+   *  this method in your application (e.g. relay job status via websockets).
+   */
     public void notify(QueryJob job){}
 
 
   //**************************************************************************
   //** query
   //**************************************************************************
+  /** Used to create a query job.
+   *  @param request Parameters include
+   *  <ul>
+   *  <li>query or q - SQL select statement (required)</li>
+   *  <li>offset - Used to specify a start row (optional)</li>
+   *  <li>limit - Used to specify number of rows to return (optional). Default is 25.</li>
+   *  <li>format - Used to specify output format (optional). Default is json.</li>
+   *  <li>metadata - Returns column info (optional). Default is false.</li>
+   *  <li>count - Returns total number of records regardless of offset and/or
+   *  limit (optional). Default is false.
+   *  </li>
+   *  </ul>
+   */
     private ServiceResponse query(ServiceRequest request, boolean async) {
         try{
 
@@ -230,7 +265,8 @@ public class QueryService extends WebService {
 
           //Create job
             User user = (User) request.getUser();
-            QueryJob job = new QueryJob(user.getID(), select, offset, limit, params);
+            Long userID = user==null ? 0 : user.getID();
+            QueryJob job = new QueryJob(userID, select, offset, limit, params);
             if (createTempTable!=null) job.addTempTable(createTempTable);
             String key = job.getKey();
             job.log();
@@ -499,9 +535,7 @@ public class QueryService extends WebService {
         User user = (User) request.getUser();
         JSONArray arr = new JSONArray();
         synchronized (jobs) {
-            Iterator<String> it = jobs.keySet().iterator();
-            while (it.hasNext()){
-                String key = it.next();
+            for (String key : jobs.keySet()){
                 QueryJob job = jobs.get(key);
                 if (job.userID==user.getID()){
                     arr.add(job.toJson());
@@ -522,7 +556,8 @@ public class QueryService extends WebService {
     private ServiceResponse getJob(ServiceRequest request) {
         String id = request.getPath(1).toString();
         User user = (User) request.getUser();
-        QueryJob job = getJob(id, user);
+        Long userID = user==null ? 0 : user.getID();
+        QueryJob job = getJob(id, userID);
         if (job==null) return new ServiceResponse(404);
         return getJobResponse(job);
     }
@@ -534,9 +569,9 @@ public class QueryService extends WebService {
   /** Returns a job for a given jobID and user. Checks both the pending and
    *  completed job queues.
    */
-    private QueryJob getJob(String jobID, User user){
+    private QueryJob getJob(String jobID, long userID){
         synchronized (jobs) {
-            return jobs.get(user.getID() + ":" + jobID);
+            return jobs.get(userID + ":" + jobID);
         }
     }
 
@@ -607,7 +642,8 @@ public class QueryService extends WebService {
     private ServiceResponse cancel(ServiceRequest request, Database database) {
         String id = request.getPath(1).toString();
         User user = (User) request.getUser();
-        QueryJob job = getJob(id, user);
+        Long userID = user==null ? 0 : user.getID();
+        QueryJob job = getJob(id, userID);
         if (job==null) return new ServiceResponse(404);
 
 
