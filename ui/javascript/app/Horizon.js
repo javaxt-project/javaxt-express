@@ -13,7 +13,7 @@ if(!javaxt.express.app) javaxt.express.app={};
  ******************************************************************************/
 
 javaxt.express.app.Horizon = function(parent, config) {
-    this.className = "javaxt.express.app.Horizon";
+    this.className = "javaxt.express.app.Horizon"; //used by popstateListener
 
     var me = this;
     var defaultConfig = {
@@ -245,9 +245,30 @@ javaxt.express.app.Horizon = function(parent, config) {
    *  as name, contact info, etc may be present and used by the renderers
    *  defined in the config (e.g. profileButton)
    *  @param tabs Either an array or json object with tabs. Each entry should
-   *  have a name and a fully-qualified class (e.g. com.javaxt.Test). The
-   *  class will be instantiated at runtime. Note if the class has a public
-   *  update() method, it will be called after the class is instantiated.
+   *  have a name and a class will be instantiated at runtime. The class
+   *  constructor should accept two arguments:
+   *  <ul>
+   *  <li>parent: DOM object</li>
+   *  <li>config: JSON object with optional config settings</li>
+   *  </ul>
+   *  Here's an example of an array of tabs:
+   <pre>
+    tabs = [
+        {name: "Home", class: com.acme.webapp.Home, config: { ... }},
+        {name: "Admin", class: com.acme.webapp.Admin, config: { ... }}
+    ];
+   </pre>
+   *  Here's an example of a json object with tabs:
+   <pre>
+    tabs = {
+        Home: com.acme.webapp.Home,
+        Admin: com.acme.webapp.Admin
+    };
+   </pre>
+   *  The most significant difference between the two options is that the
+   *  array includes an optional config key which will be used to instantiate
+   *  the class. Note if the class has a public update() method, it will be
+   *  called after the class is instantiated.
    */
     this.update = function(user, tabs){
 
@@ -684,11 +705,23 @@ javaxt.express.app.Horizon = function(parent, config) {
         if (obj){
             if (isArray(obj)){
                 obj.forEach((tab)=>{
-                    newTabs[tab.name] = tab.cls;
+                    if (tab.cls && !tab.class) tab.class = tab.cls;
+                    if (typeof tab.class === 'function') {
+                        newTabs[tab.name] = tab;
+                    }
                 });
             }
             else{
-                newTabs = obj;
+                for (var key in obj) {
+                    if (obj.hasOwnProperty(key)){
+                        var cls = obj[key];
+                        if (typeof cls === 'function') {
+                            newTabs[key] = {
+                                class: cls
+                            };
+                        }
+                    }
+                }
             }
         }
 
@@ -741,7 +774,7 @@ javaxt.express.app.Horizon = function(parent, config) {
   //**************************************************************************
   //** createTab
   //**************************************************************************
-    var createTab = function(label, className){
+    var createTab = function(label, obj){
         if (tabs[label]) return;
 
         var tab = createElement("div", tabbar);
@@ -761,26 +794,34 @@ javaxt.express.app.Horizon = function(parent, config) {
             }
             else{
 
+              //Get or create config
+                var cfg;
+                if (obj.config){
+                    cfg = obj.config;
+                }
+                else{
 
-              //Create custom config for the panel
-                var cfg = {
-                    style: config.style.javaxt,
-                    fx: config.fx,
-                    waitmask: config.waitmask
-                };
 
-              //Update config with non-standard config options
-                for (var key in config) {
-                    if (config.hasOwnProperty(key)){
-                        if (defaultConfig[key]) continue;
-                        cfg[key] = config[key];
+                  //Create custom config for the panel
+                    cfg = {
+                        style: config.style.javaxt,
+                        fx: config.fx,
+                        waitmask: config.waitmask
+                    };
+
+                  //Update config with non-standard config options
+                    for (var key in config) {
+                        if (config.hasOwnProperty(key)){
+                            if (defaultConfig[key]) continue;
+                            cfg[key] = config[key];
+                        }
                     }
                 }
 
 
               //Instantiate panel
-                var cls = eval(className);
-                panel = new cls(body, cfg);
+                var fn = eval(obj.class);
+                panel = new fn(body, cfg);
                 addShowHide(panel);
                 panels[label] = panel;
                 if (panel.update) panel.update();
@@ -796,7 +837,6 @@ javaxt.express.app.Horizon = function(parent, config) {
             }
             this.className = "active";
             fn.apply(me, []);
-            document.title = config.name + " - " + label;
             if (currUser) currUser.preferences.set("Tab", label);
 
 
@@ -855,6 +895,14 @@ javaxt.express.app.Horizon = function(parent, config) {
   //**************************************************************************
   //** addHistory
   //**************************************************************************
+  /** Used to add a "page" to the browser history
+   *  @param params JSON object with the following:
+   *  <ul>
+   *  <li>title - text to display in the browser's title</li>
+   *  <li>tab - label associated with a tab</li>
+   *  <li>url - custom url</li>
+   *  </ul>
+   */
     this.addHistory = function(params){
         updateState(params, false);
     };
@@ -863,6 +911,14 @@ javaxt.express.app.Horizon = function(parent, config) {
   //**************************************************************************
   //** updateHistory
   //**************************************************************************
+  /** Used to update browser history for the current "page"
+   *  @param params JSON object with the following:
+   *  <ul>
+   *  <li>title - text to display in the browser's title</li>
+   *  <li>tab - label associated with a tab</li>
+   *  <li>url - custom url</li>
+   *  </ul>
+   */
     this.updateHistory = function(params){
         updateState(params, true);
     };
@@ -910,7 +966,9 @@ javaxt.express.app.Horizon = function(parent, config) {
         window.addEventListener('popstate', popstateListener);
 
       //Set initial history. This is critical for the popstate listener
-        history.replaceState({}, null, '');
+        var state = window.history.state;
+        if (!state) state = {};
+        if (!state[me.className]) history.replaceState({}, null, '');
     };
 
 
@@ -929,7 +987,9 @@ javaxt.express.app.Horizon = function(parent, config) {
    */
     var popstateListener = function(e) {
 
-        if (e.state[me.className]){
+        if (e.state[me.className]){ //event emanated from this class
+
+          //Get tab name/label
             var label = e.state[me.className].tab;
 
           //Check if the label matches the requested tab in the url
@@ -953,8 +1013,10 @@ javaxt.express.app.Horizon = function(parent, config) {
             var tab = tabs[label];
             if (tab) tab.raise();
         }
-        else{
-            history.back();
+        else{ //user clicked browser back button but there's no state?
+
+            //Don't call history.back(); It may cause unintended side effects
+            //in panels with thier own popstate listeners...
         }
     };
 
