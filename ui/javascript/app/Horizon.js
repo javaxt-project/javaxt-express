@@ -130,6 +130,12 @@ javaxt.express.app.Horizon = function(parent, config) {
         autoLogoff: false,
 
 
+      /** If true, will enable users to navigate between tabs using the
+       *  browser's forward and back buttons. Default is false.
+       */
+        useBrowserHistory: false,
+
+
       /** A shared array of javaxt.dhtml.Window components. All the windows in
        *  the array are automatically closed when a user logs off or when the
        *  logoff() method is called. You are encouraged to create your own
@@ -928,6 +934,7 @@ javaxt.express.app.Horizon = function(parent, config) {
   //** updateState
   //**************************************************************************
     var updateState = function(params, replace){
+        if (config.useBrowserHistory!==true) return;
 
         var title = params.title;
         if (!title) title = document.title;
@@ -942,10 +949,6 @@ javaxt.express.app.Horizon = function(parent, config) {
         if (!state) state = {};
 
         state[me.className] = params;
-        state[me.className].lastUpdate = {
-            date: new Date().getTime(),
-            event: replace ? "replaceState" : "pushState"
-        };
 
         if (replace){
             document.title = title;
@@ -963,12 +966,18 @@ javaxt.express.app.Horizon = function(parent, config) {
   //**************************************************************************
     var enablePopstateListener = function(){
         disablePopstateListener();
-        window.addEventListener('popstate', popstateListener);
 
-      //Set initial history. This is critical for the popstate listener
-        var state = window.history.state;
-        if (!state) state = {};
-        if (!state[me.className]) history.replaceState({}, null, '');
+        if (config.useBrowserHistory===true){
+
+          //Add popstate listener
+            window.addEventListener('popstate', popstateListener);
+
+          //Set initial history. This is critical for the popstate listener
+            var state = window.history.state;
+            if (!state) state = {};
+            if (!state[me.className]) state[me.className] = {};
+            history.replaceState(state, null, '');
+        }
     };
 
 
@@ -987,12 +996,14 @@ javaxt.express.app.Horizon = function(parent, config) {
    */
     var popstateListener = function(e) {
 
-        if (e.state[me.className]){ //event emanated from this class
+        if (e.state[me.className]){
 
-          //Get tab name/label
+          //Get tab name/label from the history
             var label = e.state[me.className].tab;
 
-          //Check if the label matches the requested tab in the url
+          //If the "requestedTab" keyword is set and a matching key/value pair
+          //is found in the url, update the label to match the requested tab
+          //in the url.
             var t = getParameter(config.keywords.requestedTab).toLowerCase();
             if (t && t.length>0){
                 if (t!==label.toLowerCase()){
@@ -1010,13 +1021,9 @@ javaxt.express.app.Horizon = function(parent, config) {
                 }
             }
 
+          //Raise tab
             var tab = tabs[label];
             if (tab) tab.raise();
-        }
-        else{ //user clicked browser back button but there's no state?
-
-            //Don't call history.back(); It may cause unintended side effects
-            //in panels with thier own popstate listeners...
         }
     };
 
@@ -1278,14 +1285,16 @@ javaxt.express.app.Horizon = function(parent, config) {
 
 
       //Update URL
-        var state = window.history.state;
-        if (!state) state = {};
-        var url = window.location.href;
-        var idx = url.indexOf("?");
-        if (idx>-1) url = url.substring(0, idx);
-        document.title = config.name;
-        history.replaceState(state, config.name, url);
-
+        if (config.useBrowserHistory===true){
+            var state = window.history.state;
+            if (!state) state = {};
+            var url = window.location.href;
+            var idx = url.indexOf("?");
+            if (idx>-1) url = url.substring(0, idx);
+            document.title = config.name;
+            history.replaceState(state, config.name, url);
+        }
+        
 
       //Disable event listeners
         disableEventListeners();
