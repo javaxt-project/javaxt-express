@@ -320,8 +320,13 @@ public class CSV {
         if (col.length()==0) col = null;
         if (col!=null){
             if (col.startsWith("\"") && col.endsWith("\"")){
-                col = col.substring(1, col.length()-1).trim();
-                if (col.length()==0) col = null;
+                if (col.length()>1){
+                    col = col.substring(1, col.length()-1).trim();
+                    if (col.length()==0) col = null;
+                }
+                else{
+                    col = null;
+                }
             }
         }
         return new javaxt.utils.Value(col);
