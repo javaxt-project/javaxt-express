@@ -209,8 +209,21 @@ public abstract class WebService {
                 if (methodName.startsWith("delete")) i = 6;
 
                 if (i>0){
+
+                  //Check for a simple method like search() or update() without
+                  //a "get" or "save" or "delete" prefix
                     methodName = methodName.substring(i-1, i).toLowerCase() + methodName.substring(i);
                     methods = serviceMethods.get(methodName);
+
+
+                  //Special case for POST requests (e.g. "POST /companies")
+                  //that map to a "save" method (e.g. saveCompanies) that does
+                  //not exist. Let's check if there's a suitable "get" method
+                  //instead (e.g. getCompanies).
+                    if (methods==null && i==5 && methodName.endsWith("s")){
+                        methods = serviceMethods.get("get" + methodName);
+                    }
+
                 }
             }
 
