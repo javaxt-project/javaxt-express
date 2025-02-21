@@ -313,8 +313,6 @@ public class ServiceRequest {
    *  case insensitive search for the keyword in the query string. In addition,
    *  will search the JSON payload of the request if parseJson is set to true.
    *  If the value is an empty string or "null" then a null value is returned.
-   *  @param key Query string parameter name. Performs a case insensitive
-   *  search for the keyword.
    */
     public javaxt.utils.Value getParameter(String key){
         Object val = null;
@@ -385,16 +383,15 @@ public class ServiceRequest {
   //** setParameter
   //**************************************************************************
   /** Used to update a parameter extracted from the original request. Performs
-   *  a case insensitive search for the keyword in the query string.
+   *  a case insensitive search for the keyword.
    */
     public void setParameter(String key, String val){
-        if (key!=null){
+        if (key==null) return;
 
-            if (val==null){
-                removeParameter(key, this.parameters);
-                return;
-            }
-
+        if (val==null){
+            removeParameter(key, this.parameters);
+        }
+        else{
 
           //Get parameters
             List<String> parameters = getParameter(key, this.parameters);
@@ -421,16 +418,28 @@ public class ServiceRequest {
             else{
                 if (val!=null) parameters.set(0, val);
             }
-
-
-          //Update offset and limit as needed
-            String k = key.toLowerCase();
-            if (k.equals(getKeyword("offset")) ||
-                k.equals(getKeyword("limit")) ||
-                k.equals(getKeyword("page"))){
-                updateOffsetLimit();
-            }
         }
+
+
+      //Update offset and limit as needed
+        String k = key.toLowerCase();
+        if (k.equals(getKeyword("offset")) ||
+            k.equals(getKeyword("limit")) ||
+            k.equals(getKeyword("page"))){
+            updateOffsetLimit();
+        }
+
+    }
+
+
+  //**************************************************************************
+  //** removeParameter
+  //**************************************************************************
+  /** Used to remove a parameter from the request. Performs a case insensitive
+   *  search for the keyword.
+   */
+    public void removeParameter(String key){
+        setParameter(key, null);
     }
 
 
