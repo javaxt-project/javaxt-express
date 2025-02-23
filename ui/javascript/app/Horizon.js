@@ -157,7 +157,10 @@ javaxt.express.app.Horizon = function(parent, config) {
 
             connectionTimeout: "We have lost contact with the server. " +
             "It has been unavailable for over 5 minutes. Please check your " +
-            "internet connection or contact the system administrator for assistance."
+            "internet connection or contact the system administrator for assistance.",
+
+            updateAvailable: "An update is available for this application. " +
+            "Would you like to update now?"
         }
     };
 
@@ -641,11 +644,11 @@ javaxt.express.app.Horizon = function(parent, config) {
                     location.reload();
                 }
                 else{
+                    me.el.style.filter = "blur(3px)";
                     confirm({
                         width: 515,
                         title: "Update Available",
-                        text: "An update is available for this application. " +
-                        "Would you like to update now?",
+                        text: config.messages.updateAvailable,
                         leftButton: {
                             label: "Yes",
                             value: true
@@ -657,6 +660,7 @@ javaxt.express.app.Horizon = function(parent, config) {
                         callback: function(answer){
                             if (answer===true) location.reload();
                             else{
+                                me.el.style.filter = "";
                                 menuButton.showMessage("Update Available");
                             }
                         }
@@ -1284,6 +1288,10 @@ javaxt.express.app.Horizon = function(parent, config) {
         currUser = null;
 
 
+      //Update title
+        document.title = config.name;
+
+
       //Update URL
         if (config.useBrowserHistory===true){
             var state = window.history.state;
@@ -1291,10 +1299,9 @@ javaxt.express.app.Horizon = function(parent, config) {
             var url = window.location.href;
             var idx = url.indexOf("?");
             if (idx>-1) url = url.substring(0, idx);
-            document.title = config.name;
             history.replaceState(state, config.name, url);
         }
-        
+
 
       //Disable event listeners
         disableEventListeners();
@@ -1380,7 +1387,7 @@ javaxt.express.app.Horizon = function(parent, config) {
             }
         }
         if (!callout) callout = new javaxt.dhtml.Callout(document.body,{
-            style: config.style.callout
+            style: config.style.javaxt.callout
         });
         return callout;
     };
