@@ -103,3 +103,91 @@
 }
 
 
+/**************************************************************************/
+/** Communications Error Popup
+/**************************************************************************/
+/** Popup that appears on the top of the page used to notify users that an
+ *   app is offline.
+ */
+.communication-error {
+    position: relative;
+    width: 525px;
+    min-height: 64px;
+    background-color: #ffeef1;
+    padding: 10px;
+    border-radius: 5px;
+    box-shadow: 0 12px 14px 0 rgba(0, 0, 0, 0.2), 0 13px 20px 0 rgba(0, 0, 0, 0.2);
+}
+
+.communication-error-icon,
+.communication-error .title {
+    height: 24px;
+    font-size: 20px;
+    display: inline-block;
+    float:left;
+}
+
+.communication-error .title {
+    margin: 0 0 0 10px;
+}
+
+.communication-error .message {
+    font-size: 11px;
+    display: inline-block;
+    color: #686868;
+    margin: 8px 0 0 0;
+}
+
+.communication-error .close {
+    position: absolute;
+    text-align: center;
+    border-radius: 3px;
+    right: 7px;
+    top: 7px;
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+}
+
+.communication-error .close:hover {
+    background-color: #ebc3ca;
+}
+
+.communication-error .close:before {
+    content: "\2715"; /*unicode for &#x2715;*/
+    color: #9d172e;
+}
+
+
+
+/**************************************************************************/
+/** Communications Error Icon
+/**************************************************************************/
+
+.communication-error-icon {
+    width: 30px;
+    height: 24px;
+    font-size: 20px;
+    display: inline-block;
+    position: relative;
+    color: #9d172e;
+}
+
+.communication-error-icon:before,
+.communication-error-icon:after {
+    font-family: "Font Awesome 5 Free";
+    font-weight: 900;
+    position: absolute;
+
+}
+
+.communication-error-icon:after{
+    content: "\f12a"; /* exclaimation */
+    left: 11px;
+}
+
+.communication-error-icon:before{
+    content: "\f1eb"; /* wifi */
+    opacity: 0.2;
+    font-size: 24px;
+}

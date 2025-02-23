@@ -1,0 +1,24 @@
+/******************************************************************************
+/**  JavaXT Express - Dark Theme
+/******************************************************************************
+/**
+ *   This css is used to override colors and styles defined in default.css.
+ *   Include this css file after the include for the default.css.
+ *
+ ******************************************************************************/
+
+.communication-error{
+    background-color: #2b1015;
+}
+
+.communication-error .close:before {
+    color: #ffdce2;
+}
+
+.communication-error .close:hover {
+    background-color: #5f3940;
+}
+
+.communication-error-icon {
+    color: #ffb4c1;
+}
