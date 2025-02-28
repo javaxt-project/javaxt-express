@@ -1,8 +1,7 @@
 package javaxt.express.utils;
 
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.TimeZone;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 
 
@@ -13,8 +12,8 @@ import java.util.concurrent.atomic.AtomicLong;
  *  Used to print status messages to the standard output stream. Status
  *  messages are written every second and appear in the following format:
  *  <pre>0 records processed (0 records per second)</pre>
- *  A percent completion is appended to the status message if a "totalRecords"
- *  counter is given.<br/>
+ *  A percent completion and an estimated time to completion (ETC) is appended
+ *  to the status message if a "totalRecords" counter is given.<br/>
  *  The status logger is run in a separate thread. The "recordCounter" is
  *  updated by the caller. Example:
  <pre>
@@ -37,6 +36,7 @@ public class StatusLogger {
     private ScheduledExecutorService executor;
     private Runnable r;
     private boolean separateMessages = false;
+    private TimeZone tz;
 
 
   //**************************************************************************
@@ -63,12 +63,13 @@ public class StatusLogger {
                 AtomicLong totalRecords = me.totalRecords;
 
                 String rate = "0";
+                long recordsPerSecond = 0;
                 try{
-                    long r = Math.round(x/elapsedTime);
+                    recordsPerSecond = Math.round(x/elapsedTime);
                     if (totalRecords!=null && totalRecords.get()>0){
-                        if (r>totalRecords.get()) r = totalRecords.get();
+                        if (recordsPerSecond>totalRecords.get()) recordsPerSecond = totalRecords.get();
                     }
-                    rate = StringUtils.format(r);
+                    rate = StringUtils.format(recordsPerSecond);
                 }
                 catch(Exception e){}
 
@@ -84,8 +85,22 @@ public class StatusLogger {
 
                 if (totalRecords!=null && totalRecords.get()>0){
                     double p = ((double) x / (double) totalRecords.get());
-                    int currPercent = (int) Math.round(p*100);
-                    statusText += " " + x + "/" + totalRecords.get() + " " + currPercent + "%";
+                    int percentComplete = (int) Math.round(p*100);
+
+                    String _etc = "---------- --:-- --";
+                    if (elapsedTime>0 && recordsPerSecond>0){
+                        int timeRemaining = (int) Math.round(((totalRecords.get()-x)/recordsPerSecond)/60);
+
+                        javaxt.utils.Date etc = new javaxt.utils.Date();
+                        etc.add(timeRemaining, "minutes");
+
+                        if (percentComplete==100) etc = new javaxt.utils.Date();
+                        if (tz!=null) etc.setTimeZone(tz);
+
+                        _etc = etc.toString("yyyy-MM-dd HH:mm a");
+                    }
+
+                    statusText += " " + x + "/" + totalRecords.get() + " " + percentComplete + "% ETC: " + _etc;
                 }
 
                 while (statusText.length()<len) statusText += " ";
@@ -121,6 +136,41 @@ public class StatusLogger {
    */
     public Long getTotalRecords(){
         return totalRecords.get();
+    }
+
+
+  //**************************************************************************
+  //** setTimeZone
+  //**************************************************************************
+  /** Used to set the timezone when reporting ETC (estimated time to
+   *  completion). ETC is rendered only if the total record count is known
+   *  (see setTotalRecords). If no timezone is specified, ETC will default
+   *  to the system timezone.
+   *  @param timezone Name of a timezone (e.g. "America/New York", "UTC", etc)
+   */
+    public void setTimeZone(String timezone){
+        tz = javaxt.utils.Date.getTimeZone(timezone);
+    }
+
+
+  //**************************************************************************
+  //** setTimeZone
+  //**************************************************************************
+  /** Used to set the timezone when reporting ETC (see above)
+   */
+    public void setTimeZone(TimeZone timezone){
+        tz = timezone;
+    }
+
+
+  //**************************************************************************
+  //** getTimeZone
+  //**************************************************************************
+  /** Returns the timezone used to report ETC (see setTimeZone). Will return
+   *  null if a timezone has not been set.
+   */
+    public TimeZone getTimeZone(){
+        return tz;
     }
 
 
