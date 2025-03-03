@@ -1,4 +1,5 @@
 package javaxt.express.utils;
+import java.util.HashMap;
 import java.util.ArrayList;
 
 //******************************************************************************
@@ -15,11 +16,11 @@ import java.util.ArrayList;
  *   found in this class:
  <pre>
     javaxt.io.File csvFile = new javaxt.io.File("/temp/employees.csv");
-    try (java.io.BufferedReader is = csvFile.getBufferedReader("UTF-8")){
+    try (java.io.BufferedReader br = csvFile.getBufferedReader("UTF-8")){
 
 
       //Read header
-        String header = CSV.readLine(is);
+        String header = CSV.readLine(br);
 
       //Remove the Byte Order Mark (BOM) if there is one
         int bom = CSV.getByteOrderMark(header);
@@ -35,7 +36,7 @@ import java.util.ArrayList;
 
       //Read rows
         String row;
-        while (!(row=CSV.readLine(is)).isEmpty()){
+        while (!(row=CSV.readLine(br)).isEmpty()){
 
 
           //Parse row
@@ -59,7 +60,6 @@ public class CSV {
 
     public static final String TAB_DELIMITER = "\t";
     public static final String COMMA_DELIMITER = ",";
-    //public static final String UTF8_BOM = "\uFEFF";
 
 
   //**************************************************************************
@@ -68,13 +68,18 @@ public class CSV {
   /** Class used to encapsulate columns in a row
    */
     public static class Columns implements Iterable<javaxt.utils.Value> {
+
         private ArrayList<javaxt.utils.Value> cols;
+        private HashMap<String, Integer> header;
+
         public Columns(){
             cols = new ArrayList<>();
         }
+
         public void add(javaxt.utils.Value col){
             cols.add(col);
         }
+
         public javaxt.utils.Value get(int idx){
             try{
                 return cols.get(idx);
@@ -83,6 +88,25 @@ public class CSV {
                 return new javaxt.utils.Value(null);
             }
         }
+
+        public javaxt.utils.Value get(String key){
+            Integer idx = header.get(key.toLowerCase());
+            if (idx==null) return new javaxt.utils.Value(null);
+            return get(idx);
+        }
+
+        public void setHeader(Columns header){
+            if (header==null) return;
+            this.header = new HashMap<>();
+            int x = 0;
+            for (javaxt.utils.Value val : header){
+                String str = val.toString();
+                if (str!=null) str = str.toLowerCase();
+                this.header.put(str, x);
+                x++;
+            }
+        }
+
         public int length(){
             return cols.size();
         }
@@ -263,6 +287,41 @@ public class CSV {
 
 
   //**************************************************************************
+  //** parseHeader
+  //**************************************************************************
+  /** Parses a header (e.g. first row in a file) into columns. Removes the
+   *  Byte Order Mark (BOM) as needed.
+   */
+    public static Columns parseHeader(String header, String delimiter){
+        int bom = CSV.getByteOrderMark(header);
+        if (bom>-1) header = header.substring(bom);
+        return CSV.getColumns(header, delimiter);
+    }
+
+
+  //**************************************************************************
+  //** parseHeader
+  //**************************************************************************
+  /** Parses a header (e.g. first row in a file) into columns. Removes the
+   *  Byte Order Mark (BOM) as needed.
+   */
+    public static Columns parseHeader(java.io.InputStream is, String delimiter) throws java.io.IOException {
+        return parseHeader(CSV.readLine(is), delimiter);
+    }
+
+
+  //**************************************************************************
+  //** parseHeader
+  //**************************************************************************
+  /** Parses a header (e.g. first row in a file) into columns. Removes the
+   *  Byte Order Mark (BOM) as needed.
+   */
+    public static Columns parseHeader(java.io.BufferedReader reader, String delimiter) throws java.io.IOException {
+        return parseHeader(CSV.readLine(reader), delimiter);
+    }
+
+
+  //**************************************************************************
   //** getByteOrderMark
   //**************************************************************************
   /** Returns end position of the Byte Order Mark (BOM). Example usage:
@@ -272,6 +331,9 @@ public class CSV {
     </pre>
    */
     public static int getByteOrderMark(String str){
+
+        if (str.startsWith("\uFEFF")) return 1;
+
 
         if (str.length()<2) return -1;
 
