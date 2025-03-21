@@ -193,9 +193,8 @@ public class ServiceResponse {
   //**************************************************************************
   //** send
   //**************************************************************************
-  /** Used to send the response to a client by generating an
-   *  HttpServletResponse
-   *  @param response An HttpServletResponse to write to
+  /** Used to send the response to a client.
+   *  @param response A javaxt.http.servlet.HttpServletResponse to write to.
    */
     public void send(HttpServletResponse response) throws IOException {
         send(response, null);
@@ -205,10 +204,9 @@ public class ServiceResponse {
   //**************************************************************************
   //** send
   //**************************************************************************
-  /** Used to send the response to a client by generating an
-   *  HttpServletResponse
-   *  @param response An HttpServletResponse to write to
-   *  @param req The ServiceRequest associated with this response
+  /** Used to send the response to a client.
+   *  @param response A javaxt.http.servlet.HttpServletResponse to write to.
+   *  @param req A javaxt.express.ServiceRequest used to initiate the response.
    */
     public void send(HttpServletResponse response, ServiceRequest req) throws IOException {
 
@@ -313,6 +311,30 @@ public class ServiceResponse {
             }
 
         }
+    }
+
+
+  //**************************************************************************
+  //** send
+  //**************************************************************************
+  /** Used to send the response to a client.
+   *  @param response A javax.servlet.http.HttpServletResponse to write to.
+   *  @param req A javaxt.express.ServiceRequest used to initiate the response.
+   */
+    public void send(javax.servlet.http.HttpServletResponse response, ServiceRequest req) throws IOException {
+        send(new HttpServletResponse(req.getRequest(), response), req);
+    }
+
+
+  //**************************************************************************
+  //** send
+  //**************************************************************************
+  /** Used to send the response to a client.
+   *  @param response A jakarta.servlet.http.HttpServletResponse to write to.
+   *  @param req A javaxt.express.ServiceRequest used to initiate the response.
+   */
+    public void send(jakarta.servlet.http.HttpServletResponse response, ServiceRequest req) throws IOException {
+        send(new HttpServletResponse(req.getRequest(), response), req);
     }
 
 
