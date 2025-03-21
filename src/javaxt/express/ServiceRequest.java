@@ -70,7 +70,9 @@ public class ServiceRequest {
   //**************************************************************************
   //** Constructor
   //**************************************************************************
-    public ServiceRequest(HttpServletRequest request){
+  /** Creates a new instance of this class using a JavaXT HttpServletRequest.
+   */
+    public ServiceRequest(javaxt.http.servlet.HttpServletRequest request){
         this(null, request);
     }
 
@@ -78,8 +80,12 @@ public class ServiceRequest {
   //**************************************************************************
   //** Constructor
   //**************************************************************************
-    public ServiceRequest(String service, HttpServletRequest request){
-        this.service = service;
+  /** Creates a new instance of this class using a JavaXT HttpServletRequest.
+   *  @param service A path segment in the request URL used to designate the
+   *  start of the path variable. See setService() and setPath() for more info
+   *  on how the path variable is set.
+   */
+    public ServiceRequest(String service, javaxt.http.servlet.HttpServletRequest request){
         this.request = request;
         this.url = new javaxt.utils.URL(request.getURL());
         this.parameters = url.getParameters();
@@ -117,9 +123,8 @@ public class ServiceRequest {
 
 
 
-      //Parse path, excluding servlet and service path
-        setPath(request.getPathInfo());
-
+      //Update service (and path) after parsing params
+        setService(service);
 
 
       //Get offset and limit
@@ -128,14 +133,67 @@ public class ServiceRequest {
 
 
   //**************************************************************************
+  //** Constructor
+  //**************************************************************************
+  /** Creates a new instance of this class using a "javax" HttpServletRequest
+   *  and HttpServlet.
+   */
+    public ServiceRequest(javax.servlet.http.HttpServletRequest request,
+        javax.servlet.http.HttpServlet servlet){
+        this(new javaxt.http.servlet.HttpServletRequest(request, servlet));
+    }
+
+
+  //**************************************************************************
+  //** Constructor
+  //**************************************************************************
+  /** Creates a new instance of this class using a "jakarta" HttpServletRequest
+   *  and HttpServlet.
+   */
+    public ServiceRequest(jakarta.servlet.http.HttpServletRequest request,
+        jakarta.servlet.http.HttpServlet servlet){
+        this(new javaxt.http.servlet.HttpServletRequest(request, servlet));
+    }
+
+
+  //**************************************************************************
+  //** setService
+  //**************************************************************************
+  /** Used to update the service and path variables associated with the
+   *  request.
+   *  @param service A segment in the request URL used to designate the start
+   *  of the path variable. The service segment should appear after the
+   *  servlet. For example, the service segment in
+   *  "http://localhost/servlet/service/a/b/c" is simply "service" and the
+   *  resultant path is "/a/b/c". If the servlet path is undefined/missing
+   *  (e.g. "http://localhost/service/a/b/c"), you can still specify "service"
+   *  as the service and the resultant path would be "/a/b/c". You can even
+   *  use multiple segments for the service parameter (e.g. "/path/to/service/"
+   *  for "http://localhost/servlet/path/to/service/a/b/c"). If the service 
+   *  parameter is empty or null or simply doesn't exist in the URL, then the
+   *  path variable will be set to whatever is to the right of the servlet
+   *  path.
+   */
+    public void setService(String service){
+
+
+        if (service!=null){
+            service = service.trim();
+            if (service.isEmpty()) service = null;
+        }
+        this.service = service;
+
+
+      //Parse path, excluding servlet
+        setPath(request.getPathInfo());
+    }
+
+
+  //**************************************************************************
   //** getService
   //**************************************************************************
-  /** Returns the service name from the http request. Service requests follow
-   *  the convention: "http://localhost/servlet/service/path". For example
-   *  "http://localhost/myapp/admin/user". In this example, the servlet path
-   *  is "myapp" and the service name is "admin". Note that the servlet path
-   *  is optional and may include multiple "directories". This method makes it
-   *  easier to find the service name from the url.
+  /** Returns the service path in the request URL. Returns null if the service
+   *  is not set.
    */
     public String getService(){
         return service;
@@ -145,25 +203,32 @@ public class ServiceRequest {
   //**************************************************************************
   //** getMethod
   //**************************************************************************
-  /** Returns a method name for the HTTP request. Examples:
+  /** Returns a method name for the HTTP request using the first path segment
+   *  returned by getPath(0) and the HTTP request method (GET, POST, etc).
+   *  Examples:
    *  <ul>
    *  <li>GET "http://localhost/user" returns "getUser"</li>
    *  <li>DELETE "http://localhost/user" returns "deleteUser"</li>
    *  <li>POST or PUT "http://localhost/user" returns "saveUser"</li>
    *  </ul>
    *
-   *  If the request is read-only, "POST", "PUT", and "DELETE" requests will
-   *  be re-mapped to "GET".
+   *  Returns an empty string if the path is empty.
    *
    *  <p>
-   *  If the URL contains a "servlet" path or a "service" path, will return
-   *  the first object in the path after the servlet and/or service. Consider
-   *  this example: "http://localhost/myapp/admin/user" In this example, the
-   *  servlet path is "myapp" and the service path is "admin" and and so the
-   *  method name is derived from "user".
+   *  Note that the path starts after the servlet and service. Consider the
+   *  following URL: "http://localhost/myapp/admin/user". In this example, the
+   *  servlet is "myapp" and the service is "admin". The method name is
+   *  derived from the first path segment after the servlet and service (i.e.
+   *  "user"). An HTTP GET request to this URL would yield "getUser". See
+   *  setService() and setPath() for more information.
    *  </p>
    *
-   *  Note that this method is used by the WebService class to map service
+   *  <p>
+   *  If the request is read-only, "POST", "PUT", and "DELETE" requests will
+   *  be re-mapped to "GET". See set setReadOnly().
+   *  </p>
+   *
+   *  Note that the  WebService class relies on this method to map service
    *  requests to REST service endpoints and execute CRUD operations.
    */
     public String getMethod(){
@@ -174,9 +239,10 @@ public class ServiceRequest {
   //**************************************************************************
   //** setReadOnly
   //**************************************************************************
-  /** Used to disable insert, update, and delete operations. "POST", "PUT",
-   *  and "DELETE" requests are remapped to "GET". See getMethod() for more
-   *  information on how requests are mapped.
+  /** Used to enable/disable insert, update, and delete operations by updating
+   *  the string returned by getMethod().
+   *  @param readOnly If true, "POST", "PUT", and "DELETE" requests are
+   *  remapped to "GET" for getMethod().
    */
     public void setReadOnly(boolean readOnly){
         if (readOnly==this.readOnly) return;
@@ -199,9 +265,11 @@ public class ServiceRequest {
   //**************************************************************************
   //** getPath
   //**************************************************************************
-  /** Returns a part of the url path at a given index AFTER the service
-   *  name. For example, index 0 for "http://localhost/servlet/service/a/b/c"
-   *  would yield "a".
+  /** Returns a segment from the requested URL path at a given index. Note
+   *  that the path starts after the servlet and service. See setService() and
+   *  setPath() for more information on how the path variable is set.
+   *  @param i Index number, starting from 0. For example, index 0 for
+   *  "http://localhost/servlet/service/a/b/c" would yield "a".
    */
     public javaxt.utils.Value getPath(int i){
         if (path==null || i>=path.length) return new javaxt.utils.Value(null);
@@ -212,8 +280,10 @@ public class ServiceRequest {
   //**************************************************************************
   //** getPath
   //**************************************************************************
-  /** Returns a part of the url path AFTER the service name. For example,
-   *  "http://localhost/servlet/service/a/b/c" would yield "/a/b/c".
+  /** Returns a part of the requested URL path after the servlet and service.
+   *  For example, "http://localhost/servlet/service/a/b/c" would yield
+   *  "/a/b/c". See setService() and setPath() for more information  on how
+   *  the path variable is set.
    */
     public String getPath(){
         if (path==null) return null;
@@ -229,16 +299,35 @@ public class ServiceRequest {
   //**************************************************************************
   //** setPath
   //**************************************************************************
-  /** Used to update the path of the current URL. This method can be used to
-   *  coerce a request to route to different web methods (see getMethod).
-   *  @param path URL path, excluding servlet and service path. For example,
-   *  if a URL follows the follows a pattern like
-   *  "http://localhost/servlet/service/a/b/c" the path is "/a/b/c".
+  /** Used to update the path variable associated with the request. The path
+   *  variable is essential for several methods in this class (e.g. getId and
+   *  getMethod) and is critical for routing requests to different web methods
+   *  in the WebService class. This method is called whenever the service is
+   *  updated (see setService).
+   *
+   *  @param path URL path after the servlet path. For example, if a URL
+   *  follows a pattern like "http://localhost/servlet/service/a/b/c",
+   *  you should provide everything to the right of the servlet (i.e.
+   *  "/service/a/b/c"). If a service is defined, the resultant path would be
+   *  "/a/b/c". If a service is not defined, the resultant path would be
+   *  "/service/a/b/c".
    */
     public void setPath(String path){
+        this.path = null;
+
         if (path!=null){
-            if (path.startsWith("/")) path = path.substring(1);
+
             boolean addPath = service==null;
+
+          //Special case for service
+            if (service!=null && service.contains("/")){
+                int idx = path.indexOf(service);
+                if (idx>-1) path = path.substring(idx+service.length());
+                addPath = true;
+            }
+
+
+            if (path.startsWith("/")) path = path.substring(1);
             ArrayList<String> arr = new ArrayList<>();
             for (String str : path.split("/")){
                 if (addPath) arr.add(str);
@@ -247,7 +336,10 @@ public class ServiceRequest {
                     addPath = true;
                 }
             }
-            this.path = arr.toArray(new String[arr.size()]);
+
+            if (!arr.isEmpty()){
+                this.path = arr.toArray(new String[arr.size()]);
+            }
         }
 
 
