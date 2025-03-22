@@ -1,11 +1,12 @@
 package javaxt.express;
-import java.net.InetAddress;
+import java.util.*;
+import javax.net.ssl.*;
 import java.net.Socket;
+import java.net.InetAddress;
 import java.security.KeyStore;
 import java.security.Principal;
 import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
-import javax.net.ssl.*;
 
 //******************************************************************************
 //**  KeyManager
@@ -34,13 +35,13 @@ import javax.net.ssl.*;
 public class KeyManager extends X509ExtendedKeyManager { //implements X509KeyManager
     private KeyStore keyStore;
     private char[] password;
-    private java.util.HashMap<InetAddress, String> aliases;
+    private HashMap<InetAddress, String> aliases;
 
 
   //**************************************************************************
   //** Constructor
   //**************************************************************************
-    public KeyManager(KeyStore keystore, char[] password, java.util.HashMap<InetAddress, String> aliases) {
+    public KeyManager(KeyStore keystore, char[] password, HashMap<InetAddress, String> aliases) {
         if (aliases==null || aliases.isEmpty()) throw new IllegalArgumentException("Hosts is null or empty.");
         this.keyStore = keystore;
         this.password = password;
@@ -88,7 +89,7 @@ public class KeyManager extends X509ExtendedKeyManager { //implements X509KeyMan
           //cert). The following code will search for an alias with an
           //underscore prefix whenever a top-level domain name is requested.
             if (domainName.equals(hostname)){
-                java.util.Enumeration enumeration = keyStore.aliases();
+                Enumeration enumeration = keyStore.aliases();
                 while (enumeration.hasMoreElements()) {
                     String alias = (String) enumeration.nextElement();
                     if (alias.equals("_"+domainName)) return alias;

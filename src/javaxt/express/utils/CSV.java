@@ -10,10 +10,12 @@ import java.util.ArrayList;
  *   where records (aka rows) are separated with a line break and columns are
  *   delimited with a character (comma, tab, pipe, etc). CSV files is an
  *   example of such tabular data which uses commas to separate values in a
- *   row. <p/>
- *
+ *   row.
+ * 
+ *   <p>
  *   Here's an example of how to parse a CSV file using the static methods
  *   found in this class:
+ *   </p>
  <pre>
     javaxt.io.File csvFile = new javaxt.io.File("/temp/employees.csv");
     try (java.io.BufferedReader br = csvFile.getBufferedReader("UTF-8")){

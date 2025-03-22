@@ -24,17 +24,18 @@ import net.sf.jsqlparser.expression.LongValue;
 //******************************************************************************
 /**
  *   WebService used to query a database. Queries are executed asynchronously.
- *   Clients submit a query and by executing an HTTP POST request to "/job"
- *   which, in turn returns a job ID. Clients can get job status and, when
- *   ready, the query results by executinig an HTTP GET request to "/job/{ID}".
+ *   Clients submit a query by executing an HTTP POST request to "/job" which,
+ *   in turn, returns a job ID. Clients can get job status and, when ready,
+ *   the query results by executing an HTTP GET request to "/job/{ID}".
  *   Query results maybe encapsulated using csv, tsv, jsv, or json (default).
  *   The format is specified when submitting a new job. Additional routes and
- *   capabilties are documented in the getServiceResponse() method.
- *   <p/>
+ *   capabilities are documented in the getServiceResponse() method.
+ *   <p>
  *   Note that this class requires JSqlParser which is used to validate
- *   queries and mitigate SQL injection by only allowing "select" statements.
+ *   queries and mitigate SQL injection by only allowing SELECT SQL statements.
  *   The validation logic is not foolproof and it is therefore recommended to
  *   restrict access to this service to authorized, trusted users (e.g. admins).
+ *   </p>
  *
  ******************************************************************************/
 
@@ -307,6 +308,7 @@ public class QueryService extends WebService {
         }
         catch(Exception e){
             if (e instanceof net.sf.jsqlparser.JSQLParserException){
+                e.printStackTrace();
                 e = new Exception("Unsupported or Invalid SQL Statement");
             }
             return new ServiceResponse(e);

@@ -275,6 +275,7 @@ public class Server {
         }
 
 
+        /** Used to process HTTP requests */
         public void processRequest(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
@@ -283,7 +284,7 @@ public class Server {
             response.addHeader("Access-Control-Allow-Headers","*");
             response.addHeader("Access-Control-Allow-Methods", "*");
 
-          
+          //Generate response
             ServiceRequest req = new ServiceRequest(request);
             ServiceResponse rsp = ws.getServiceResponse(req, database);
             rsp.send(response);

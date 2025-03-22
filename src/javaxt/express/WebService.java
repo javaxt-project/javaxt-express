@@ -69,7 +69,7 @@ public abstract class WebService {
    */
     public void addModel(Class c, boolean readOnly){
         if (!Model.class.isAssignableFrom(c)){
-            throw new IllegalArgumentException();
+            throw new IllegalArgumentException(c + " is not a javaxt.sql.Model");
         }
 
         String name = c.getSimpleName();
