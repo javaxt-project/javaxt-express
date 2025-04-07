@@ -1,15 +1,16 @@
 if(!javaxt) var javaxt={};
-if(!javaxt.dhtml) javaxt.dhtml={};
+if(!javaxt.express) javaxt.express={};
 
 //******************************************************************************
 //**  Thumbnail Editor
 //*****************************************************************************/
 /**
- *   Used to resize and crop an image
+ *   Simple image editor used to create a thumbnail of an image. Provides
+ *   controls to center, resize, and crop a source image.
  *
  ******************************************************************************/
 
-javaxt.dhtml.ThumbnailEditor = function(parent, config) {
+javaxt.express.ThumbnailEditor = function(parent, config) {
 
     var me = this;
     var defaultConfig = {
@@ -135,6 +136,10 @@ javaxt.dhtml.ThumbnailEditor = function(parent, config) {
   //**************************************************************************
   //** setImage
   //**************************************************************************
+  /** Used to update the panel with a source image.
+   *  @param src Image source (url or Base64 image data) used as the "src"
+   *  attribute in the main image panel.
+   */
     this.setImage = function(src){
         if (!src) return;
 
