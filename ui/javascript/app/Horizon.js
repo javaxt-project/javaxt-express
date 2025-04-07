@@ -647,6 +647,7 @@ javaxt.express.app.Horizon = function(parent, config) {
                     me.el.style.filter = "blur(3px)";
                     confirm({
                         width: 515,
+                        resizable: false,
                         title: "Update Available",
                         text: config.messages.updateAvailable,
                         leftButton: {
