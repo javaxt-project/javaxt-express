@@ -39,8 +39,21 @@ public class FileManager {
   //**************************************************************************
   //** Constructor
   //**************************************************************************
+  /** Used to create an instance of this class.
+   *  @param web Directory from which to serve files (aka web root folder)
+   */
     public FileManager(javaxt.io.Directory web){
         this.web = web;
+    }
+
+
+  //**************************************************************************
+  //** getDirectory
+  //**************************************************************************
+  /** Returns the root directory.
+   */
+    public javaxt.io.Directory getDirectory(){
+        return web;
     }
 
 
@@ -115,10 +128,7 @@ public class FileManager {
    */
     public java.io.File getFile(HttpServletRequest request){
 
-      //Get path from url, excluding servlet path and leading "/" character
         String path = request.getPathInfo();
-        if (path!=null) path = path.substring(1);
-
         return getFile(path);
     }
 
@@ -129,9 +139,11 @@ public class FileManager {
   /** Returns a file that best matches the given path. If the path represents
    *  a directory, searches for welcome files in the directory (e.g.
    *  "index.html"). Returns null if a file is not found.
+   *  @param path Relative path to a file or folder, relative to the web root.
    */
     public java.io.File getFile(String path){
         if (path==null) path = "";
+        while (path.startsWith("/")) path = path.substring(1);
 
 
       //Construct a list of possible file paths
@@ -170,47 +182,29 @@ public class FileManager {
   //**************************************************************************
   //** sendFile
   //**************************************************************************
-  /** Used to send a file to the client.
+  /** Used to send a file to the client. Determines which file to send via
+   *  the URL path in the HTTP request.
    */
     public void sendFile(HttpServletRequest request, HttpServletResponse response)
         throws IOException{
 
-      //Get path from url, excluding servlet path and leading "/" character
-        String path = request.getPathInfo();
-        if (path!=null) path = path.substring(1);
-
-      //Send file
-        sendFile(path, request, response);
+        java.io.File file = getFile(request);
+        sendFile(file, request, response);
     }
 
 
   //**************************************************************************
   //** sendFile
   //**************************************************************************
-  /** Used to send a file to the client.
+  /** Used to send a file to the client. Determines which file to send via
+   *  the given path.
+   *  @param path Relative path to a file or folder, relative to the web root.
    */
     public void sendFile(String path, HttpServletRequest request, HttpServletResponse response)
         throws IOException {
 
         java.io.File file = getFile(path);
-        if (file!=null) _sendFile(file, request, response);
-        else response.setStatus(404);
-    }
-
-
-  //**************************************************************************
-  //** sendFile
-  //**************************************************************************
-  /** Used to send a file to the client.
-   */
-    public void sendFile(java.io.File file, HttpServletRequest request, HttpServletResponse response)
-        throws IOException {
-        if (file.exists() && file.isFile() && !file.isHidden()){
-            _sendFile(file, request, response);
-        }
-        else{
-            response.setStatus(404);
-        }
+        sendFile(file, request, response);
     }
 
 
@@ -221,19 +215,25 @@ public class FileManager {
    */
     public void sendFile(javaxt.io.File file, HttpServletRequest request, HttpServletResponse response)
         throws IOException {
-        this.sendFile(file.toFile(), request, response);
+
+        sendFile(file==null ? null : file.toFile(), request, response);
     }
 
 
   //**************************************************************************
   //** sendFile
   //**************************************************************************
-  /** Used to send a file to the client. Does not check if the file exists or
-   *  is valid. Only returns 200 and 3XX responses. It is up to the caller to
-   *  pass in a valid file and return errors to the client (e.g. 404).
+  /** Used to send a file to the client.
    */
-    private void _sendFile(java.io.File file, HttpServletRequest request, HttpServletResponse response)
+    public void sendFile(java.io.File file, HttpServletRequest request, HttpServletResponse response)
         throws IOException {
+
+      //Validate the given file. Send 404 response as needed.
+        if (file==null || !file.isFile() || !file.exists() || file.isHidden()){
+            response.setStatus(404);
+            return;
+        }
+
 
         String name = file.getName();
         int idx = name.lastIndexOf(".");
