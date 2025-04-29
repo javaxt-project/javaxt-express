@@ -772,50 +772,58 @@ javaxt.express.DBView = function(parent, config) {
   //**************************************************************************
   /** Used to parse the query response from the sql api
    */
-    var parseResponse = function(text){
+    var parseResponse = function(obj){
 
         var records = [];
         var columns = [];
 
-        if (config.format==="json"){
-            var json = JSON.parse(text);
 
-
-          //Get rows
-            var rows = json.rows;
-
-
-          //Generate list of columns
-            var record = rows[0];
-            for (var key in record) {
-                if (record.hasOwnProperty(key)) {
-                    columns.push(key);
-                }
+        if (javaxt.dhtml.utils.isString(obj)){
+            var s = obj.substring(0,1);
+            if (s=="{" || s=="["){
+                obj = JSON.parse(obj);
             }
-
-
-          //Generate records
-            for (var i=0; i<rows.length; i++){
-                var record = [];
-                var row = rows[i];
-                for (var j=0; j<columns.length; j++){
-                    var key = columns[j];
-                    var val = row[key];
-                    record.push(val);
-                }
-                records.push(record);
-            }
-
-
         }
-        else if (config.format==="jsv"){
-            var json = JSON.parse(text);
-            records = json.rows;
-            columns = json.cols;
+
+
+        if (obj.cols && obj.rows){ //standard response from javaxt-express QueryService (aka jsv format)
+            records = obj.rows;
+            columns = obj.cols;
         }
         else{
-            //csv or tsv
+            if (config.format==="json"){
+                if (obj.rows){ //response from javaxt-express QueryService
+                    var rows = obj.rows;
+
+
+                  //Generate list of columns
+                    var record = rows[0];
+                    for (var key in record) {
+                        if (record.hasOwnProperty(key)) {
+                            columns.push(key);
+                        }
+                    }
+
+
+                  //Generate records
+                    for (var i=0; i<rows.length; i++){
+                        var record = [];
+                        var row = rows[i];
+                        for (var j=0; j<columns.length; j++){
+                            var key = columns[j];
+                            var val = row[key];
+                            record.push(val);
+                        }
+                        records.push(record);
+                    }
+                }
+
+            }
+            else{
+                //csv or tsv?
+            }
         }
+
 
         return {
             columns: columns,
