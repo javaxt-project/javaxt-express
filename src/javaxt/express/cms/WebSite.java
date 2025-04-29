@@ -498,64 +498,15 @@ public abstract class WebSite extends HttpServlet {
 
       //Get last modified date
         long lastModified = dates.last();
-        String date = DateUtils.getDate(lastModified); //"EEE, dd MMM yyyy HH:mm:ss zzz"
-
-
-      //Create eTag using the combined, uncompressed size of the html
-        String eTag = "W/\"" + html.length() + "-" + lastModified + "\"";
-
-
-      //Return 304/Not Modified response if we can...
-        boolean useCache = true;
-        if (useCache){
-            String matchTag = request.getHeader("if-none-match");
-            String cacheControl = request.getHeader("cache-control");
-            if (matchTag==null) matchTag = "";
-            if (cacheControl==null) cacheControl = "";
-            if (cacheControl.equalsIgnoreCase("no-cache")==false){
-                if (eTag.equalsIgnoreCase(matchTag)){
-                    response.setStatus(304);
-                    return;
-                }
-                else{
-                  //Internet Explorer 6 uses "if-modified-since" instead of "if-none-match"
-                    matchTag = request.getHeader("if-modified-since");
-                    if (matchTag!=null){
-                        for (String tag: matchTag.split(";")){
-                            if (tag.trim().equalsIgnoreCase(date)){
-                                response.setStatus(304);
-                                return;
-                            }
-                        }
-                    }
-
-                }
-            }
-        }
-
-
-
-
-
-
-      //Convert the html to a byte array
-        byte[] rsp = html.getBytes("UTF-8");
-
 
 
       //Set response headers
         response.setStatus(content.getStatusCode());
-        response.setCharacterEncoding("UTF-8");
         response.setContentType("text/html");
-        response.setContentLength(rsp.length);
-        response.setHeader("ETag", eTag);
-        response.setHeader("Last-Modified", date); //Sat, 23 Oct 2010 13:04:28 GMT
 
-
+        
       //Send response
-        response.write(rsp);
-
-
+        response.write(html, lastModified);
         //console.log("sendHTML", System.currentTimeMillis()-t);
     }
 
@@ -577,9 +528,7 @@ public abstract class WebSite extends HttpServlet {
       //Get elements that match the supported tags
         ArrayList<javaxt.html.Element> elements = new ArrayList<>();
         javaxt.html.Parser document = new javaxt.html.Parser(html);
-        Iterator<String> it = tagsWithLinks.keySet().iterator();
-        while (it.hasNext()){
-            String tagName = it.next();
+        for (String tagName : tagsWithLinks.keySet()){
             String linkAttr = tagsWithLinks.get(tagName);
 
             for (javaxt.html.Element el : document.getElementsByTagName(tagName)){
