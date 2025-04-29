@@ -4,6 +4,7 @@ import java.util.*;
 import java.io.IOException;
 
 import javaxt.json.*;
+import javaxt.express.utils.DateUtils;
 import javaxt.http.servlet.HttpServletRequest;
 import javaxt.http.servlet.HttpServletResponse;
 
@@ -36,6 +37,7 @@ public class ServiceResponse {
     }
 
     public ServiceResponse(javaxt.io.File file){
+        this.date = new javaxt.utils.Date(file.getDate());
         this.contentType = file.getContentType();
         this.contentLength = file.getSize();
         this.response = file;
@@ -107,45 +109,116 @@ public class ServiceResponse {
     }
 
 
+  //**************************************************************************
+  //** setContentType
+  //**************************************************************************
+  /** Used to set the "Content-Type" response header.
+   *  @param contentType Content type (e.g. "text/plain", "application/json",
+   *  "text/html; charset=utf-8", etc).
+   */
     public void setContentType(String contentType){
         this.contentType = contentType;
     }
 
+
+  //**************************************************************************
+  //** setContentType
+  //**************************************************************************
+  /** Returns the "Content-Type" response header.
+   */
     public String getContentType(){
         return contentType;
     }
 
+
+  //**************************************************************************
+  //** setContentDisposition
+  //**************************************************************************
+  /** Used to set the response to return an attachment with a given file name.
+   *  @param fileName File name (e.g. "image.jpg", "document.docx", etc)
+   */
     public void setContentDisposition(String fileName){
         if (fileName==null) contentDisposition = null;
         else contentDisposition = "attachment;filename=\"" + fileName + "\"";
     }
 
+
+  //**************************************************************************
+  //** getContentDisposition
+  //**************************************************************************
+  /** Returns the file name associated with this response. Returns null if the
+   *  content disposition was not set.
+   */
     public String getContentDisposition(){
         return contentDisposition;
     }
 
+
+  //**************************************************************************
+  //** setDate
+  //**************************************************************************
+  /** Used to set date/timestamp associated with this response. The date is
+   *  critical for generating cacheable responses. See the send() method for
+   *  more information.
+   */
     public void setDate(javaxt.utils.Date date){
         this.date = date;
     }
 
+
+  //**************************************************************************
+  //** getDate
+  //**************************************************************************
+  /** Returns the date/timestamp associated with this response. Returns null
+   *  if the response date is not set.
+   */
     public javaxt.utils.Date getDate(){
         if (date==null) return null;
         return date.clone();
     }
 
+
+  //**************************************************************************
+  //** setContentLength
+  //**************************************************************************
+  /** Used to set the "Content-Length" response header. Note that the content
+   *  length is not typically used by the send() method.
+   *  @param contentLength Size of the response body, in bytes.
+   */
     public void setContentLength(long contentLength){
         this.contentLength = contentLength;
     }
 
+
+  //**************************************************************************
+  //** getContentLength
+  //**************************************************************************
+  /** Returns the size of the response body, in bytes. Returns null if the
+   *  content length is not set.
+   */
     public Long getContentLength(){
         return contentLength;
     }
 
-    //e.g. "no-cache, no-transform"
+
+  //**************************************************************************
+  //** setCacheControl
+  //**************************************************************************
+  /** Used to set the "Cache-Control" response header. This method is not
+   *  commonly used. For example, the send() method will automatically set
+   *  caching headers.
+   *  @param cacheControl e.g. "no-cache, no-transform"
+   */
     public void setCacheControl(String cacheControl){
         this.cacheControl = cacheControl;
     }
-    //e.g. "no-cache, no-transform"
+
+
+  //**************************************************************************
+  //** getCacheControl
+  //**************************************************************************
+  /** Returns the "Cache-Control" response header (e.g. "no-cache").
+   */
     public String getCacheControl(){
         return cacheControl;
     }
@@ -154,6 +227,13 @@ public class ServiceResponse {
 //        this.status = status;
 //    }
 
+
+  //**************************************************************************
+  //** getStatus
+  //**************************************************************************
+  /** Returns the 3-digit HTTP response code defined in the constructor when
+   *  instantiating this class.
+   */
     public int getStatus(){
         return status;
     }
@@ -167,24 +247,58 @@ public class ServiceResponse {
 //    }
 //
 
-    //"WWW-Authenticate", "Basic realm=\"Access Denied\""
+
+  //**************************************************************************
+  //** setAuthMessage
+  //**************************************************************************
+  /** Used to set a custom message used in an authentication response header.
+   *  @param msg An authentication message to send to clients (e.g. "Access
+   *  Denied"). In BASIC authentication, the message will appear in the
+   *  "WWW-Authenticate" response header (e.g. Basic realm="Access Denied").
+   */
     public void setAuthMessage(String msg){
         authMessage = msg;
     }
 
+
+  //**************************************************************************
+  //** getAuthMessage
+  //**************************************************************************
+  /** Returns an authentication message (e.g. "Access Denied").
+   */
     public String getAuthMessage(){
         return authMessage;
     }
 
+
+  //**************************************************************************
+  //** set
+  //**************************************************************************
+  /** Used to set a custom response header (e.g. ETag). This method is not
+   *  commonly used and may be removed in a future release.
+   */
     public void set(String key, Object val){
         properties.put(key, val);
     }
 
+
+  //**************************************************************************
+  //** get
+  //**************************************************************************
+  /** Returns a custom response header.
+   */
     public Object get(String key){
         return properties.get(key);
     }
 
 
+  //**************************************************************************
+  //** getResponse
+  //**************************************************************************
+  /** Returns the object that will be used in the response body (e.g. String,
+   *  Byte array, InputStream, File, etc). The response body is defined in the
+   *  constructor when instantiating this class.
+   */
     public Object getResponse() {
         return response;
     }
@@ -193,25 +307,18 @@ public class ServiceResponse {
   //**************************************************************************
   //** send
   //**************************************************************************
-  /** Used to send the response to a client.
-   *  @param response A javaxt.http.servlet.HttpServletResponse to write to.
+  /** Used to send the response to a client. Note that responses with a fixed
+   *  size and date are considered cacheable. Files, for example, have a fixed
+   *  size and date and are cacheable. Strings and byte arrays with a date are
+   *  cacheable. Cacheable responses include "ETag", "Last-Modified", and
+   *  "Cache-Control" headers. If the "ETag" matches the "if-none-match"
+   *  or if the "Last-Modified" matches the "if-modified-since" request
+   *  headers then a 304 "Not Modified" is returned.
+   *  @param response An javaxt.http.servlet.HttpServletResponse to write to.
    */
     public void send(HttpServletResponse response) throws IOException {
-        send(response, null);
-    }
 
-
-  //**************************************************************************
-  //** send
-  //**************************************************************************
-  /** Used to send the response to a client.
-   *  @param response A javaxt.http.servlet.HttpServletResponse to write to.
-   *  @param req A javaxt.express.ServiceRequest used to initiate the response.
-   */
-    public void send(HttpServletResponse response, ServiceRequest req) throws IOException {
-
-        HttpServletRequest request = req==null ? null : req.getRequest();
-
+        HttpServletRequest request = response.getRequest();
 
 
         if (status==301 || status==307){
@@ -231,16 +338,17 @@ public class ServiceResponse {
         else{
 
           //Set general response headers
-            response.setContentType(this.getContentType());
             response.setStatus(status);
+            response.setContentType(contentType);
 
 
-          //Set cache directives
+
+          //Add user-defined cache directives (not common)
             String eTag = (String) properties.get("ETag");
             if (eTag!=null) response.setHeader("ETag", eTag);
             String lastModified = (String) properties.get("Last-Modified");
+            if (lastModified==null && date!=null) lastModified = DateUtils.getDate(date.getTime());
             if (lastModified!=null) response.setHeader("Last-Modified", lastModified);
-            //this.setHeader("Expires", "Sun, 30 Sep 2018 16:23:15 GMT  ");
             if (cacheControl!=null) response.setHeader("Cache-Control", cacheControl);
             if (status==304) return;
 
@@ -249,17 +357,32 @@ public class ServiceResponse {
           //Set authentication header as needed
             String authType = request==null ? null : request.getAuthType();
             if (authMessage!=null && authType!=null){
-                //"WWW-Authenticate", "Basic realm=\"Access Denied\""
                 if (authType.equalsIgnoreCase("BASIC")){
                     response.setHeader("WWW-Authenticate", "Basic realm=\"" + authMessage + "\"");
+                }
+                else{
+                    //Are there similar headers for non-BASIC auth?
                 }
             }
 
 
           //Send body
             Object obj = this.getResponse();
-            if (obj instanceof javaxt.io.File){
+            if (obj instanceof byte[]){ //string, json, etc
+                byte[] b = (byte[]) obj;
+
+                if (date!=null && status==200){ //send cacheable response
+                    response.write(b, date.getTime());
+                }
+                else{ //send regular response
+                    response.write(b);
+                }
+
+            }
+            else if (obj instanceof javaxt.io.File){
                 javaxt.io.File file = (javaxt.io.File) obj;
+
+
                 if (date!=null && request!=null){
                     javaxt.utils.URL url = new javaxt.utils.URL(request.getURL());
                     long currVersion = date.toLong();
@@ -280,7 +403,6 @@ public class ServiceResponse {
 
 
               //Set "Content-Disposition" header as needed
-                String contentDisposition = this.getContentDisposition();
                 if (contentDisposition!=null) response.setHeader("Content-Disposition", contentDisposition);
 
 
@@ -289,28 +411,50 @@ public class ServiceResponse {
               //which we may be different than what the caller spefified in
               //this response. To avoid ambiguities, we'll rely exclusively
               //on whatever the user specified for the "Content-Disposition"
-                String contentType = file.getContentType();
+                if (contentType==null) contentType = file.getContentType();
                 String fileName = null;
 
 
               //Send file
                 response.write(file.toFile(), fileName, contentType, true);
+
             }
             else if (obj instanceof java.io.InputStream){
-              //Set Content-Length response header
+                java.io.InputStream inputStream = (java.io.InputStream) obj;
+                boolean compressOutput = true;
+
+
+              //Set Content-Length response header as needed
                 if (contentLength!=null){
                     response.setHeader("Content-Length", contentLength+"");
+                    compressOutput = false;
                 }
 
-                try (java.io.InputStream inputStream = (java.io.InputStream) obj){
-                    response.write(inputStream, true);
+
+              //Send response
+                try{
+                    response.write(inputStream, compressOutput);
                 }
+                catch(Exception e){
+                    try{inputStream.close();}catch(Exception ex){}
+                }
+
             }
             else{
-                response.write((byte[]) obj, true);
+                //??
             }
 
         }
+    }
+
+
+  //**************************************************************************
+  //** send
+  //**************************************************************************
+  /** Used to send the response to a client.
+   */
+    public void send(HttpServletResponse response, ServiceRequest req) throws IOException {
+        send(response);
     }
 
 
@@ -322,7 +466,7 @@ public class ServiceResponse {
    *  @param req A javaxt.express.ServiceRequest used to initiate the response.
    */
     public void send(javax.servlet.http.HttpServletResponse response, ServiceRequest req) throws IOException {
-        send(new HttpServletResponse(req.getRequest(), response), req);
+        send(new HttpServletResponse(req.getRequest(), response));
     }
 
 
@@ -334,7 +478,7 @@ public class ServiceResponse {
    *  @param req A javaxt.express.ServiceRequest used to initiate the response.
    */
     public void send(jakarta.servlet.http.HttpServletResponse response, ServiceRequest req) throws IOException {
-        send(new HttpServletResponse(req.getRequest(), response), req);
+        send(new HttpServletResponse(req.getRequest(), response));
     }
 
 
