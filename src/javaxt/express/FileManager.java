@@ -277,7 +277,7 @@ public class FileManager {
                 if (head==null){
                     long lastUpdate = htmlFile.getLastModifiedTime().getTime();
                     response.setContentType("text/html");
-                    sendResponse(html, lastUpdate, request, response);
+                    response.write(html, lastUpdate);
                     return;
                 }
                 String header = head.getOuterHTML();
@@ -412,7 +412,7 @@ public class FileManager {
 
               //Set content type and send response
                 response.setContentType("text/html");
-                sendResponse(html, lastUpdate, request, response);
+                response.write(html, lastUpdate);
                 return;
             }
             else if (ext.equals("xml")){
@@ -439,7 +439,7 @@ public class FileManager {
 
                   //Set content type and send response
                     response.setContentType("application/xml");
-                    sendResponse(getText(xml), lastUpdate, request, response);
+                    response.write(getText(xml), lastUpdate);
                     return;
                 }
 
@@ -450,59 +450,6 @@ public class FileManager {
       //Send file
         response.write(file, javaxt.io.File.getContentType(file.getName()), true);
 
-    }
-
-
-  //**************************************************************************
-  //** sendResponse
-  //**************************************************************************
-  /** Sends a given string to the client. Transparently handles caching using
-   *  "ETag" and "Last-Modified" headers.
-   *  @param date UTC date in milliseconds since January 1, 1970, 00:00:00 UTC
-   */
-    public void sendResponse(String html, long date, HttpServletRequest request,
-        HttpServletResponse response) throws IOException {
-
-
-      //Set response headers
-        long size = html.length();
-        String eTag = "W/\"" + size + "-" + date + "\"";
-        response.setHeader("ETag", eTag);
-        response.setHeader("Last-Modified", DateUtils.getDate(date)); //Sat, 23 Oct 2010 13:04:28 GMT
-        //this.setHeader("Cache-Control", "max-age=315360000");
-        //this.setHeader("Expires", "Sun, 30 Sep 2018 16:23:15 GMT  ");
-
-
-
-      //Return 304/Not Modified response if we can...
-        String matchTag = request.getHeader("if-none-match");
-        String cacheControl = request.getHeader("cache-control");
-        if (matchTag==null) matchTag = "";
-        if (cacheControl==null) cacheControl = "";
-        if (cacheControl.equalsIgnoreCase("no-cache")==false){
-            if (eTag.equalsIgnoreCase(matchTag)){
-                //System.out.println("Sending 304 Response!");
-                response.setStatus(304);
-                return;
-            }
-            else{
-              //Internet Explorer 6 uses "if-modified-since" instead of "if-none-match"
-                matchTag = request.getHeader("if-modified-since");
-                if (matchTag!=null){
-                    for (String tag: matchTag.split(";")){
-                        if (tag.trim().equalsIgnoreCase(response.getHeader("Last-Modified"))){
-                            //System.out.println("Sending 304 Response!");
-                            response.setStatus(304);
-                            return;
-                        }
-                    }
-                }
-
-            }
-        }
-
-
-        response.write(html);
     }
 
 
