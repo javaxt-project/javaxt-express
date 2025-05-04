@@ -529,7 +529,7 @@ public class FileManager {
                             StringBuilder str = new StringBuilder();
                             str.append("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\r\n");
                             str.append("<scripts>\r\n");
-                            for (String link : getLinks(src, path)){
+                            for (String link : getWildcardLinks(src, path)){
                                 str.append("<script src=\"");
                                 str.append(link);
                                 str.append("\"></script>\r\n");
@@ -580,7 +580,7 @@ public class FileManager {
                                 StringBuilder str = new StringBuilder();
                                 str.append("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\r\n");
                                 str.append("<links>\r\n");
-                                for (String link : getLinks(href, path)){
+                                for (String link : getWildcardLinks(href, path)){
 
                                     str.append("<link href=\"");
                                     str.append(link);
@@ -618,7 +618,7 @@ public class FileManager {
             }
 
 
-            private ArrayList<String> getLinks(String src, String path) throws Exception {
+            private ArrayList<String> getWildcardLinks(String src, String path) throws Exception {
 
               //Get file path
                 javaxt.io.File f = new javaxt.io.File(path);
@@ -631,7 +631,7 @@ public class FileManager {
                 int x = d.toString().replace("\\", "/").lastIndexOf(basePath);
 
 
-              //Create new xml document
+              //Find files and return links
                 ArrayList<String> links = new ArrayList<>();
                 for (javaxt.io.File file : d.getFiles(search, true)){
                     long lastModified = file.getLastModifiedTime().getTime();
@@ -640,6 +640,14 @@ public class FileManager {
 
                     String p = file.getDirectory().toString().replace("\\", "/").substring(x);
                     links.add(p + file.getName() + "?v=" + currVersion);
+
+                  //Files copied/pasted from another source may retain their
+                  //original timestamp. If these includes are older than any
+                  //other files, the newly added files will be missed on the
+                  //next load/refresh. As a workaround, we'll include a
+                  //timestamp of the parent folder. Copied folders will have a
+                  //timestamp of when the folder was copied.
+                    addDate(file.getDirectory().getLastModifiedTime().getTime());
                 }
                 return links;
             }
