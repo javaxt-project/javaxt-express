@@ -44,8 +44,8 @@ javaxt.express.FileBrowser = function(parent, config) {
 
 
           /** Style for the window control used to hold this panel. This config
-           *  is only valid when parent parent = document.body. See style
-           *  config in the javaxt.dhtml.Window class for options.
+           *  is only valid when parent = document.body. See style config in
+           *  the javaxt.dhtml.Window class for options.
            */
             window: {
                 panel: "window",
@@ -92,12 +92,6 @@ javaxt.express.FileBrowser = function(parent, config) {
 
 
 
-
-            addressBarItem:{
-
-            },
-
-
           /** Style for the table/grid control used to render files and folders.
            *  See style config in the javaxt.dhtml.DataGrid class for options.
            */
@@ -142,7 +136,7 @@ javaxt.express.FileBrowser = function(parent, config) {
     };
 
 
-    var win, grid, addressBar;
+    var win, grid, addressBar, waitmask;
     var button = {};
 
     var params = {};
@@ -152,9 +146,6 @@ javaxt.express.FileBrowser = function(parent, config) {
     var pathSeparator = "\\"; //updated dynamically using response from fileService
     var totalCount = 0;
     var totalSize = 0;
-
-    var waitmask;
-
 
 
   //**************************************************************************
@@ -176,32 +167,7 @@ javaxt.express.FileBrowser = function(parent, config) {
         config = merge(config, defaultConfig);
 
 
-      //Create main div
-        var mainDiv = createElement("div", {
-            width: "100%",
-            height: "100%",
-            position: "relative"
-        });
-        addShowHide(mainDiv);
-        me.el = mainDiv;
-
-
-      //Create waitmask
-        waitmask = new javaxt.express.WaitMask(mainDiv);
-
-
-      //Create main table
-        var table = createTable(mainDiv);
-        var td;
-
-        td = table.addRow().addColumn();
-        createNavbar(td);
-
-        td = table.addRow().addColumn();
-        td.style.height = "100%";
-        createGrid(td);
-
-
+      //Update parent as needed
         if (parent===document.body){
 
           //Create window
@@ -212,9 +178,9 @@ javaxt.express.FileBrowser = function(parent, config) {
                 modal: config.modal,
                 closable: config.closable,
                 footer: config.footer,
-                style: config.style.window,
-                body: mainDiv
+                style: config.style.window
             });
+            parent = win.getBody();
 
 
           //Copy window methods to this class
@@ -224,9 +190,21 @@ javaxt.express.FileBrowser = function(parent, config) {
                 }
             }
         }
-        else{
-            parent.appendChild(mainDiv);
-        }
+
+
+      //Create panel
+        var panel = new javaxt.dhtml.Panel(parent, {
+            className: "javaxt-file-browser",
+            style: {
+                toolbar: config.style.toolbar.panel
+            }
+        });
+        me.el = panel.el;
+        addShowHide(me);
+
+        createNavbar(panel.getToolbar());
+        createGrid(panel.getBody());
+        waitmask = new javaxt.express.WaitMask(me.el);
     };
 
 
@@ -359,26 +337,14 @@ javaxt.express.FileBrowser = function(parent, config) {
   //** createNavbar
   //**************************************************************************
     var createNavbar = function(parent){
-        setStyle(parent, config.style.toolbar.panel);
-        var tr = createTable(parent).addRow();
-        createToolbar(tr.addColumn());
-        createAddressBar(tr.addColumn({
-            width: "100%"
-        }));
-    };
 
-
-  //**************************************************************************
-  //** createToolbar
-  //**************************************************************************
-    var createToolbar = function(parent){
-
-        var tr = createTable(parent).addRow();
-        var td;
+        var td = parent;
+        td.style.display = "flex";
+        td.style.flexDirection = "row";
+        td.style.alignItems = "center";
 
 
       //Back button
-        td = tr.addColumn();
         var backButton = createButton(td, {
             label: "",
             icon: config.style.toolbar.icons.back,
@@ -390,7 +356,6 @@ javaxt.express.FileBrowser = function(parent, config) {
 
 
       //Forward button
-        td = tr.addColumn();
         var forwardButton = createButton(td, {
             label: "",
             icon: config.style.toolbar.icons.forward,
@@ -401,9 +366,7 @@ javaxt.express.FileBrowser = function(parent, config) {
         };
 
 
-
       //Up button
-        td = tr.addColumn();
         var upButton = createButton(td, {
             label: "",
             icon: config.style.toolbar.icons.up,
@@ -427,39 +390,35 @@ javaxt.express.FileBrowser = function(parent, config) {
         };
 
         button.up = upButton;
-    };
 
 
-  //**************************************************************************
-  //** createAddressBar
-  //**************************************************************************
-    var createAddressBar = function(parent){
 
-        var tr = createTable(parent).addRow();
-        var td = tr.addColumn();
-        td.style.width = "100%";
-
-
-        var div = createElement("div", td);
-        setStyle(div, config.style.toolbar.path);
+      //Address bar
+        var div = createElement("div", td, config.style.toolbar.path);
         div.style.position = "relative";
         div.style.width = "100%";
 
 
-        var outerDiv = createElement("div", div);
-        outerDiv.style.position = "absolute";
-        outerDiv.style.width = "100%";
-        outerDiv.style.height = "100%";
-        outerDiv.style.overflow = "hidden";
-        outerDiv.style.whiteSpace = "nowrap";
+        var outerDiv = createElement("div", div, {
+            position: "absolute",
+            width: "100%",
+            height: "100%",
+            overflow: "hidden",
+            whiteSpace: "nowrap",
+            top: 0,
+            left: 0
+        });
 
 
-        var innerDiv = createElement("div", outerDiv);
-        innerDiv.style.position = "absolute";
-        innerDiv.style.height = "100%";
-        innerDiv.style.overflow = "hidden";
-        innerDiv.style.whiteSpace = "nowrap";
-
+        var innerDiv = createElement("div", outerDiv, {
+            position: "absolute",
+            width: "100%",
+            height: "100%",
+            overflow: "hidden",
+            whiteSpace: "nowrap",
+            top: "-2px", //assumes input has 1px border
+            left: 0
+        });
 
 
         addressBar = {
@@ -473,7 +432,7 @@ javaxt.express.FileBrowser = function(parent, config) {
                 var arr = path.split("/");
                 for (var i=0; i<arr.length; i++){
                     var div = createElement("div", innerDiv);
-                    setStyle(div, config.style.addressBarItem);
+                    setStyle(div, config.style.toolbar.pathItem);
                     div.style.display = "inline-block";
                     div.innerHTML = arr[i] + pathSeparator;
                     outerDiv.scrollLeft = innerDiv.clientWidth;
@@ -497,7 +456,7 @@ javaxt.express.FileBrowser = function(parent, config) {
 
 
       //Refresh button
-        var refreshButton = createButton(tr.addColumn(), {
+        var refreshButton = createButton(td, {
             label: "",
             icon: config.style.toolbar.icons.refresh,
             disabled: false
