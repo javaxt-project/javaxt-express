@@ -60,8 +60,8 @@ public class FileManager {
   //**************************************************************************
   //** getFileUpdates
   //**************************************************************************
-  /** Used to monitor the web directory for changes. Calls the eventMonitor
-   *  whenever a file is created, updated, moved or deleted. Example:
+  /** Used to monitor the web directory for changes. Calls an EventMonitor
+   *  whenever a file is created, updated, moved, or deleted. Example:
    <pre>
     fileManager.getFileUpdates((Directory.Event event) -> {
         String op;
@@ -98,8 +98,18 @@ public class FileManager {
                     }
 
                     try{
-                        java.io.File f = new java.io.File(event.getFile());
-                        if (f.isFile()) eventMonitor.processEvent(event);
+                        if (isValidPath(event.getFile())){
+                            if (event.getEventID()==Directory.Event.DELETE){
+                                eventMonitor.processEvent(event);
+                            }
+                            else{
+                                java.io.File f = new java.io.File(event.getFile());
+                                if (f.isFile() && !f.isHidden()){
+                                    eventMonitor.processEvent(event);
+                                }
+                            }
+
+                        }
                     }
                     catch(Exception e){}
                 }
@@ -160,12 +170,7 @@ public class FileManager {
         for (String str : files){
 
           //Ensure that the path doesn't have any illegal directives
-            str = str.replace("\\", "/");
-            if (str.contains("..") || str.contains("/.") ||
-                str.toLowerCase().contains("/keystore")){
-                continue;
-            }
-
+            if (!isValidPath(str)) continue;
 
 
           //Send file if it exists
@@ -759,4 +764,19 @@ public class FileManager {
         return txt;
     }
 
+
+  //**************************************************************************
+  //** isValidPath
+  //**************************************************************************
+  /** Returns false if the given path contains illegal directives or to point
+   *  hidden or protected files.
+   */
+    private static boolean isValidPath(String str){
+        str = str.replace("\\", "/");
+        if (str.contains("..") || str.contains("/.") ||
+            str.toLowerCase().contains("/keystore")){
+            return false;
+        }
+        return true;
+    }
 }
