@@ -101,9 +101,7 @@ public class ServiceRequest {
                     try{
                         LinkedHashMap<String, List<String>> params =
                         javaxt.utils.URL.parseQueryString(new String(b, "UTF-8"));
-                        Iterator<String> it = params.keySet().iterator();
-                        while (it.hasNext()){
-                            String key = it.next();
+                        for (String key : params.keySet()) {
                             List<String> values = params.get(key);
                             List<String> currValues = this.parameters.get(key);
                             if (currValues==null){
@@ -935,9 +933,7 @@ public class ServiceRequest {
             }
             else{
                 LinkedHashMap<String, List<String>> map = javaxt.utils.URL.parseQueryString(str);
-                Iterator<String> it = map.keySet().iterator();
-                while (it.hasNext()){
-                    String key = it.next();
+                for (String key : map.keySet()){
                     List<String> vals = map.get(key);
                     if (!vals.isEmpty()) params.put(key, new javaxt.utils.Value(vals.get(0)));
                 }
@@ -953,9 +949,8 @@ public class ServiceRequest {
       //Create filter
         filter = new Filter();
         HashSet<String> reservedKeywords = getKeywords();
-        Iterator<String> it = params.keySet().iterator();
-        while (it.hasNext()){
-            String key = it.next().trim();
+        for (String key : params.keySet()){
+            key = key.trim();
             if (key.isEmpty()) continue;
             if (key.equals("_")) continue;
             if (reservedKeywords.contains(key.toLowerCase())) continue;
@@ -1509,9 +1504,7 @@ public class ServiceRequest {
        */
         public Item[] getItems(){
             ArrayList<Item> arr = new ArrayList<>();
-            Iterator<String> it = items.keySet().iterator();
-            while (it.hasNext()){
-                String key = it.next();
+            for (String key : items.keySet()){
                 for (Item item : items.get(key)){
                     arr.add(item);
                 }
@@ -1704,9 +1697,7 @@ public class ServiceRequest {
                     String col = field.getColumn();
 
                     HashMap<String, String> fieldMap = (HashMap<String, String>) tablesAndFields.get("fieldMap");
-                    Iterator<String> it = fieldMap.keySet().iterator();
-                    while (it.hasNext()){
-                        String fieldName = it.next();
+                    for (String fieldName : fieldMap.keySet()){
                         String columnName = fieldMap.get(fieldName);
                         if (col.equalsIgnoreCase(fieldName) || col.equalsIgnoreCase(columnName)){
                             tableName = (String) tablesAndFields.get("tableName");
@@ -1788,10 +1779,8 @@ public class ServiceRequest {
 
 
             ArrayList<String> a2 = new ArrayList<>();
-            Iterator<String> it = filter.items.keySet().iterator();
-            while (it.hasNext()){
+            for (String key : filter.items.keySet()){
                 ArrayList<String> arr = new ArrayList<>();
-                String key = it.next();
                 for (Filter.Item item : filter.items.get(key)){
                     String name = item.getField();
                     String op = item.getOperation();
@@ -1842,18 +1831,31 @@ public class ServiceRequest {
                             HashSet<String> arrayFields = (HashSet<String>) map.get("arrayFields");
 
 
-                            Iterator<String> i2 = fieldMap.keySet().iterator();
-                            while (i2.hasNext()){
-                                String fieldName = i2.next();
+                            for (String fieldName : fieldMap.keySet()){
                                 String columnName = fieldMap.get(fieldName);
                                 if (name.equalsIgnoreCase(fieldName) || name.equalsIgnoreCase(columnName)){
                                     foundField = true;
 
-                                  //Wrap value is single quote as needed
+                                  //Wrap value(s) in single quote as needed
                                     if (v!=null && stringFields.contains(fieldName)){
                                         if (!(v.startsWith("'") && v.endsWith("'"))){
                                             if (op.equals("IN")){
-                                                //TODO: split by commas and add quotes
+
+                                                if (v.startsWith("(") && v.endsWith(")")){
+                                                    v = v.substring(1, v.length()-1);
+                                                }
+                                                StringBuilder str = new StringBuilder("(");
+                                                String[] a = v.split(","); //very weak!
+                                                for (int i=0; i<a.length; i++){
+                                                    String s = a[i];
+                                                    if (i>0) str.append(",");
+                                                    if (!(s.startsWith("'") && s.endsWith("'"))){
+                                                        s = "'" + s.replace("'","''") + "'";
+                                                    }
+                                                    str.append(s);
+                                                }
+                                                str.append(")");
+                                                v = str.toString();
                                             }
                                             else{
                                                 v = "'" + v.replace("'","''") + "'";
@@ -1910,10 +1912,13 @@ public class ServiceRequest {
 
                                     break;
                                 }
+
+                                if (foundField) break;
                             }
-                            if (foundField) break;
+                            
+                            //console.log(foundField, name, tableName);
                         }
-                        //console.log(foundField, name, tableName);
+
                     }
                 }
 
@@ -1964,7 +1969,7 @@ public class ServiceRequest {
         if (!sort.isEmpty()){
             StringBuilder sql = new StringBuilder();
             sql.append(" order by ");
-            java.util.Iterator<String> it = sort.getKeySet().iterator();
+            Iterator<String> it = sort.getKeySet().iterator();
             while (it.hasNext()){
                 String colName = it.next();
                 String direction = sort.get(colName);
