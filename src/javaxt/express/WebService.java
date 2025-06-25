@@ -220,7 +220,7 @@ public abstract class WebService {
                   //that map to a "save" method (e.g. saveCompanies) that does
                   //not exist. Let's check if there's a suitable "get" method
                   //instead (e.g. getCompanies).
-                    if (methods==null && i==5 && methodName.endsWith("s")){
+                    if (methods==null && i==5){ // && methodName.endsWith("s")
                         methods = serviceMethods.get("get" + methodName);
                     }
 
