@@ -12,18 +12,38 @@ import javaxt.http.servlet.ServletException;
 //**  Authenticator
 //******************************************************************************
 /**
- *   This class is used to authenticate requests via the HttpServlet class.
- *   It supports both "BASIC" and "NTLM" authentication methods. Also includes
- *   a handleRequest() method that can be used to handle authentication
- *   workflows used in JavaXT Express web applications.
+ *   This class is an implementation of a javaxt.http.servlet.Authenticator
+ *   used to authenticate requests in a javaxt.http.servlet.HttpServlet.
+ *   Instances of this class are passed to the setAuthenticator() method in
+ *   the HttpServlet class. Once the HttpServlet has an Authenticator, it can
+ *   be used to retrieve credentials, get user principle, etc. Example:
  *
- *   Instances of this class are passed to the setAuthenticator() method in the
- *   javaxt.http.servlet.HttpServlet class.
+    <pre>
+    public class WebApp extends HttpServlet {
+        public WebApp(){
+            setAuthenticator(new javaxt.express.Authenticator());
+        }
+
+        public void processRequest(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
+
+            String[] credentials = getCredentials(); //Calls Authenticator!
+            String username = credentials[0];
+            String password = credentials[1];
+        }
+    }
+    </pre>
  *
- *   The following snippit can be used to perform "BASIC" authentication with
- *   a username and password. This example assumes that there is a "User" class
- *   that implements the java.security.Principal interface. The getUser() and
- *   setUser() methods are used to update an internal cache.
+ *   The getCredentials() method provided by this class supports both "BASIC"
+ *   and "NTLM" authentication methods.
+ *
+ *   The following snippit demonstrates how to perform "BASIC" authentication
+ *   with a username and password. This example assumes that there is a User
+ *   class that implements the java.security.Principal interface. The getUser()
+ *   and setUser() methods in this example are used to update an internal cache.
+ *   The cache is used to map a username to a User and is primarily used to
+ *   help reduce database queries. Entries in the cache are invalidated after
+ *   30 seconds.
  *
     <pre>
         setAuthenticator(new javaxt.express.Authenticator(){
@@ -54,15 +74,27 @@ import javaxt.http.servlet.ServletException;
         });
     </pre>
  *
+ *   With "NTLM" authentication, only the username is returned by the
+ *   getCredentials() method. The password will be null. This is because the
+ *   user has already been authenticated by another provider (e.g. AD). All
+ *   that's left to do is to map the username to a User/Principal via the
+ *   getPrinciple() method.
+ *
+ *   Additional authentication methods can be added by overriding the
+ *   getCredentials() method.
+ *
+ *   This class also includes a handleRequest() method that can be used to
+ *   simplify authentication workflows used in JavaXT web applications.
+ *
  ******************************************************************************/
 
 public class Authenticator implements javaxt.http.servlet.Authenticator, Cloneable {
 
 
   //Local variables
-    private String auth;
+    private String authType;
+    private String authInfo;
     private String[] credentials;
-    private String authenticationScheme;
     private HttpServletRequest request;
 
 
@@ -74,25 +106,89 @@ public class Authenticator implements javaxt.http.servlet.Authenticator, Cloneab
   //**************************************************************************
   //** newInstance
   //**************************************************************************
-  /** Creates a new instance of this class. This method is called whenever a
-   *  new HTTP request is made to the server (see HttpServletRequest class)
+  /** Creates a new instance of this class. This method is called by the
+   *  HttpServletRequest class every time an HTTP request is made to the
+   *  server.
    */
     public Authenticator newInstance(HttpServletRequest request){
+        try{
+
+          //Create new Authenticator
+            Object obj = this.clone();
 
 
-      //Parse "Authorization" header
-        String authenticationScheme = null;
-        String[] credentials = null;
-        String authorization = request.getHeader("Authorization");
-        if (authorization!=null){
-            int idx = authorization.indexOf(" ");
-            authenticationScheme = authorization.substring(0, idx).toUpperCase();
-            if (authenticationScheme.equals("BASIC")){
+          //Get Authenticator class
+            Class c = this.getClass();
+            java.lang.reflect.Field field;
+            try{
+                c.getDeclaredField("request");
+            }
+            catch(NoSuchFieldException e){
+                c = c.getSuperclass();
+            }
+
+
+          //Update private fields
+            field = c.getDeclaredField("request");
+            field.setAccessible(true);
+            field.set(obj, request);
+
+
+            return (Authenticator) obj;
+        }
+        catch(Exception e){
+            e.printStackTrace();
+            throw new RuntimeException();
+        }
+    }
+
+
+  //**************************************************************************
+  //** authenticate
+  //**************************************************************************
+  /** Used to authenticate an HTTP request. If the getPrinciple() method fails
+   *  to return a user, this method throws a ServletException. Override as
+   *  needed.
+   */
+    public void authenticate() throws ServletException {
+        java.security.Principal user = getPrinciple();
+        if (user==null) throw new ServletException();
+    }
+
+
+  //**************************************************************************
+  //** getPrinciple
+  //**************************************************************************
+  /** Returns the java.security.Principal associated with an HTTP request.
+   *  This method should be overridden as shown in the example above.
+   *  Otherwise, this method will return null and any calls to the
+   *  authenticate() method will throw a ServletException.
+   */
+    public java.security.Principal getPrinciple(){
+        return null;
+    }
+
+
+  //**************************************************************************
+  //** getCredentials
+  //**************************************************************************
+  /** Returns an array representing user credentials associated with an HTTP
+   *  request. In the case of "BASIC" authentication, the credentials contain
+   *  the username and password. In the case of "NTLM" authentication, the
+   *  credentials only contain a username. Override as needed.
+   */
+    public String[] getCredentials() {
+        if (credentials==null){
+
+            String authType = getAuthType();
+            if (authType==null) authType = "";
+
+            if (authType.equals("BASIC")){
 
 
               //Decode the string
                 String auth = new String(
-                    javaxt.utils.Base64.decode(authorization.substring(idx+1))
+                    javaxt.utils.Base64.decode(authInfo)
                 );
 
 
@@ -102,8 +198,8 @@ public class Authenticator implements javaxt.http.servlet.Authenticator, Cloneab
                 credentials = new String[]{username, password};
 
             }
-            else if (authenticationScheme.equals("NTLM")){
-                byte[] msg = javaxt.utils.Base64.decode(authorization.substring(idx+1));
+            else if (authType.equals("NTLM")){
+                byte[] msg = javaxt.utils.Base64.decode(authInfo);
 
 
                 int off = 0, length, offset;
@@ -139,86 +235,13 @@ public class Authenticator implements javaxt.http.servlet.Authenticator, Cloneab
                     if (username.length()==0) username = null;
 
 
-                    if (domainName!=null){
+                    if (domainName!=null && username!=null){
                         credentials = new String[]{username.toString(), null};
                     }
                 }
             }
         }
-
-
-        try{
-
-          //Create new Authenticator
-            Object obj = this.clone();
-
-
-          //Get Authenticator class
-            Class c = this.getClass();
-            java.lang.reflect.Field field;
-            try{
-                c.getDeclaredField("request");
-            }
-            catch(NoSuchFieldException e){
-                c = c.getSuperclass();
-            }
-
-
-          //Update private fields
-            field = c.getDeclaredField("request");
-            field.setAccessible(true);
-            field.set(obj, request);
-
-            field = c.getDeclaredField("authenticationScheme");
-            field.setAccessible(true);
-            field.set(obj, authenticationScheme);
-
-            field = c.getDeclaredField("credentials");
-            field.setAccessible(true);
-            field.set(obj, credentials);
-
-            return (Authenticator) obj;
-        }
-        catch(Exception e){
-            e.printStackTrace();
-            throw new RuntimeException();
-        }
-    }
-
-
-  //**************************************************************************
-  //** getPrinciple
-  //**************************************************************************
-  /** Returns the java.security.Principal associated with an HTTP request.
-   *  Override this method!
-   */
-    public java.security.Principal getPrinciple(){
-        return null;
-    }
-
-
-  //**************************************************************************
-  //** getCredentials
-  //**************************************************************************
-  /** Returns the credentials associated with an HTTP request. In the case of
-   *  "BASIC" authentication, the credentials contain the username and
-   *  password. In the case of "NTLM" authentication, the credentials only
-   *  contain a username.
-   */
-    public String[] getCredentials() {
         return credentials;
-    }
-
-
-  //**************************************************************************
-  //** authenticate
-  //**************************************************************************
-  /** Used to authenticate a client request. If the Authenticator fails to
-   *  authenticate the client, this method throws a ServletException.
-   */
-    public void authenticate() throws ServletException {
-        java.security.Principal user = getPrinciple();
-        if (user==null) throw new ServletException();
     }
 
 
@@ -226,17 +249,28 @@ public class Authenticator implements javaxt.http.servlet.Authenticator, Cloneab
   //** getAuthType
   //**************************************************************************
   /** Returns the authentication scheme used to authenticate clients (e.g.
-   *  "BASIC" or "NTLM").
+   *  "BASIC", "NTLM", etc). By default, this class parses the "Authorization"
+   *  HTTP request header to determine the authentication scheme. Override as
+   *  needed.
    */
     public String getAuthType(){
-        return authenticationScheme;
+        if (authType==null){
+            String authorization = request.getHeader("Authorization");
+            if (authorization!=null){
+                int idx = authorization.indexOf(" ");
+                authType = authorization.substring(0, idx).toUpperCase();
+                authInfo = authorization.substring(idx+1);
+            }
+        }
+        return authType;
     }
 
 
   //**************************************************************************
   //** isUserInRole
   //**************************************************************************
-  /** This method is a legacy feature from the Java Servlet API.
+  /** This method is a legacy feature from the Java Servlet API. Returns
+   *  false. Override as needed.
    */
     public boolean isUserInRole(String role){
         return false;
@@ -244,12 +278,27 @@ public class Authenticator implements javaxt.http.servlet.Authenticator, Cloneab
 
 
   //**************************************************************************
+  //** getUsername
+  //**************************************************************************
+  /** Returns the first entry in the array returned by getCredentials().
+   *  Override as needed.
+   */
+    protected String getUsername(){
+        String[] credentials = getCredentials();
+        return (credentials!=null) ? credentials[0] : null;
+    }
+
+
+  //**************************************************************************
   //** getUser
   //**************************************************************************
+  /** Returns a User from the cache. The username returned from getUsername()
+   *  is used to find the User in the cache. Override as needed.
+   */
     protected User getUser(){
 
         User user = null;
-        String username = (credentials!=null) ? credentials[0] : null;
+        String username = getUsername();
         if (username!=null){
 
           //Check if the credentials correspond to a logout request. See the
@@ -279,9 +328,12 @@ public class Authenticator implements javaxt.http.servlet.Authenticator, Cloneab
   //**************************************************************************
   //** setUser
   //**************************************************************************
+  /** Used to add a User to the cache. The username returned from getUsername()
+   *  is used as the key in the cache. Override as needed.
+   */
     protected void setUser(User user){
         if (user!=null){
-            String username = (credentials!=null) ? credentials[0] : null;
+            String username = getUsername();
             if (username!=null){
                 synchronized(cache){
                     cache.put(username, new Object[]{user, System.currentTimeMillis()});
@@ -296,27 +348,34 @@ public class Authenticator implements javaxt.http.servlet.Authenticator, Cloneab
   //** handleRequest
   //**************************************************************************
   /** Used to process an authentication workflow. Returns true if a response
-   *  was returned to the client. Example usage:
+   *  was generated for the client. Example usage:
    <pre>
     public void processRequest(HttpServletRequest request, HttpServletResponse response)
         throws ServletException, IOException {
 
         Authenticator authenticator = (Authenticator) getAuthenticator(request);
-        if (!authenticator.handleRequest(service, response)){
+        if (authenticator.handleRequest(service, response)) return;
 
-            //TODO: Send a response (file, json, text, etc)
-        }
+        //If we're still here, generate a response!
     }
    </pre>
+   *
+   *  @param service Directive, typically extracted from the first path segment
+   *  after the servlet path in the request URL. Options include "login",
+   *  "logoff" (or "logout"), and "whoami".
+   *  @param response An HttpServletResponse object to be updated.
+   *  @return Returns true if this method was able to process the directive and
+   *  update the HttpServletResponse. Nothing else should be written to the
+   *  response. If false is returned, continue processing the request and
+   *  generate your own response.
    */
     public boolean handleRequest(String service, HttpServletResponse response)
         throws ServletException, IOException {
 
 
 
-
       //Send NTLM response as needed
-        boolean ntlm = (auth!=null && auth.equals("NTLM"));
+        boolean ntlm = (authType!=null && authType.equals("NTLM"));
         if (ntlm){
             String ua = request.getHeader("user-agent");
             if (ua!=null){
@@ -332,7 +391,8 @@ public class Authenticator implements javaxt.http.servlet.Authenticator, Cloneab
 
         boolean requestHandled = true;
         if (service.equals("login")){
-            if (credentials==null){
+            String username = getUsername();
+            if (username==null){
                 if (ntlm){
                     response.setStatus(401, "Access Denied");
                     response.setHeader("WWW-Authenticate", "NTLM");
@@ -362,7 +422,7 @@ public class Authenticator implements javaxt.http.servlet.Authenticator, Cloneab
 
         }
         else if (service.equals("logoff") || service.equalsIgnoreCase("logout")){
-            String username = (credentials!=null) ? credentials[0] : null;
+            String username = getUsername();
             if (username!=null){
                 synchronized(cache){
                     cache.remove(username);
@@ -394,7 +454,7 @@ public class Authenticator implements javaxt.http.servlet.Authenticator, Cloneab
             if (user==null){
 
               //If the request has credentials, try authenticating the user
-                String username = (credentials!=null) ? credentials[0] : null;
+                String username = getUsername();
                 if (!(username==null || username.equals("logout"))){
                     try{
                         request.authenticate();
@@ -421,8 +481,6 @@ public class Authenticator implements javaxt.http.servlet.Authenticator, Cloneab
 
         return requestHandled;
     }
-
-
 
 
   //**************************************************************************
