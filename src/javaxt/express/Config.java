@@ -185,6 +185,71 @@ public class Config {
 
 
   //**************************************************************************
+  //** getEmail
+  //**************************************************************************
+  /** Returns an instance of an EmailService assigned to a "email" key.
+   */
+    public javaxt.express.email.EmailService getEmail(){
+        JSONValue val = get("email");
+        if (val==null) return null;
+        if (val.toObject() instanceof javaxt.express.email.EmailService){
+            return (javaxt.express.email.EmailService) val.toObject();
+        }
+        else{
+            javaxt.express.email.EmailService email = getEmail(val);
+            if (email!=null) setEmail(email);
+            return email;
+        }
+    }
+
+
+  //**************************************************************************
+  //** getEmail
+  //**************************************************************************
+  /** Used to parse email connection information found in a given JSONValue
+   *  and returns an instance of an EmailService.
+   */
+    public static javaxt.express.email.EmailService getEmail(JSONValue val){
+        return getEmail(val.toJSONObject());
+    }
+
+
+  //**************************************************************************
+  //** setEmail
+  //**************************************************************************
+  /** Used to parse email connection information found in a given JSONObject
+   *  and returns an instance of an EmailService. Example:
+   <pre>
+    {
+        "host": "secure.emailsrvr.com",
+        "port": 465,
+        "username": "name@somedomain.com",
+        "password": "xxxxxxxx",
+    }
+   </pre>
+   */
+    public static javaxt.express.email.EmailService getEmail(JSONObject json){
+        if (json==null) return null;
+        return new javaxt.express.email.EmailService(
+            json.get("host").toString(),
+            json.get("port").toInteger(),
+            json.get("username").toString(),
+            json.get("password").toString()
+        );
+    }
+
+
+  //**************************************************************************
+  //** setEmail
+  //**************************************************************************
+  /** Used to assign an EmailService to an "email" key.
+   */
+    public void setEmail(javaxt.express.email.EmailService email){
+        set("email", email);
+    }
+
+
+  //**************************************************************************
   //** toJson
   //**************************************************************************
   /** Returns the current config in JSON notation.
@@ -210,6 +275,15 @@ public class Config {
                     db.set("password", database.getPassword());
                     db.set("maxConnections", database.getConnectionPoolSize());
                     json.set(key, db);
+                }
+                else if (obj instanceof javaxt.express.email.EmailService){
+                    javaxt.express.email.EmailService email = (javaxt.express.email.EmailService) obj;
+                    JSONObject emailConfig = new JSONObject();
+                    emailConfig.set("host", email.getHost());
+                    emailConfig.set("port", email.getPort());
+                    emailConfig.set("username", email.getUserName());
+                    emailConfig.set("password", email.getPassword());
+                    json.set(key, emailConfig);
                 }
                 else{
                     json.set(key, obj);
