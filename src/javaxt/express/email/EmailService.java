@@ -33,6 +33,8 @@ public class EmailService {
    *  @param password Password associated with the username
    */
     public EmailService(String host, int port, String username, String password) {
+        this.username = username;
+        this.password = password;
         authenticator = new Authenticator(username, password);
         properties = new Properties();
 
@@ -52,7 +54,7 @@ public class EmailService {
   //**************************************************************************
   //** setHost
   //**************************************************************************
-  /** Used to set the hostname and port of the server
+  /** Used to set the hostname and port of the SMTP server
    */
     public void setHost(String host, int port){
         setHost(host);
@@ -63,7 +65,7 @@ public class EmailService {
   //**************************************************************************
   //** setHost
   //**************************************************************************
-  /** Used to set the hostname or IP address of the server
+  /** Used to set the hostname or IP address of the SMTP server
    */
     public void setHost(String host){
         if (host==null){
@@ -91,7 +93,7 @@ public class EmailService {
   //**************************************************************************
   //** getHost
   //**************************************************************************
-  /** Returns the hostname or IP address of the server
+  /** Returns the hostname or IP address of the SMTP server
    */
     public String getHost(){
         return host;
@@ -101,6 +103,8 @@ public class EmailService {
   //**************************************************************************
   //** setPort
   //**************************************************************************
+  /** Used to set the port of the SMTP server
+   */
     public void setPort(int port){
         this.port = port;
         properties.setProperty("mail.smtp.port", port+"");
@@ -110,14 +114,39 @@ public class EmailService {
   //**************************************************************************
   //** getPort
   //**************************************************************************
+  /** Returns the port of the SMTP server
+   */
     public Integer getPort(){
         return port;
     }
 
 
   //**************************************************************************
+  //** getUserName
+  //**************************************************************************
+  /** Returns the username used to connect to the SMTP server
+   */
+    public String getUserName(){
+        return username;
+    }
+
+
+  //**************************************************************************
+  //** getPassword
+  //**************************************************************************
+  /** Returns the password used to connect to the SMTP server
+   */
+    public String getPassword(){
+        return password;
+    }
+
+
+  //**************************************************************************
   //** createEmail
   //**************************************************************************
+  /** Returns a new email message that can be sent via the SMPT server. Note
+   *  that this method calls getSession() so you don't have to.
+   */
     public EmailMessage createEmail(){
         return new EmailMessage(getSession());
     }
@@ -126,6 +155,8 @@ public class EmailService {
   //**************************************************************************
   //** getSession
   //**************************************************************************
+  /** Returns a new email session.
+   */
     public Session getSession() {
         return Session.getInstance(properties, authenticator);
     }
