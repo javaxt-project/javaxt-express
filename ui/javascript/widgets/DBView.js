@@ -93,6 +93,10 @@ javaxt.express.DBView = function(parent, config) {
                 color: "#bfc0c3"
             },
 
+            rightPanel: {
+
+            },
+
             bottomPanel: {
                 backgroundColor: "#e4e4e4",
                 borderTop: "1px solid #b5b5b5"
@@ -105,22 +109,13 @@ javaxt.express.DBView = function(parent, config) {
             toolbar: "panel-toolbar",
             toolbarButton: {}, //javaxt.dhtml.style.default.toolbarButton
             toolbarIcons: {
-                run: "runIcon",
-                cancel: "deleteIcon"
+                run: "run-icon",
+                cancel: "stop-icon"
             },
 
             editor: {
                 height: "240px",
-                /*
-                background: "inherit",
-                border: "0px none",
-
-                margin: 0,
-                padding: "5px 10px",
-
-                fontFamily: '"Consolas", "Bitstream Vera Sans Mono", "Courier New", Courier, monospace',
-                color: "#97989c"
-                */
+                fontFamily: '"Consolas", "Bitstream Vera Sans Mono", "Courier New", Courier, monospace'
             },
 
             table: {}, //javaxt.dhtml.style.default.table
@@ -188,6 +183,7 @@ javaxt.express.DBView = function(parent, config) {
 
       //Create main div
         var div = createElement('div', parent, config.style.container);
+        div.classList.add('javaxt-db-view');
         me.el = div;
         addShowHide(me);
 
@@ -204,10 +200,10 @@ javaxt.express.DBView = function(parent, config) {
 
 
       //Right column
-        var td = tr.addColumn({
-            height: "100%",
-            width: "100%"
-        });
+        var td = tr.addColumn(config.style.rightPanel);
+        td.style.width = "100%";
+        td.style.height = "100%";
+
 
         var hr = addHorizontalResizer(td, target);
         createQueryView(hr);
@@ -404,15 +400,22 @@ javaxt.express.DBView = function(parent, config) {
   //** createQueryView
   //**************************************************************************
     var createQueryView = function(parent){
-        var table = createTable(parent);
+
+      //Create panel
+        var panel = new javaxt.dhtml.Panel(parent, {
+            style: {
+                toolbar: config.style.toolbar
+            }
+        });
 
 
       //Create toolbar
-        toolbar = table.addRow().addColumn(config.style.toolbar);
+        toolbar = panel.getToolbar();
         addButtons(toolbar);
 
 
       //Create editor
+        var table = createTable(panel.getBody());
         var td = table.addRow().addColumn(config.style.editor);
         td.style.borderBottom = border;
 
@@ -462,7 +465,9 @@ javaxt.express.DBView = function(parent, config) {
                 resize: "none",
                 border: "0 none",
                 padding: "10px",
-                boxSizing: "border-box" //this is critical if you want padding
+                boxSizing: "border-box", //this is critical if you want padding
+                fontFamily: "inherit",
+                fontSize: "inherit"
             });
             editor.spellcheck = false;
             editor.getValue = function(){
