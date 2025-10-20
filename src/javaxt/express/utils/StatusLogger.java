@@ -13,16 +13,22 @@ import java.util.concurrent.atomic.AtomicLong;
  *  messages are written every second and appear in the following format:
  *  <pre>0 records processed (0 records per second)</pre>
  *  A percent completion and an estimated time to completion (ETC) is appended
- *  to the status message if a "totalRecords" counter is given.<br/>
+ *  to the status message if a "totalRecords" counter is given.
+ *  <p>
  *  The status logger is run in a separate thread. The "recordCounter" is
  *  updated by the caller. Example:
+ *  </p>
  <pre>
+  //Instantite the StatusLogger with a record counter
     AtomicLong recordCounter = new AtomicLong(0);
     StatusLogger statusLogger = new StatusLogger(recordCounter);
-    while (true){
-       //Execute some process then update the counter
-       recordCounter.incrementAndGet();
-    }
+
+  //Execute some process then update the counter
+    ...
+    recordCounter.incrementAndGet();
+    ...
+
+  //Shutdown the StatusLogger when finished processing
     statusLogger.shutdown();
  </pre>
  *
@@ -54,59 +60,10 @@ public class StatusLogger {
         startTime = System.currentTimeMillis();
         this.totalRecords = totalRecords==null ? new AtomicLong(0) : totalRecords;
 
-        StatusLogger me = this;
+
         r = new Runnable(){
             public void run() {
-                long currTime = System.currentTimeMillis();
-                double elapsedTime = (currTime-startTime)/1000; //seconds
-                long x = recordCounter.get();
-                AtomicLong totalRecords = me.totalRecords;
-
-                String rate = "0";
-                long recordsPerSecond = 0;
-                try{
-                    recordsPerSecond = Math.round(x/elapsedTime);
-                    if (totalRecords!=null && totalRecords.get()>0){
-                        if (recordsPerSecond>totalRecords.get()) recordsPerSecond = totalRecords.get();
-                    }
-                    rate = StringUtils.format(recordsPerSecond);
-                }
-                catch(Exception e){}
-
-                int len = statusText.length();
-                if (!separateMessages){
-                    for (int i=0; i<len; i++){
-                        System.out.print("\b");
-                    }
-                }
-
-                statusText = StringUtils.format(x) + " records processed (" + rate + " records per second)";
-
-
-                if (totalRecords!=null && totalRecords.get()>0){
-                    double p = ((double) x / (double) totalRecords.get());
-                    int percentComplete = (int) Math.round(p*100);
-
-                    String _etc = "---------- --:-- --";
-                    if (elapsedTime>0 && recordsPerSecond>0){
-                        int timeRemaining = (int) Math.round(((totalRecords.get()-x)/recordsPerSecond)/60);
-
-                        javaxt.utils.Date etc = new javaxt.utils.Date();
-                        etc.add(timeRemaining, "minutes");
-
-                        if (percentComplete==100) etc = new javaxt.utils.Date();
-                        if (tz!=null) etc.setTimeZone(tz);
-
-                        _etc = etc.toString("yyyy-MM-dd HH:mm a");
-                    }
-
-                    statusText += " " + x + "/" + totalRecords.get() + " " + percentComplete + "% ETC: " + _etc;
-                }
-
-                while (statusText.length()<len) statusText += " ";
-
-
-                System.out.print(statusText + (separateMessages ? "\r\n" : ""));
+                print(recordCounter);
             }
         };
 
@@ -199,5 +156,62 @@ public class StatusLogger {
 
       //Clean up
         executor.shutdown();
+    }
+
+
+  //**************************************************************************
+  //** print
+  //**************************************************************************
+    private synchronized void print(AtomicLong recordCounter){
+        long currTime = System.currentTimeMillis();
+        double elapsedTime = (currTime-startTime)/1000; //seconds
+        long x = recordCounter.get();
+
+
+        String rate = "0";
+        long recordsPerSecond = 0;
+        try{
+            recordsPerSecond = Math.round(x/elapsedTime);
+            if (totalRecords!=null && totalRecords.get()>0){
+                if (recordsPerSecond>totalRecords.get()) recordsPerSecond = totalRecords.get();
+            }
+            rate = StringUtils.format(recordsPerSecond);
+        }
+        catch(Exception e){}
+
+        int len = statusText.length();
+        if (!separateMessages){
+            for (int i=0; i<len; i++){
+                System.out.print("\b");
+            }
+        }
+
+        statusText = StringUtils.format(x) + " records processed (" + rate + " records per second)";
+
+
+        if (totalRecords!=null && totalRecords.get()>0){
+            double p = ((double) x / (double) totalRecords.get());
+            int percentComplete = (int) Math.round(p*100);
+
+            String _etc = "---------- --:-- --";
+            if (elapsedTime>0 && recordsPerSecond>0){
+                int timeRemaining = (int) Math.round(((totalRecords.get()-x)/recordsPerSecond)/60);
+
+                javaxt.utils.Date etc = new javaxt.utils.Date();
+                etc.add(timeRemaining, "minutes");
+
+                if (percentComplete==100) etc = new javaxt.utils.Date();
+                if (tz!=null) etc.setTimeZone(tz);
+
+                _etc = etc.toString("yyyy-MM-dd HH:mm a");
+            }
+
+            statusText += " " + x + "/" + totalRecords.get() + " " + percentComplete + "% ETC: " + _etc;
+        }
+
+        while (statusText.length()<len) statusText += " ";
+
+
+        System.out.print(statusText + (separateMessages ? "\r\n" : ""));
     }
 }
