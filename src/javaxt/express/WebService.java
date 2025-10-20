@@ -285,15 +285,7 @@ public abstract class WebService {
 
 
           //Special case for plural-form of a model. Return list of models.
-            if (className.endsWith("ies")){ //Categories == Category
-                c = getClass(className.substring(0, className.length()-3) + "y");
-            }
-            else if (className.endsWith("ses")){ //Classes == Class
-                c = getClass(className.substring(0, className.length()-2));
-            }
-            else if (className.endsWith("s")){ //Sources == Source
-                c = getClass(className.substring(0, className.length()-1));
-            }
+            c = getClassFromPluralName(className);
             if (c!=null) return list(c.c, request, database);
 
         }
@@ -313,15 +305,7 @@ public abstract class WebService {
 
 
           //Special case for plural-form of a model. Return list of models.
-            if (className.endsWith("ies")){ //Categories == Category
-                c = getClass(className.substring(0, className.length()-3) + "y");
-            }
-            else if (className.endsWith("ses")){ //Classes == Class
-                c = getClass(className.substring(0, className.length()-2));
-            }
-            else if (className.endsWith("s")){ //Sources == Source
-                c = getClass(className.substring(0, className.length()-1));
-            }
+            c = getClassFromPluralName(className);
             if (c!=null) return list(c.c, request, database);
 
         }
@@ -860,12 +844,71 @@ public abstract class WebService {
   //** getClass
   //**************************************************************************
   /** Returns a class from the list of known/supported classes for a given
-   *  class name.
+   *  class name. Performs an exact match.
    */
     private DomainClass getClass(String className){
         synchronized(classes){
             return classes.get(className);
         }
+    }
+
+
+  //**************************************************************************
+  //** getClassFromPluralName
+  //**************************************************************************
+  /** Returns a class from the list of known/supported classes for a plural
+   *  form of a class name.
+   */
+    private DomainClass getClassFromPluralName(String className){
+        if (className==null) return null;
+
+      //Check for common plural suffixes
+        if (className.endsWith("ies")){ //Categories == Category
+            if (className.length() > 3){
+                char beforeIes = className.charAt(className.length()-4);
+                if (!"aeiou".contains(String.valueOf(beforeIes).toLowerCase())){
+                    return getClass(className.substring(0, className.length()-3) + "y");
+                }
+            }
+        }
+        else if (className.endsWith("sses")){ //Classes == Class
+            return getClass(className.substring(0, className.length()-2));
+        }
+        else if (className.endsWith("ches")){ //Matches == Match
+            return getClass(className.substring(0, className.length()-2));
+        }
+        else if (className.endsWith("shes")){ //Dishes == Dish
+            return getClass(className.substring(0, className.length()-2));
+        }
+        else if (className.endsWith("xes")){ //Boxes == Box
+            return getClass(className.substring(0, className.length()-2));
+        }
+        else if (className.endsWith("zzes")){ //Buzzes == Buzz
+            return getClass(className.substring(0, className.length()-2));
+        }
+        else if (className.endsWith("ses")){ //Viruses = Virus, Gases = Gas
+            return getClass(className.substring(0, className.length()-2));
+        }
+
+
+      //If we're still here, try stripping out the last "s"
+        if (className.endsWith("s")){ //Sources == Source, Premises = Premise
+            return getClass(className.substring(0, className.length()-1));
+        }
+
+
+      //If we're still here, check for common irregular plurals
+        if (className.equalsIgnoreCase("men")) return getClass("Man");
+        if (className.equalsIgnoreCase("women")) return getClass("Woman");
+        if (className.equalsIgnoreCase("people")) return getClass("Person");
+        if (className.equalsIgnoreCase("children")) return getClass("Child");
+        if (className.equalsIgnoreCase("indices")) return getClass("Index");
+        if (className.equalsIgnoreCase("vertices")) return getClass("Vertex");
+        if (className.equalsIgnoreCase("analyses")) return getClass("Analysis");
+        if (className.equalsIgnoreCase("criteria")) return getClass("Criterion");
+
+
+        return null;
     }
 
 
