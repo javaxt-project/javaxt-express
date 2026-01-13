@@ -158,7 +158,10 @@ public class ServiceRequest {
   //** setService
   //**************************************************************************
   /** Used to update the service and path variables associated with the
-   *  request.
+   *  request. This method determines which URL segments are included in the
+   *  path, which in turn affects the method name returned by getMethod().
+   *  Call this method when routing a request from an HttpServlet or WebService
+   *  to another WebService to ensure proper routing.
    *  @param service A segment in the request URL used to designate the start
    *  of the path variable. The service segment should appear after the
    *  servlet. For example, the service segment in
@@ -1915,7 +1918,7 @@ public class ServiceRequest {
 
                                 if (foundField) break;
                             }
-                            
+
                             //console.log(foundField, name, tableName);
                         }
 
