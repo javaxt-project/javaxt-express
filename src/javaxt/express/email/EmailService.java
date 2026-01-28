@@ -142,6 +142,57 @@ public class EmailService {
 
 
   //**************************************************************************
+  //** enableTLS
+  //**************************************************************************
+  /** Used to enable TLS. By default, the EmailService is configured to
+   *  communicate with an SMTP server over SSL. This method will configure
+   *  properties commonly used with TLS and disable default SSL properties.
+   */
+    public void enableTLS(){
+        properties.setProperty("mail.smtp.ssl.enable", "false");
+        properties.remove("mail.smtp.socketFactory.class");
+        properties.setProperty("mail.smtp.starttls.enable", "true");
+        properties.setProperty("mail.smtp.starttls.required", "true");
+    }
+
+
+  //**************************************************************************
+  //** disableTLS
+  //**************************************************************************
+  /** Used to disable TLS. Update properties commonly used with TLS and
+   *  enables default SSL properties.
+   */
+    public void disableTLS(){
+        properties.setProperty("mail.smtp.ssl.enable", "true");
+        properties.setProperty("mail.smtp.socketFactory.class", "javax.net.ssl.SSLSocketFactory");
+        properties.remove("mail.smtp.starttls.enable");
+        properties.remove("mail.smtp.starttls.required");
+    }
+
+
+  //**************************************************************************
+  //** setProperty
+  //**************************************************************************
+  /** Used to set/update a property used to connect to a SMTP server.
+   *  @param key Property name/key (e.g. "mail.smtp.ssl.enable")
+   *  @param value Property value (e.g. "true)
+   */
+    public void setProperty(String key, String value){
+        properties.setProperty(key, value);
+    }
+
+
+  //**************************************************************************
+  //** getProperty
+  //**************************************************************************
+  /** Returns a property used to connect to a SMTP server.
+   */
+    public String getProperty(String key){
+        return properties.getProperty(key);
+    }
+
+
+  //**************************************************************************
   //** createEmail
   //**************************************************************************
   /** Returns a new email message that can be sent via the SMPT server. Note
