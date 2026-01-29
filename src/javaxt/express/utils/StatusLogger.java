@@ -80,7 +80,8 @@ public class StatusLogger {
    *  setting the total record count, the status logger will print a percent
    *  completion status update.
    */
-    public void setTotalRecords(long n){
+    public synchronized void setTotalRecords(long n){
+        if (n<0) return;
         totalRecords.set(n);
         r.run();
     }
@@ -91,7 +92,7 @@ public class StatusLogger {
   //**************************************************************************
   /** Returns the total number of records expected to be processed.
    */
-    public Long getTotalRecords(){
+    public synchronized Long getTotalRecords(){
         return totalRecords.get();
     }
 
@@ -166,16 +167,28 @@ public class StatusLogger {
         long currTime = System.currentTimeMillis();
         double elapsedTime = (currTime-startTime)/1000; //seconds
         long x = recordCounter.get();
+        long total = totalRecords.get();
 
 
-        String rate = "0";
+        String rateText = "0 records per second";
         long recordsPerSecond = 0;
+        double recordsPerSecondDouble = 0;
         try{
-            recordsPerSecond = Math.round(x/elapsedTime);
-            if (totalRecords!=null && totalRecords.get()>0){
-                if (recordsPerSecond>totalRecords.get()) recordsPerSecond = totalRecords.get();
+            if (elapsedTime > 0 && x > 0) {
+                recordsPerSecondDouble = x / elapsedTime;
+                recordsPerSecond = Math.round(recordsPerSecondDouble);
             }
-            rate = StringUtils.format(recordsPerSecond);
+            if (total>0){
+                if (recordsPerSecond>total) recordsPerSecond = total;
+            }
+
+            // Display seconds per record if rate is less than 1 record per second
+            if (recordsPerSecondDouble < 1.0 && x > 0) {
+                double secondsPerRecord = elapsedTime / x;
+                rateText = StringUtils.format(secondsPerRecord) + " seconds per record";
+            } else {
+                rateText = StringUtils.format(recordsPerSecond) + " records per second";
+            }
         }
         catch(Exception e){}
 
@@ -186,32 +199,36 @@ public class StatusLogger {
             }
         }
 
-        statusText = StringUtils.format(x) + " records processed (" + rate + " records per second)";
+        statusText = StringUtils.format(x) + " records processed (" + rateText + ")";
 
 
-        if (totalRecords!=null && totalRecords.get()>0){
-            double p = ((double) x / (double) totalRecords.get());
+        if (total>0){
+            // Ensure x doesn't exceed total (can happen due to timing)
+            long displayX = Math.min(x, total);
+            double p = ((double) displayX / (double) total);
             int percentComplete = (int) Math.round(p*100);
 
             String _etc = "---------- --:-- --";
             if (elapsedTime>0 && recordsPerSecond>0){
-                int timeRemaining = (int) Math.round(((totalRecords.get()-x)/recordsPerSecond)/60);
+                long recordsRemaining = Math.max(0, total - displayX);
+                if (recordsRemaining > 0) {
+                    int timeRemaining = (int) Math.round(((double) recordsRemaining / recordsPerSecond) / 60);
 
-                javaxt.utils.Date etc = new javaxt.utils.Date();
-                etc.add(timeRemaining, "minutes");
+                    javaxt.utils.Date etc = new javaxt.utils.Date();
+                    etc.add(timeRemaining, "minutes");
 
-                if (percentComplete==100) etc = new javaxt.utils.Date();
-                if (tz!=null) etc.setTimeZone(tz);
-
-                _etc = etc.toString("yyyy-MM-dd HH:mm a");
+                    if (tz!=null) etc.setTimeZone(tz);
+                    _etc = etc.toString("yyyy-MM-dd HH:mm a");
+                }
             }
 
-            statusText += " " + x + "/" + totalRecords.get() + " " + percentComplete + "% ETC: " + _etc;
+            statusText += " " + displayX + "/" + total + " " + percentComplete + "% ETC: " + _etc;
         }
 
         while (statusText.length()<len) statusText += " ";
 
 
         System.out.print(statusText + (separateMessages ? "\r\n" : ""));
+        System.out.flush(); // Ensure output is written immediately
     }
 }
