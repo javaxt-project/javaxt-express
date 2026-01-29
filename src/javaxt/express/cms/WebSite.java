@@ -1,10 +1,11 @@
 package javaxt.express.cms;
 import javaxt.express.FileManager;
-import javaxt.express.utils.DateUtils;
+import javaxt.express.utils.MDParser;
 import javaxt.http.servlet.*;
 import javaxt.utils.Console;
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 //******************************************************************************
 //**  WebSite Servlet
@@ -29,10 +30,11 @@ public abstract class WebSite extends HttpServlet {
     private String author;
     private String keywords;
     private Redirects redirects;
+    private ConcurrentHashMap<String, Content> mdCache;
 
 
     private String[] fileExtensions = new String[]{
-    ".html", ".txt"
+        ".html", ".txt", ".md"
     };
 
     /** */
@@ -65,6 +67,7 @@ public abstract class WebSite extends HttpServlet {
         this.redirects = new Redirects(new javaxt.io.File(web + "style/redirects.txt"));
         setServletPath(servletPath);
         this.fileManager = new FileManager(web);
+        this.mdCache = new ConcurrentHashMap<>();
     }
 
 
@@ -89,6 +92,18 @@ public abstract class WebSite extends HttpServlet {
   //**************************************************************************
     public FileManager getFileManager(){
         return fileManager;
+    }
+
+
+  //**************************************************************************
+  //** getFileExtensions
+  //**************************************************************************
+  /** Returns a list of known/supported file extensions supported by this
+   *  class. Contents of these files will be injected into a template and
+   *  rendered to the client.
+   */
+    public String[] getFileExtensions(){
+        return fileExtensions;
     }
 
 
@@ -127,6 +142,10 @@ public abstract class WebSite extends HttpServlet {
   //**************************************************************************
   //** getYear
   //**************************************************************************
+  /** Returns the current year. Commonly used in the copyright text (e.g.
+   *  "Copyright &copy; 2012"). Classes that extend this class can override
+   *  this method.
+   */
     protected int getYear(){
         return new javaxt.utils.Date().getYear();
     }
@@ -504,7 +523,7 @@ public abstract class WebSite extends HttpServlet {
         response.setStatus(content.getStatusCode());
         response.setContentType("text/html");
 
-        
+
       //Send response
         response.write(html, lastModified);
         //console.log("sendHTML", System.currentTimeMillis()-t);
@@ -607,7 +626,31 @@ public abstract class WebSite extends HttpServlet {
             return null;
         }
         else{
-            return new Content(file.getText("UTF-8"), file.getDate());
+            String txt = file.getText("UTF-8");
+            String ext = file.getExtension();
+            java.util.Date date = file.getDate();
+
+            Content content;
+            if (ext.equalsIgnoreCase("md")){
+                String key = file.getPath().replace(web.toString(), "");
+                synchronized(mdCache){
+                    Content cached = mdCache.get(key);
+                    if (cached!=null){
+                        if (!date.after(cached.getDate())){
+                            return cached;
+                        }
+                    }
+
+                    String html = MDParser.toHTML(txt);
+                    content = new Content(html, date);
+                    mdCache.put(key, content);
+                }
+            }
+            else{
+                content = new Content(txt, date);
+            }
+
+            return content;
         }
     }
 
@@ -698,6 +741,8 @@ public abstract class WebSite extends HttpServlet {
   //** isSnippet
   //**************************************************************************
     private boolean isSnippet(javaxt.io.File file){
+        String ext = file.getExtension();
+        if (ext!=null && ext.equalsIgnoreCase("md")) return true;
         String str = file.getText("UTF-8").trim();
         return !str.endsWith("</html>");
     }
