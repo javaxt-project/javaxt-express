@@ -633,6 +633,20 @@ public class ServiceRequest {
 
 
   //**************************************************************************
+  //** getClientIP
+  //**************************************************************************
+  /** Returns the client IP address from the request
+   */
+    public String getClientIP() {
+        String ip = request.getRemoteAddr();
+        if (ip != null && ip.startsWith("/") && ip.length() > 1) {
+            ip = ip.substring(1);
+        }
+        return ip;
+    }
+
+    
+  //**************************************************************************
   //** getRequest
   //**************************************************************************
   /** Returns the original, unmodified HTTP request used to instantiate this
