@@ -5,6 +5,7 @@ import java.util.concurrent.*;
 import java.security.SecureRandom;
 
 import javaxt.json.*;
+import static javaxt.express.email.EmailUtils.*;
 
 
 //******************************************************************************
@@ -60,56 +61,44 @@ public class EmailAuth {
     private Runnable cleanupCallback;
 
 
-    private String htmlTemplate;
+    private javaxt.io.File templateFile;
+    private long templateDate;
+    private String htmlTemplate; //don't use directly! call getTemplate()
     private String emailSubject;
     private String companyName;
+    private Map<String, String> fieldMap;
 
 
   //**************************************************************************
   //** Constructor
   //**************************************************************************
-    public EmailAuth(EmailService emailService, javaxt.io.File templateFile) {
-        this(emailService, templateFile.getText());
-    }
+  /** Creates a new instance of this class.
+   *  @param emailService Used to create and send verification emails
+   *  @param templateFile HTML email template file. The template is hot-
+   *  reloaded when the file changes on disk. Company name is extracted from
+   *  a &lt;meta name="author"&gt; tag and the email subject from &lt;title&gt;.
+   *  @param fieldMap Maps logical field names to placeholder strings in the
+   *  template. Must contain "name" and "code" keys. Example:
+      <pre>
+        Map.ofEntries(
+            Map.entry("name", "{{name}}"),
+            Map.entry("code", "{{code}}")
+        )
+      </pre>
+   */
+    public EmailAuth(EmailService emailService, javaxt.io.File templateFile, Map<String, String> fieldMap) {
+        if (emailService==null || templateFile==null) throw new IllegalArgumentException();
 
 
-  //**************************************************************************
-  //** Constructor
-  //**************************************************************************
-    public EmailAuth(EmailService emailService, String htmlTemplate) {
-
+      //Set class variables
         this.emailService = emailService;
-        this.htmlTemplate = htmlTemplate;
+        this.templateFile = templateFile;
+        this.templateDate = -1;
+        this.fieldMap = fieldMap;
 
 
-      //Extract companyName from <meta name="author" content="...">
-        companyName = "JavaXT";
-        try {
-            javaxt.html.Parser parser = new javaxt.html.Parser(htmlTemplate);
-            javaxt.html.Element meta = parser.getElementByAttributes("meta", "name", "author");
-            if (meta != null) {
-                String content = meta.getAttribute("content");
-                if (content != null && !content.trim().isEmpty()) {
-                    companyName = content.trim();
-                }
-            }
-        }
-        catch (Exception e) {}
-
-
-      //Extract emailSubject from <title>...</title>
-        emailSubject = "Registration Verification Code";
-        try {
-            javaxt.html.Parser parser = new javaxt.html.Parser(htmlTemplate);
-            javaxt.html.Element title = parser.getElementByTagName("title");
-            if (title != null) {
-                String text = title.getInnerText();
-                if (text != null && !text.trim().isEmpty()) {
-                    emailSubject = text.trim();
-                }
-            }
-        }
-        catch (Exception e) {}
+      //Parse template
+        getTemplate();
 
 
       //Start cleanup task to remove expired sessions
@@ -230,17 +219,16 @@ public class EmailAuth {
         failedVerifyAttempts.remove(email);
 
 
+      //Compile email
+        String htmlBody = getTemplate();
+        if (fieldMap!=null){
+            htmlBody = htmlBody.replace(fieldMap.get("name"), escapeHtml(name));
+            htmlBody = htmlBody.replace(fieldMap.get("code"), code);
+        }
 
 
+      //Send email
         try {
-            // Load email template
-            String htmlBody = htmlTemplate;
-
-            // Replace placeholders
-            htmlBody = htmlBody.replace("{{firstName}}", escapeHtml(name));
-            htmlBody = htmlBody.replace("{{code}}", code);
-
-            // Send email
             EmailMessage msg = emailService.createEmail();
             msg.setFrom(emailService.getUserName(), companyName);
             msg.addRecipient(email);
@@ -250,13 +238,9 @@ public class EmailAuth {
         }
         catch (Exception e) {
             e.printStackTrace();
-            System.out.println("Failed to send verification email to: " + email);
-            // Still print code to console for testing
-            System.out.println("Verification code for " + email + ": " + code);
+            System.out.println("Failed to send verification email to " + email + " with code " + code);
         }
-
     }
-
 
 
   //**************************************************************************
@@ -389,15 +373,45 @@ public class EmailAuth {
     }
 
 
+
+
+
   //**************************************************************************
-  //** isValidEmail
+  //** getTemplate
   //**************************************************************************
-  /** Validates email format
+  /** Used to parse and return an html email template. Ensures that the
+   *  template is always fresh.
    */
-    private boolean isValidEmail(String email) {
-        if (email == null || email.trim().isEmpty()) return false;
-        String emailRegex = "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$";
-        return email.matches(emailRegex);
+    private String getTemplate(){
+        long t = templateFile.exists() ? templateFile.getDate().getTime() : 0;
+        if (t>templateDate){
+            htmlTemplate = templateFile.getText();
+
+          //Extract companyName from <meta name="author" content="...">
+            companyName = "JavaXT";
+            javaxt.html.Parser parser = new javaxt.html.Parser(htmlTemplate);
+            javaxt.html.Element meta = parser.getElementByAttributes("meta", "name", "author");
+            if (meta != null) {
+                String content = meta.getAttribute("content");
+                if (content != null && !content.trim().isEmpty()) {
+                    companyName = content.trim();
+                }
+            }
+
+
+          //Extract emailSubject from <title>...</title>
+            emailSubject = "Registration Verification Code";
+            javaxt.html.Element title = parser.getElementByTagName("title");
+            if (title != null) {
+                String text = title.getInnerText();
+                if (text != null && !text.trim().isEmpty()) {
+                    emailSubject = text.trim();
+                }
+            }
+
+            templateDate = t;
+        }
+        return htmlTemplate;
     }
 
 
