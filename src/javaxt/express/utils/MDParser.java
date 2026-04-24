@@ -25,6 +25,8 @@ public class MDParser {
         boolean inCodeBlock = false;
         boolean inUl = false;
         boolean inOl = false;
+        boolean inTable = false;
+        boolean tableHeaderDone = false;
         boolean inParagraph = false;
         StringBuilder paragraph = new StringBuilder();
 
@@ -44,6 +46,7 @@ public class MDParser {
                     inParagraph = false;
                     if (inUl){ html.append("</ul>\n"); inUl = false; }
                     if (inOl){ html.append("</ol>\n"); inOl = false; }
+                    if (inTable){ html.append("</table>\n"); inTable = false; tableHeaderDone = false; }
 
                   //Get optional language
                     String lang = line.trim().substring(3).trim();
@@ -76,6 +79,7 @@ public class MDParser {
                 inParagraph = false;
                 if (inUl){ html.append("</ul>\n"); inUl = false; }
                 if (inOl){ html.append("</ol>\n"); inOl = false; }
+                if (inTable){ html.append("</table>\n"); inTable = false; tableHeaderDone = false; }
 
                 int level = 0;
                 while (level < line.length() && line.charAt(level) == '#') level++;
@@ -125,6 +129,63 @@ public class MDParser {
             }
 
 
+          //Handle list continuation lines (indented text following a list item)
+            if ((inUl || inOl) && line.length()>0 && (line.charAt(0)==' ' || line.charAt(0)=='\t') && !line.trim().isEmpty()){
+                // Remove trailing </li>\n from previous item and append continuation
+                String ending = "</li>\n";
+                int idx = html.length() - ending.length();
+                if (idx >= 0 && html.substring(idx).equals(ending)){
+                    html.setLength(idx);
+                    html.append(" ").append(processInline(line.trim())).append("</li>\n");
+                }
+                continue;
+            }
+
+
+          //Handle table rows (lines starting and ending with |)
+            if (line.trim().startsWith("|") && line.trim().endsWith("|")){
+
+              //Close other open blocks
+                closeParagraph(html, paragraph, inParagraph);
+                inParagraph = false;
+                if (inUl){ html.append("</ul>\n"); inUl = false; }
+                if (inOl){ html.append("</ol>\n"); inOl = false; }
+
+              //Skip separator rows (e.g. |---|---|)
+                if (line.trim().matches("^\\|[\\s\\-:|]+\\|$")){
+                    tableHeaderDone = true;
+                    continue;
+                }
+
+                if (!inTable){
+                    html.append("<table>\n");
+                    inTable = true;
+                    tableHeaderDone = false;
+                }
+
+              //Parse cells
+                String trimmed = line.trim();
+                trimmed = trimmed.substring(1, trimmed.length()-1); // strip outer pipes
+                String[] cells = trimmed.split("\\|");
+                String cellTag = !tableHeaderDone ? "th" : "td";
+                html.append("<tr>");
+                for (String cell : cells){
+                    html.append("<").append(cellTag).append(">")
+                        .append(processInline(cell.trim()))
+                        .append("</").append(cellTag).append(">");
+                }
+                html.append("</tr>\n");
+                continue;
+            }
+
+          //Close table if we're in one and hit a non-table line
+            if (inTable){
+                html.append("</table>\n");
+                inTable = false;
+                tableHeaderDone = false;
+            }
+
+
           //Handle blank lines
             if (line.trim().isEmpty()){
                 closeParagraph(html, paragraph, inParagraph);
@@ -154,6 +215,7 @@ public class MDParser {
         closeParagraph(html, paragraph, inParagraph);
         if (inUl) html.append("</ul>\n");
         if (inOl) html.append("</ol>\n");
+        if (inTable) html.append("</table>\n");
         if (inCodeBlock) html.append("</pre>\n");
 
         return html.toString().trim();
@@ -174,9 +236,32 @@ public class MDParser {
   //**************************************************************************
   //** processInline
   //**************************************************************************
-  /** Processes inline markdown elements (bold, links) within a line of text.
+  /** Processes inline markdown elements (code, bold, italic, links,
+   *  em-dashes) within a line of text.
    */
     private static String processInline(String text){
+
+      //Convert inline code: `text` -> <code>text</code>
+      //Must come first so content inside backticks is not processed further
+        StringBuilder code = new StringBuilder();
+        int cpos = 0;
+        while (cpos < text.length()){
+            int start = text.indexOf('`', cpos);
+            if (start == -1){
+                code.append(text.substring(cpos));
+                break;
+            }
+            int end = text.indexOf('`', start+1);
+            if (end == -1){
+                code.append(text.substring(cpos));
+                break;
+            }
+            code.append(text, cpos, start);
+            String inner = text.substring(start+1, end);
+            code.append("<code>").append(escapeHtml(inner)).append("</code>");
+            cpos = end + 1;
+        }
+        text = code.toString();
 
       //Convert bold: **text** -> <b>text</b>
         StringBuilder bold = new StringBuilder();
@@ -197,6 +282,27 @@ public class MDParser {
             bpos = end + 2;
         }
         text = bold.toString();
+
+      //Convert italic: *text* -> <i>text</i>
+      //Must come after bold so ** is consumed first
+        StringBuilder italic = new StringBuilder();
+        int ipos = 0;
+        while (ipos < text.length()){
+            int start = text.indexOf('*', ipos);
+            if (start == -1){
+                italic.append(text.substring(ipos));
+                break;
+            }
+            int end = text.indexOf('*', start+1);
+            if (end == -1){
+                italic.append(text.substring(ipos));
+                break;
+            }
+            italic.append(text, ipos, start);
+            italic.append("<i>").append(text, start+1, end).append("</i>");
+            ipos = end + 1;
+        }
+        text = italic.toString();
 
       //Convert inline links: [text](url) -> <a href="url">text</a>
         StringBuilder sb = new StringBuilder();
@@ -229,7 +335,13 @@ public class MDParser {
                 pos = linkTextEnd + 1;
             }
         }
-        return sb.toString();
+        text = sb.toString();
+
+      //Convert em-dashes: space--space -> &mdash;
+      //Also handles -- at start/end of text adjacent to a space
+        text = text.replace(" -- ", " &mdash; ");
+
+        return text;
     }
 
 

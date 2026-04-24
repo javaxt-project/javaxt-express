@@ -648,7 +648,7 @@ public abstract class WebSite extends HttpServlet {
 
             Content content;
             if (ext.equalsIgnoreCase("md")){
-                String key = file.getPath().replace(web.toString(), "");
+                String key = file.toString().replace(web.toString(), "");
                 synchronized(mdCache){
                     Content cached = mdCache.get(key);
                     if (cached!=null){
