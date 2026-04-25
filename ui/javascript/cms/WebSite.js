@@ -850,6 +850,20 @@ javaxt.express.WebSite = function (content, config) {
 
 
   //**************************************************************************
+  //** getContentPanel
+  //**************************************************************************
+  /** Returns the content wrapper inside the currently visible carousel panel.
+   */
+    me.getContentPanel = function(){
+        var panels = carousel.getPanels();
+        for (var i=0; i<panels.length; i++){
+            if (panels[i].isVisible) return panels[i].div.firstElementChild;
+        }
+        return null;
+    };
+
+
+  //**************************************************************************
   //** getTabs
   //**************************************************************************
   /** Public method allows users to access the tabs variable. Used in

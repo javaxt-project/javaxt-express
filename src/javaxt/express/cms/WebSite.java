@@ -1,5 +1,6 @@
 package javaxt.express.cms;
 import javaxt.express.FileManager;
+import javaxt.express.utils.Git;
 import javaxt.express.utils.MDParser;
 import javaxt.http.servlet.*;
 import javaxt.utils.Console;
@@ -31,6 +32,7 @@ public abstract class WebSite extends HttpServlet {
     private String keywords;
     private Redirects redirects;
     private ConcurrentHashMap<String, Content> mdCache;
+    private Git git;
 
 
     private String[] fileExtensions = new String[]{
@@ -68,6 +70,7 @@ public abstract class WebSite extends HttpServlet {
         setServletPath(servletPath);
         this.fileManager = new FileManager(web);
         this.mdCache = new ConcurrentHashMap<>();
+        this.git = new Git(web);
     }
 
 
@@ -165,6 +168,36 @@ public abstract class WebSite extends HttpServlet {
     protected int getYear(){
         return new javaxt.utils.Date().getYear();
     }
+
+
+  //**************************************************************************
+  //** canEdit
+  //**************************************************************************
+  /** Returns true if the current request is authorized to edit content files.
+   *  Returns false by default. Override this method to implement access
+   *  control for content editing.
+   */
+    protected boolean canEdit(HttpServletRequest request){
+        return false;
+    }
+
+
+  //**************************************************************************
+  //** beforeSave
+  //**************************************************************************
+  /** Called before a content file is saved. Override to validate or transform
+   *  content, or throw an exception to abort the save.
+   */
+    protected void beforeSave(javaxt.io.File file, String content, HttpServletRequest request){}
+
+
+  //**************************************************************************
+  //** onSave
+  //**************************************************************************
+  /** Called after a content file has been saved. Override to add logging,
+   *  notifications, or other post-save actions.
+   */
+    protected void onSave(javaxt.io.File file, HttpServletRequest request){}
 
 
   //**************************************************************************
@@ -274,6 +307,42 @@ public abstract class WebSite extends HttpServlet {
             }
         }
 
+
+
+
+      //Handle content editing requests
+        String canEdit = request.getParameter("canEdit");
+        if (canEdit!=null && canEdit.equals("true")){
+            response.write(canEdit(request)+"");
+        }
+
+        String saveParam = request.getParameter("save");
+        if (saveParam!=null && saveParam.equals("true")){
+            if (request.getMethod().equals("POST")){
+                handleSave(request, response);
+                return;
+            }
+        }
+
+        String sourceParam = request.getParameter("source");
+        if (sourceParam!=null && sourceParam.equals("true")){
+            handleSource(request, response);
+            return;
+        }
+
+        String historyParam = request.getParameter("history");
+        if (historyParam!=null && historyParam.equals("true")){
+            handleHistory(request, response);
+            return;
+        }
+
+        String canEditParam = request.getParameter("canEdit");
+        if (canEditParam!=null && canEditParam.equals("true")){
+            response.setStatus(200);
+            response.setContentType("text/plain");
+            response.write(canEdit(request) ? "true" : "false");
+            return;
+        }
 
 
 
@@ -1068,5 +1137,134 @@ public abstract class WebSite extends HttpServlet {
         }
 
         return false;
+    }
+
+
+  //**************************************************************************
+  //** handleSource
+  //**************************************************************************
+  /** Returns the raw source text of a content file for editing.
+   */
+    private void handleSource(HttpServletRequest request, HttpServletResponse response)
+    throws ServletException, IOException {
+
+        if (!canEdit(request)){
+            response.setStatus(403);
+            return;
+        }
+
+        javaxt.io.File file = getHtmlFile(request.getURL());
+        if (file==null || !file.exists()){
+            response.setStatus(404);
+            return;
+        }
+
+        String txt = file.getText("UTF-8");
+        response.setStatus(200);
+        response.setContentType("text/plain; charset=utf-8");
+        response.write(txt);
+    }
+
+
+  //**************************************************************************
+  //** handleSave
+  //**************************************************************************
+  /** Saves content posted by the client to a content file.
+   */
+    private void handleSave(HttpServletRequest request, HttpServletResponse response)
+    throws ServletException, IOException {
+
+        if (!canEdit(request)){
+            response.setStatus(403);
+            return;
+        }
+
+        javaxt.io.File file = getHtmlFile(request.getURL());
+        if (file==null){
+            response.setStatus(404);
+            return;
+        }
+
+      //Validate file is within web directory
+        String filePath = file.toString().replace("\\", "/");
+        String webPath = web.toString().replace("\\", "/");
+        if (!filePath.startsWith(webPath)){
+            response.setStatus(403);
+            return;
+        }
+
+        try {
+
+          //Get content from request body
+            byte[] body = request.getBody();
+            String content = new String(body, "UTF-8");
+
+          //Call beforeSave hook
+            beforeSave(file, content, request);
+
+          //Write file
+            file.write(content.getBytes("UTF-8"));
+
+          //Invalidate mdCache if this is a markdown file
+            if (file.getExtension().equalsIgnoreCase("md")){
+                String key = file.toString().replace(web.toString(), "");
+                synchronized(mdCache){
+                    mdCache.remove(key);
+                }
+            }
+
+          //Commit to git if available
+            String author = "anonymous";
+            java.security.Principal user = request.getUserPrincipal();
+            if (user!=null) author = user.getName();
+            git.commit(file, author, "Edit via web");
+
+
+          //Call onSave hook
+            onSave(file, request);
+
+          //Return success
+            response.setStatus(200);
+            response.setContentType("text/plain");
+            response.write("OK");
+        }
+        catch(Exception e){
+            response.setStatus(500);
+            response.setContentType("text/plain");
+            response.write(e.getMessage());
+        }
+    }
+
+
+  //**************************************************************************
+  //** handleHistory
+  //**************************************************************************
+  /** Returns version history for a content file as JSON.
+   */
+    private void handleHistory(HttpServletRequest request, HttpServletResponse response)
+    throws ServletException, IOException {
+
+        if (!canEdit(request)){
+            response.setStatus(403);
+            return;
+        }
+
+        if (!git.isAvailable()){
+            response.setStatus(501);
+            response.setContentType("text/plain");
+            response.write("Version history not available");
+            return;
+        }
+
+        javaxt.io.File file = getHtmlFile(request.getURL());
+        if (file==null || !file.exists()){
+            response.setStatus(404);
+            return;
+        }
+
+        javaxt.json.JSONArray history = git.getHistory(file);
+        response.setStatus(200);
+        response.setContentType("application/json");
+        response.write(history.toString());
     }
 }
