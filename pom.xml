@@ -72,6 +72,14 @@
       </dependency>
 
 
+      <!-- Git Version Control (Optional at runtime for CMS version control) -->
+      <dependency>
+        <groupId>org.eclipse.jgit</groupId>
+        <artifactId>org.eclipse.jgit</artifactId>
+        <version>6.10.0.202406032230-r</version>
+      </dependency>
+
+
       <!-- Mail (Optional at runtime if mail service is not needed) -->
       <dependency>
         <groupId>com.sun.mail</groupId>
