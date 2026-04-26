@@ -304,7 +304,9 @@ public class MDParser {
         }
         text = italic.toString();
 
-      //Convert inline links: [text](url) -> <a href="url">text</a>
+      //Convert inline images and links:
+      //  ![alt](url) -> <img src="url" alt="alt">
+      //  [text](url)  -> <a href="url">text</a>
         StringBuilder sb = new StringBuilder();
         int pos = 0;
         while (pos < text.length()){
@@ -324,10 +326,19 @@ public class MDParser {
                     sb.append(text.substring(pos));
                     break;
                 }
-                sb.append(text, pos, linkStart);
-                String linkText = text.substring(linkStart+1, linkTextEnd);
+
+                boolean isImage = (linkStart > 0 && text.charAt(linkStart-1) == '!');
+                String innerText = text.substring(linkStart+1, linkTextEnd);
                 String url = text.substring(linkTextEnd+2, urlEnd);
-                sb.append("<a href=\"").append(url).append("\">").append(linkText).append("</a>");
+
+                if (isImage){
+                    sb.append(text, pos, linkStart-1); // exclude the '!'
+                    sb.append("<img src=\"").append(url).append("\" alt=\"").append(innerText).append("\">");
+                }
+                else{
+                    sb.append(text, pos, linkStart);
+                    sb.append("<a href=\"").append(url).append("\">").append(innerText).append("</a>");
+                }
                 pos = urlEnd + 1;
             }
             else{
