@@ -47,6 +47,18 @@ javaxt.express.WebSite = function (content, config) {
        */
         fx: null,
 
+
+      /** If true, opens a WebSocket connection and automatically reloads
+       *  the page when relevant files change on the server. Default is false.
+       */
+        liveReload: false,
+
+
+      /** Default file names used to resolve directory URLs (e.g. /wiki/
+       *  maps to wiki/index.html). Used by the live reload logic.
+       */
+        defaultFiles: ["home", "index", "overview"],
+
         style: {
             panel : { //Style for individual panels in the carousel
                 background: "#fff",
@@ -315,6 +327,11 @@ javaxt.express.WebSite = function (content, config) {
         }
 
         log("slideIndex: " + slideIndex);
+
+
+      //Start live reload if enabled
+        if (config.liveReload) initLiveReload();
+
     };
 
 
@@ -999,6 +1016,58 @@ javaxt.express.WebSite = function (content, config) {
       //Update links
         var links = el.getElementsByTagName("a");
         me.updateLinks(links);
+    };
+
+
+  //**************************************************************************
+  //** initLiveReload
+  //**************************************************************************
+  /** Opens a WebSocket connection and selectively reloads the page when
+   *  relevant files change on the server. Reloads when:
+   *  - A file in style/ or javascript/ changes (global assets)
+   *  - The content file for the current URL changes
+   */
+    var initLiveReload = function(){
+
+        new javaxt.dhtml.WebSocket({
+            url: "/",
+            onMessage: function(msg){
+                var arr = msg.split(",");
+                if (arr[0]!=="FILE") return;
+                var info = arr[2];
+
+              //Always reload for global assets
+                if (info.startsWith("style/") || info.startsWith("javascript/")){
+                    location.reload();
+                    return;
+                }
+
+              //Get current URL path (strip leading/trailing slashes)
+                var path = getPath(window.location.pathname);
+                if (path.endsWith("/")) path = path.substring(0, path.length-1);
+
+              //Strip extension from the changed file path
+                var filePath = info;
+                var dotIdx = filePath.lastIndexOf(".");
+                if (dotIdx > filePath.lastIndexOf("/")) filePath = filePath.substring(0, dotIdx);
+
+              //Direct match (e.g. wiki/Notes == wiki/Notes)
+                if (filePath === path){
+                    location.reload();
+                    return;
+                }
+
+              //Index file match (e.g. wiki/index matches URL "wiki",
+              //or index matches root URL "")
+                var slashIdx = filePath.lastIndexOf("/");
+                var fileName = (slashIdx > -1) ? filePath.substring(slashIdx+1) : filePath;
+                var dirPath = (slashIdx > -1) ? filePath.substring(0, slashIdx) : "";
+                if (config.defaultFiles.indexOf(fileName.toLowerCase()) > -1 && dirPath === path){
+                    location.reload();
+                    return;
+                }
+            }
+        });
     };
 
 

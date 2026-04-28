@@ -3,10 +3,12 @@ import javaxt.express.FileManager;
 import javaxt.express.utils.Git;
 import javaxt.express.utils.MDParser;
 import javaxt.http.servlet.*;
+import javaxt.http.websocket.*;
 import javaxt.utils.Console;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 //******************************************************************************
 //**  WebSite Servlet
@@ -33,6 +35,9 @@ public abstract class WebSite extends HttpServlet {
     private Redirects redirects;
     private ConcurrentHashMap<String, Content> mdCache;
     private Git git;
+    private ConcurrentHashMap<Long, WebSocketListener> wsListeners;
+    private AtomicLong wsID;
+    private ConcurrentHashMap<String, Long> recentSaves; //paths saved via browser, to avoid double-commit
 
 
     private String[] fileExtensions = new String[]{
@@ -69,8 +74,17 @@ public abstract class WebSite extends HttpServlet {
         this.redirects = new Redirects(new javaxt.io.File(web + "style/redirects.txt"));
         setServletPath(servletPath);
         this.fileManager = new FileManager(web);
+
+        
         this.mdCache = new ConcurrentHashMap<>();
         this.git = new Git(web);
+
+        this.wsListeners = new ConcurrentHashMap<>();
+        this.wsID = new AtomicLong(0);
+
+        this.recentSaves = new ConcurrentHashMap<>();
+
+        initFileWatcher();
     }
 
 
@@ -201,10 +215,29 @@ public abstract class WebSite extends HttpServlet {
 
 
   //**************************************************************************
+  //** onFileUpdate
+  //**************************************************************************
+  /** Called when a file in the web directory is created, modified, or deleted.
+   *  Detected by the file watcher, not by a browser request. Override to add
+   *  logging, indexing, or other side effects.
+   *
+   *  @param file The file that changed.
+   *  @param action One of "CREATE", "UPDATE", or "DELETE".
+   */
+    protected void onFileUpdate(javaxt.io.File file, String action){}
+
+
+  //**************************************************************************
   //** processRequest
   //**************************************************************************
     public void processRequest(HttpServletRequest request, HttpServletResponse response)
     throws ServletException, IOException {
+
+      //Handle WebSocket upgrade
+        if (request.isWebSocket()){
+            createWebSocket(request, response);
+            return;
+        }
 
         long t = System.currentTimeMillis();
 
@@ -311,11 +344,6 @@ public abstract class WebSite extends HttpServlet {
 
 
       //Handle content editing requests
-        String canEdit = request.getParameter("canEdit");
-        if (canEdit!=null && canEdit.equals("true")){
-            response.write(canEdit(request)+"");
-        }
-
         String saveParam = request.getParameter("save");
         if (saveParam!=null && saveParam.equals("true")){
             if (request.getMethod().equals("POST")){
@@ -334,6 +362,26 @@ public abstract class WebSite extends HttpServlet {
         if (historyParam!=null && historyParam.equals("true")){
             handleHistory(request, response);
             return;
+        }
+
+        String diffParam = request.getParameter("diff");
+        if (diffParam!=null && diffParam.length()>0){
+            handleDiff(request, response, diffParam);
+            return;
+        }
+
+        String versionParam = request.getParameter("version");
+        if (versionParam!=null && versionParam.length()>0){
+            handleVersion(request, response, versionParam);
+            return;
+        }
+
+        String deleteParam = request.getParameter("delete");
+        if (deleteParam!=null && deleteParam.equals("true")){
+            if (request.getMethod().equals("POST")){
+                handleDelete(request, response);
+                return;
+            }
         }
 
         String canEditParam = request.getParameter("canEdit");
@@ -1181,8 +1229,19 @@ public abstract class WebSite extends HttpServlet {
 
         javaxt.io.File file = getHtmlFile(request.getURL());
         if (file==null){
-            response.setStatus(404);
-            return;
+
+          //File doesn't exist yet -- create as .md in the appropriate directory
+            String path = request.getURL().getPath();
+            String servletPath = getServletPath();
+            if (!servletPath.endsWith("/")) servletPath += "/";
+            path = path.substring(path.indexOf(servletPath)).substring(servletPath.length());
+            if (path.startsWith("/")) path = path.substring(1);
+
+            if (path.length()==0){
+                response.setStatus(400);
+                return;
+            }
+            file = new javaxt.io.File(web + path + ".md");
         }
 
       //Validate file is within web directory
@@ -1199,13 +1258,46 @@ public abstract class WebSite extends HttpServlet {
             byte[] body = request.getBody();
             String content = new String(body, "UTF-8");
 
+          //Check for rename
+            String newName = request.getParameter("name");
+            javaxt.io.File oldFile = null;
+            if (newName!=null && newName.length()>0 && file.exists()){
+                String currentName = file.getName(false);
+                if (!newName.equals(currentName)){
+                    oldFile = file;
+                    file = new javaxt.io.File(file.getDirectory(), newName + "." + file.getExtension());
+                }
+            }
+
           //Call beforeSave hook
             beforeSave(file, content, request);
 
-          //Write file
+          //Mark as recently saved (so the file watcher doesn't double-commit)
+            String relativePath = file.toString().replace(web.toString(), "").replace("\\", "/");
+            recentSaves.put(relativePath, System.currentTimeMillis());
+            if (oldFile!=null){
+                String oldRelPath = oldFile.toString().replace(web.toString(), "").replace("\\", "/");
+                recentSaves.put(oldRelPath, System.currentTimeMillis());
+            }
+
+          //Write new file
             file.write(content.getBytes("UTF-8"));
 
-          //Invalidate mdCache if this is a markdown file
+          //Delete old file if renamed
+            if (oldFile!=null){
+
+              //Invalidate mdCache for old file
+                if (oldFile.getExtension().equalsIgnoreCase("md")){
+                    String key = oldFile.toString().replace(web.toString(), "");
+                    synchronized(mdCache){
+                        mdCache.remove(key);
+                    }
+                }
+
+                oldFile.delete();
+            }
+
+          //Invalidate mdCache for current file
             if (file.getExtension().equalsIgnoreCase("md")){
                 String key = file.toString().replace(web.toString(), "");
                 synchronized(mdCache){
@@ -1213,11 +1305,16 @@ public abstract class WebSite extends HttpServlet {
                 }
             }
 
-          //Commit to git if available
+          //Commit to git
             String author = "anonymous";
             java.security.Principal user = request.getUserPrincipal();
             if (user!=null) author = user.getName();
-            git.commit(file, author, "Edit via web");
+            if (oldFile!=null){
+                git.rename(oldFile, file, author, "Rename " + oldFile.getName() + " -> " + file.getName());
+            }
+            else{
+                git.commit(file, author, "Edit via web");
+            }
 
 
           //Call onSave hook
@@ -1262,9 +1359,281 @@ public abstract class WebSite extends HttpServlet {
             return;
         }
 
-        javaxt.json.JSONArray history = git.getHistory(file);
+        javaxt.json.JSONArray history = git.getHistory(file, true);
         response.setStatus(200);
         response.setContentType("application/json");
         response.write(history.toString());
+    }
+
+
+  //**************************************************************************
+  //** handleDiff
+  //**************************************************************************
+  /** Returns a unified diff for a content file at a specific commit.
+   */
+    private void handleDiff(HttpServletRequest request, HttpServletResponse response,
+    String commitHash) throws ServletException, IOException {
+
+        if (!canEdit(request)){
+            response.setStatus(403);
+            return;
+        }
+
+        if (!git.isAvailable()){
+            response.setStatus(501);
+            response.setContentType("text/plain");
+            response.write("Version history not available");
+            return;
+        }
+
+        javaxt.io.File file = getHtmlFile(request.getURL());
+        if (file==null || !file.exists()){
+            response.setStatus(404);
+            return;
+        }
+
+        String diff = git.getDiff(file, commitHash);
+        response.setStatus(200);
+        response.setContentType("text/plain; charset=utf-8");
+        response.write(diff);
+    }
+
+
+  //**************************************************************************
+  //** handleVersion
+  //**************************************************************************
+  /** Returns the content of a file at a specific commit.
+   */
+    private void handleVersion(HttpServletRequest request, HttpServletResponse response,
+    String commitHash) throws ServletException, IOException {
+
+        if (!canEdit(request)){
+            response.setStatus(403);
+            return;
+        }
+
+        if (!git.isAvailable()){
+            response.setStatus(501);
+            response.setContentType("text/plain");
+            response.write("Version history not available");
+            return;
+        }
+
+        javaxt.io.File file = getHtmlFile(request.getURL());
+        if (file==null || !file.exists()){
+            response.setStatus(404);
+            return;
+        }
+
+        String content = git.getVersion(file, commitHash);
+        if (content==null){
+            response.setStatus(404);
+            return;
+        }
+
+        response.setStatus(200);
+        response.setContentType("text/plain; charset=utf-8");
+        response.write(content);
+    }
+
+
+  //**************************************************************************
+  //** handleDelete
+  //**************************************************************************
+  /** Deletes a content file and commits the removal to git.
+   */
+    private void handleDelete(HttpServletRequest request, HttpServletResponse response)
+    throws ServletException, IOException {
+
+        if (!canEdit(request)){
+            response.setStatus(403);
+            return;
+        }
+
+        javaxt.io.File file = getHtmlFile(request.getURL());
+        if (file==null || !file.exists()){
+            response.setStatus(404);
+            return;
+        }
+
+      //Validate file is within web directory
+        String filePath = file.toString().replace("\\", "/");
+        String webPath = web.toString().replace("\\", "/");
+        if (!filePath.startsWith(webPath)){
+            response.setStatus(403);
+            return;
+        }
+
+        try {
+
+          //Mark as recently saved (so the file watcher doesn't double-commit)
+            String relativePath = file.toString().replace(web.toString(), "").replace("\\", "/");
+            recentSaves.put(relativePath, System.currentTimeMillis());
+
+          //Invalidate mdCache
+            if (file.getExtension().equalsIgnoreCase("md")){
+                String key = file.toString().replace(web.toString(), "");
+                synchronized(mdCache){
+                    mdCache.remove(key);
+                }
+            }
+
+          //Delete the file
+            file.delete();
+
+          //Commit to git
+            String author = "anonymous";
+            java.security.Principal user = request.getUserPrincipal();
+            if (user!=null) author = user.getName();
+            git.delete(file, author, "Delete " + file.getName());
+
+          //Return success
+            response.setStatus(200);
+            response.setContentType("text/plain");
+            response.write("OK");
+        }
+        catch(Exception e){
+            response.setStatus(500);
+            response.setContentType("text/plain");
+            response.write(e.getMessage());
+        }
+    }
+
+
+  //**************************************************************************
+  //** createWebSocket
+  //**************************************************************************
+  /** Creates a WebSocket listener for live reload notifications.
+   */
+    private void createWebSocket(HttpServletRequest request, HttpServletResponse response)
+    throws IOException {
+
+        new WebSocketListener(request, response){
+            private Long id;
+            public void onConnect(){
+                id = wsID.incrementAndGet();
+                synchronized(wsListeners){
+                    wsListeners.put(id, this);
+                }
+            }
+            public void onDisconnect(int statusCode, String reason){
+                synchronized(wsListeners){
+                    wsListeners.remove(id);
+                }
+            }
+        };
+    }
+
+
+  //**************************************************************************
+  //** isContentFile
+  //**************************************************************************
+  /** Returns true if the given relative path points to a content file
+   *  (one that would be rendered through the template system).
+   */
+    private boolean isContentFile(String path){
+        for (String ext : fileExtensions){
+            if (path.endsWith(ext)){
+
+              //Check if it's in a content folder
+                for (String folder : contentFolders){
+                    if (path.startsWith(folder + "/")) return true;
+                }
+
+              //Check if it's a root-level content file
+                if (!path.contains("/")) return true;
+
+                break;
+            }
+        }
+        return false;
+    }
+
+
+  //**************************************************************************
+  //** initFileWatcher
+  //**************************************************************************
+  /** Watches the web directory for file changes and broadcasts notifications
+   *  to all connected WebSocket clients. File changes are debounced so that
+   *  rapid saves (e.g. save-on-type) don't flood clients with reloads.
+   *  Changes are collected and broadcast after the directory has been quiet
+   *  for 2 seconds.
+   */
+    private void initFileWatcher(){
+
+        int len = web.getPath().length();
+        ConcurrentHashMap<String, Object[]> pendingUpdates = new ConcurrentHashMap<>();
+
+
+      //Collect file change events
+        fileManager.getFileUpdates((javaxt.io.Directory.Event event) -> {
+            java.io.File file = new java.io.File(event.getFile());
+            String path = file.toString().substring(len).replace("\\", "/");
+            String action = event.getAction();
+            synchronized(pendingUpdates){
+                pendingUpdates.put(path, new Object[]{
+                    event.getDate().getTime(),
+                    action
+                });
+                pendingUpdates.notify();
+            }
+        });
+
+
+      //Periodically flush pending updates after a quiet period
+        javaxt.utils.Timer.setInterval(()->{
+            synchronized(pendingUpdates){
+                if (pendingUpdates.isEmpty()) return;
+
+              //Find the most recent update
+                long lastUpdate = 0;
+                Iterator<String> it = pendingUpdates.keySet().iterator();
+                while (it.hasNext()){
+                    long t = (Long) pendingUpdates.get(it.next())[0];
+                    if (t > lastUpdate) lastUpdate = t;
+                }
+
+              //If 2 seconds have passed since the last change, broadcast
+                if (System.currentTimeMillis() - lastUpdate > 2000){
+
+                    it = pendingUpdates.keySet().iterator();
+                    while (it.hasNext()){
+                        String path = it.next();
+                        String action = (String) pendingUpdates.get(path)[1];
+
+                      //Auto-commit content files to git (skip if recently
+                      //saved via browser to avoid double-commit)
+                        javaxt.io.File file = new javaxt.io.File(web + path);
+                        if (git.isAvailable() && isContentFile(path)){
+                            Long savedAt = recentSaves.remove(path);
+                            if (savedAt == null || System.currentTimeMillis() - savedAt > 10000){
+                                if (action.equalsIgnoreCase("DELETE")){
+                                    git.delete(file, "system", action + " " + path);
+                                }
+                                else{
+                                    git.commit(file, "system", action + " " + path);
+                                }
+                            }
+                        }
+
+                      //Call hook
+                        onFileUpdate(file, action);
+
+                      //Notify WebSocket clients
+                        String msg = "FILE," + action + "," + path;
+                        synchronized(wsListeners){
+                            Iterator<Long> wsIt = wsListeners.keySet().iterator();
+                            while (wsIt.hasNext()){
+                                WebSocketListener ws = wsListeners.get(wsIt.next());
+                                ws.send(msg);
+                            }
+                        }
+                    }
+
+                    pendingUpdates.clear();
+                    pendingUpdates.notify();
+                }
+            }
+        }, 250);
     }
 }
