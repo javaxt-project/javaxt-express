@@ -193,6 +193,20 @@ public class EmailService {
 
 
   //**************************************************************************
+  //** getProperties
+  //**************************************************************************
+  /** Returns a copy of all the properties used to connect to a SMTP server.
+   */
+    public Properties getProperties(){
+        Properties p = new Properties();
+        for (Object key : properties.keySet()){
+            p.setProperty(key.toString(), properties.get(key).toString());
+        }
+        return p;
+    }
+
+
+  //**************************************************************************
   //** createEmail
   //**************************************************************************
   /** Returns a new email message that can be sent via the SMPT server. Note
