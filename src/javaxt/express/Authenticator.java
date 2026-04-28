@@ -95,7 +95,7 @@ public class Authenticator implements javaxt.http.servlet.Authenticator, Cloneab
     private String authType;
     private String authInfo;
     private String[] credentials;
-    private HttpServletRequest request;
+    private HttpServletRequest request; //set via reflection in newInstance
 
 
   //Global variables
@@ -341,6 +341,17 @@ public class Authenticator implements javaxt.http.servlet.Authenticator, Cloneab
                 }
             }
         }
+    }
+
+
+  //**************************************************************************
+  //** getRequest
+  //**************************************************************************
+  /** Returns the HttpServletRequest used to instantiate this instance of the
+   *  Authenticator.
+   */
+    public HttpServletRequest getRequest(){
+        return request;
     }
 
 
