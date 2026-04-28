@@ -209,8 +209,8 @@ public class Config {
   /** Used to parse email connection information found in a given JSONValue
    *  and returns an instance of an EmailService.
    */
-    public static javaxt.express.email.EmailService getEmail(JSONValue val){
-        return getEmail(val.toJSONObject());
+    public static javaxt.express.email.EmailService getEmail(JSONValue emailConfig){
+        return getEmail(emailConfig.toJSONObject());
     }
 
 
@@ -228,14 +228,23 @@ public class Config {
     }
    </pre>
    */
-    public static javaxt.express.email.EmailService getEmail(JSONObject json){
-        if (json==null) return null;
-        return new javaxt.express.email.EmailService(
-            json.get("host").toString(),
-            json.get("port").toInteger(),
-            json.get("username").toString(),
-            json.get("password").toString()
+    public static javaxt.express.email.EmailService getEmail(JSONObject emailConfig){
+        if (emailConfig==null) return null;
+
+        javaxt.express.email.EmailService emailService = new javaxt.express.email.EmailService(
+            emailConfig.get("host").toString(),
+            emailConfig.get("port").toInteger(),
+            emailConfig.get("username").toString(),
+            emailConfig.get("password").toString()
         );
+
+      //Enable TLS as needed
+        Boolean tls = emailConfig.get("tls").toBoolean();
+        if (tls!=null){
+            if (tls) emailService.enableTLS();
+        }
+
+        return emailService;
     }
 
 
@@ -283,6 +292,20 @@ public class Config {
                     emailConfig.set("port", email.getPort());
                     emailConfig.set("username", email.getUserName());
                     emailConfig.set("password", email.getPassword());
+
+                    Properties properties = email.getProperties();
+                    for (Object p : properties.keySet()){
+                        String prop = p.toString();
+                        if (prop.equals("mail.smtp.starttls.enable") ||
+                            prop.equals("mail.smtp.starttls.required")){
+                            String v = properties.get(prop).toString();
+                            if (v.equalsIgnoreCase("true")){
+                                emailConfig.set("tls", true);
+                                break;
+                            }
+                        }
+                    }
+
                     json.set(key, emailConfig);
                 }
                 else{
