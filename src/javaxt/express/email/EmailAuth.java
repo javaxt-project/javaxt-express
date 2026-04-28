@@ -373,16 +373,13 @@ public class EmailAuth {
     }
 
 
-
-
-
   //**************************************************************************
   //** getTemplate
   //**************************************************************************
   /** Used to parse and return an html email template. Ensures that the
    *  template is always fresh.
    */
-    private String getTemplate(){
+    private synchronized String getTemplate(){
         long t = templateFile.exists() ? templateFile.getDate().getTime() : 0;
         if (t>templateDate){
             htmlTemplate = templateFile.getText();
