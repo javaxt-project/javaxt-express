@@ -67,6 +67,7 @@ public class EmailAuth {
     private String emailSubject;
     private String companyName;
     private Map<String, String> fieldMap;
+    private Map<String, javaxt.io.File> inlineImages;
 
 
   //**************************************************************************
@@ -95,6 +96,7 @@ public class EmailAuth {
         this.templateFile = templateFile;
         this.templateDate = -1;
         this.fieldMap = fieldMap;
+        this.inlineImages = new HashMap<>();
 
 
       //Parse template
@@ -234,6 +236,10 @@ public class EmailAuth {
             msg.addRecipient(email);
             msg.setSubject(emailSubject);
             msg.setContent(htmlBody, "text/html");
+            for (String cid : inlineImages.keySet()){
+                javaxt.io.File file = inlineImages.get(cid);
+                msg.addInlineImage(cid, file);
+            }
             msg.send();
         }
         catch (Exception e) {
@@ -405,6 +411,25 @@ public class EmailAuth {
                     emailSubject = text.trim();
                 }
             }
+
+
+          //Extract images
+            for (javaxt.html.Element element : parser.getElementsByTagName("img")){
+                try{
+                    String src = element.getAttribute("src");
+                    String path = templateFile.MapPath(src);
+                    javaxt.io.File file = new javaxt.io.File(path);
+                    if (file.exists()){
+                        String cid = file.getName(false);
+                        inlineImages.put(cid, file);
+                        htmlTemplate = htmlTemplate.replace(" src=\"" + src + "\"", " src=\"cid:"+cid+"\"");
+                    }
+                }
+                catch(Exception e){
+                    //e.printStackTrace();
+                }
+            }
+
 
             templateDate = t;
         }
