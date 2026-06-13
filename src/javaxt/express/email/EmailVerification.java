@@ -9,10 +9,10 @@ import static javaxt.express.email.EmailUtils.*;
 
 
 //******************************************************************************
-//**  EmailAuth
+//**  EmailVerification
 //******************************************************************************
 /**
- *   Utility class used to help implement email-authentication (e.g. 2FA, MFA).
+ *   Utility class used to help support email validation/verification workflows.
  *   Generates 6-digit verification codes, sends them via an HTML email
  *   template, and manages pending/verified sessions with configurable expiry.
  *   Includes IP-based rate limiting (3 requests per 10 minutes) and brute-
@@ -22,7 +22,7 @@ import static javaxt.express.email.EmailUtils.*;
  *
  ******************************************************************************/
 
-public class EmailAuth {
+public class EmailVerification {
 
 
     private EmailService emailService;
@@ -87,7 +87,7 @@ public class EmailAuth {
         )
       </pre>
    */
-    public EmailAuth(EmailService emailService, javaxt.io.File templateFile, Map<String, String> fieldMap) {
+    public EmailVerification(EmailService emailService, javaxt.io.File templateFile, Map<String, String> fieldMap) {
         if (emailService==null || templateFile==null) throw new IllegalArgumentException();
 
 
