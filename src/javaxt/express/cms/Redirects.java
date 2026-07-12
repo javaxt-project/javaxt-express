@@ -4,7 +4,19 @@ package javaxt.express.cms;
 //**  Redirects Class
 //******************************************************************************
 /**
- *   Used to parse a plain text file with URL redirects.
+ *   Used to parse a plain text file with URL redirects. This is useful when
+ *   moving/renaming content files. Each line maps a key to a replacement,
+ *   separated by one or more tabs like this:
+    <pre>
+        path/to/old-file         path/to/new-file
+    </pre>
+ *   An incoming URL is matched against the keys using a case-insensitive
+ *   substring search (longest key first, so more specific rules win), and the
+ *   matched portion is swapped for the replacement. Relative replacements keep
+ *   the original scheme/host, while an absolute replacement (http/https) is
+ *   used as the full destination for cross-site redirects. The file is
+ *   re-parsed automatically whenever it changes on disk. Blank lines and lines
+ *   starting with "#" or "//" are ignored.
  *
  ******************************************************************************/
 
@@ -19,8 +31,6 @@ public class Redirects {
   //**************************************************************************
   //** Constructor
   //**************************************************************************
-  /** Creates a new instance of this class. */
-
     public Redirects(javaxt.io.File file) {
         this.file = file;
         parseRedirects();
@@ -58,10 +68,15 @@ public class Redirects {
     }
 
 
-
+  //**************************************************************************
+  //** getRedirect
+  //**************************************************************************
+  /** Returns a redirected/updated url. Returns null if there is no redirect.
+   */
     public String getRedirect(java.net.URL url){
         return getRedirect(url.toString());
     }
+
 
   //**************************************************************************
   //** getRedirect
@@ -86,6 +101,13 @@ public class Redirects {
 
                 String a = url.substring(0, x);
                 String b = url.substring(x+y);
+
+              //If the replacement is an absolute URL, use the full path
+                String t = replacement.toLowerCase();
+                if (t.startsWith("http://") || t.startsWith("https://")){
+                    return replacement + b;
+                }
+
                 return a + replacement + b;
             }
         }
