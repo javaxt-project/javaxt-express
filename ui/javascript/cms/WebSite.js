@@ -61,7 +61,7 @@ javaxt.express.WebSite = function (content, config) {
 
         style: {
             panel : { //Style for individual panels in the carousel
-                background: "#fff",
+                backgroundColor: "",
                 height: ""
             }
         }
@@ -148,13 +148,20 @@ javaxt.express.WebSite = function (content, config) {
 
 
 
-      //Create panel for the carousel using elements elements from the content node
-        currPage = document.createElement("div");
-        currPage.style.height = "100%";
-        var contentWrapper = document.createElement("div");
-        setStyle(contentWrapper, config.style.panel);
+      //Create panel for the carousel
+        currPage = createElement("div", { height: "100%" });
+
+
+      //Add a content wrapper to the panel. Note that we force auto height.
+      //The wrapper must size to its content, not its parent, or resize()
+      //enters a feedback loop and the page grows without bound. Overrides
+      //any height from style.panel (object or css class), hence !important.
+        var contentWrapper = createElement("div", config.style.panel);
+        contentWrapper.style.setProperty("height", "auto", "important");
         currPage.appendChild(contentWrapper);
 
+
+      //Add elements from the content node (if any) into the content wrapper
         while (content.childNodes.length>0){
             var node = content.childNodes[0];
             content.removeChild(node);
@@ -163,8 +170,7 @@ javaxt.express.WebSite = function (content, config) {
 
 
       //Create a second empty panel for the carousel
-        nextPage = document.createElement("div");
-        nextPage.style.height = "100%";
+        nextPage = createElement("div", { height: "100%" });
 
 
 
@@ -957,7 +963,7 @@ javaxt.express.WebSite = function (content, config) {
         else config.navbar.style.height = "";
 
         for (var i=0; i<arr.length; i++){
-            var div = document.createElement("div");
+            var div = createElement("div");
             div.innerText = arr[i].split("_").join(" ");
             if (i<arr.length-1){
                 div.path = arr.slice(0, i+1).join("/");
@@ -1057,6 +1063,15 @@ javaxt.express.WebSite = function (content, config) {
                     return;
                 }
 
+              //Descendant match. The current page may render an index/table of
+              //contents of a directory subtree (e.g. via the "<%=index%>" tag),
+              //so a change to any file beneath it is relevant and should trigger
+              //a reload. Leaf pages have no descendants and are unaffected.
+                if (path.length>0 && filePath.startsWith(path + "/")){
+                    location.reload();
+                    return;
+                }
+
               //Index file match (e.g. wiki/index matches URL "wiki",
               //or index matches root URL "")
                 var slashIdx = filePath.lastIndexOf("/");
@@ -1114,9 +1129,10 @@ javaxt.express.WebSite = function (content, config) {
       //Load page and call callback
         pageLoader.load(url, function(html, title, inlineScripts){
 
-          //Create div
-            var contentWrapper = document.createElement("div");
-            setStyle(contentWrapper, config.style.panel);
+          //Create div. Force auto height (same invariant as init) before
+          //serializing to outerHTML so SPA-navigated pages get the same guard.
+            var contentWrapper = createElement("div", config.style.panel);
+            contentWrapper.style.setProperty("height", "auto", "important");
             contentWrapper.innerHTML = html;
             html = contentWrapper.outerHTML;
 
@@ -1160,7 +1176,7 @@ javaxt.express.WebSite = function (content, config) {
   //**************************************************************************
     var _getRect = javaxt.dhtml.utils.getRect;
     var merge = javaxt.dhtml.utils.merge;
-    var setStyle = javaxt.dhtml.utils.setStyle;
+    var createElement = javaxt.dhtml.utils.createElement;
 
     init();
 };
