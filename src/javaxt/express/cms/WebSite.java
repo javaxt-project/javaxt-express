@@ -75,7 +75,7 @@ public abstract class WebSite extends HttpServlet {
         setServletPath(servletPath);
         this.fileManager = new FileManager(web);
 
-        
+
         this.mdCache = new ConcurrentHashMap<>();
         this.git = new Git(web);
 
@@ -915,129 +915,66 @@ public abstract class WebSite extends HttpServlet {
 
 
       //Build table of contents using ul/li tags
-        StringBuffer toc = new StringBuffer();
+        StringBuilder toc = new StringBuilder();
         toc.append("<ul>\r\n");
-        String prevPath = "";
+        String[] prevDirs = new String[0];
         int len = dir.getPath().length();
-        Iterator<javaxt.io.File> it = files.iterator();
-        while (it.hasNext()){
+        for (javaxt.io.File f : files){
 
-            javaxt.io.File f = it.next();
             String fileName = f.getName(false);
+
+
+          //Get the file's directory relative to the index directory,
+          //normalized to forward slashes with no leading slash and a
+          //trailing slash (e.g. "sql/ConnectionPool/")
             String relPath = f.getDirectory().getPath().substring(len).replace("\\", "/");
-
-            String link = path;
-            if (relPath.length()>0){
-                link += relPath;
-            }
-            link += fileName;
+            if (relPath.startsWith("/")) relPath = relPath.substring(1);
+            if (relPath.length()>0 && !relPath.endsWith("/")) relPath += "/";
+            String[] currDirs = relPath.length()==0 ? new String[0] : relPath.split("/");
 
 
-            String li = "<li><a href=\"" + link + "\">" + fileName.replace("_", " ") + "</a></li>\r\n";
-
-
-            if (relPath.equals(prevPath)){
-                toc.append(li);
-            }
-            else{
-                String[] prevDirs = prevPath.split("/");
-                String[] currDirs = relPath.split("/");
-
-              //Close previous UL tags
-                if (prevPath.length()>0){
-
-
-                  //Compute number of tags to close
-                    int numTags = prevDirs.length;
-                    for (int i=0; i<prevDirs.length; i++){
-                        String prevDir = prevDirs[i];
-                        String currDir = (i<currDirs.length-1 ? currDirs[i] : "");
-                        if (prevDir.equals(currDir)){
-                            numTags--;
-                        }
-                        else{
-                            break;
-                        }
-                    }
-
-                  //Close the tags
-                    for (int j=0; j<numTags; j++){
-                        toc.append("</ul>\r\n");
-                    }
-
-                }
-
-
-
-              //Compute number of tags to open
-                int numTags = currDirs.length;
-                if (prevPath.length()>0){
-                    for (int i=0; i<currDirs.length; i++){
-                        String currDir = currDirs[i];
-                        String prevDir = (i<prevDirs.length-1 ? prevDirs[i] : "");
-                        if (currDir.equals(prevDir)){
-                            numTags--;
-                        }
-                        else{
-                            break;
-                        }
-                    }
-                }
-
-
-              //Open new tags
-                for (int i=0; i<numTags; i++){
-                    int offset = (currDirs.length)-numTags;
-                    int idx = offset+i;
-                    String dirName = currDirs[idx];
-
-
-                    String tag = null;
-                    if (idx==0){
-                        tag = "h2";
-                    }
-
-
-                    toc.append("<li>");
-
-                    if (tag!=null) toc.append("<" + tag + ">");
-                    toc.append(dirName.replace("_", " "));
-                    if (tag!=null) toc.append("</" + tag + ">");
-
-                    toc.append("</li>\r\n");
-
-
-                    toc.append("<ul>\r\n");
-                }
-
-
-
-                toc.append(li);
-
-
-
-
-
-                prevPath = relPath;
+          //Find how many leading directories the previous and current paths share
+            int common = 0;
+            while (common<prevDirs.length && common<currDirs.length &&
+                   prevDirs[common].equals(currDirs[common])){
+                common++;
             }
 
 
-          //Close tags
-            if (!it.hasNext()){
-
-
-              //Compute number of tags to close
-                String[] currDirs = relPath.split("/");
-                int numTags = currDirs.length;
-
-
-              //Close the tags
-                for (int j=0; j<numTags; j++){
-                    toc.append("</ul>\r\n");
-                }
+          //Close the directories that are no longer part of the current path
+            for (int i=prevDirs.length; i>common; i--){
+                toc.append("</ul>\r\n");
             }
 
 
+          //Open the directories that are new to the current path, emitting a
+          //header for each level (an "h2" for the top-most level)
+            for (int i=common; i<currDirs.length; i++){
+                String dirName = currDirs[i];
+                String tag = (i==0) ? "h2" : null;
+
+                toc.append("<li>");
+                if (tag!=null) toc.append("<" + tag + ">");
+                toc.append(dirName.replace("_", " "));
+                if (tag!=null) toc.append("</" + tag + ">");
+                toc.append("</li>\r\n");
+
+                toc.append("<ul>\r\n");
+            }
+
+
+          //Append a link to the file
+            String link = path + relPath + fileName;
+            toc.append("<li><a href=\"" + link + "\">" + fileName.replace("_", " ") + "</a></li>\r\n");
+
+
+            prevDirs = currDirs;
+        }
+
+
+      //Close any directories that are still open
+        for (int i=prevDirs.length; i>0; i--){
+            toc.append("</ul>\r\n");
         }
         toc.append("</ul>\r\n");
 
