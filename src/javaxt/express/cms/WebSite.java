@@ -513,10 +513,10 @@ public abstract class WebSite extends HttpServlet {
 
       //Get content
         Content content = getContent(request, file);
-        if (content==null){
-            content = new Content("404", new Date());
-            content.setStatusCode(404);
-        }
+        if (content==null) content = getPartialIndex(request);
+        if (content==null) content = getPageNotFound(request);
+
+
         dates.add(content.getDate().getTime());
         String html = content.getHTML();
 
@@ -891,10 +891,30 @@ public abstract class WebSite extends HttpServlet {
    *  most current file.
    */
     protected Content getIndex(javaxt.io.File file){
+        return getIndex(file.getDirectory(), file);
+    }
 
 
-      //Get relative path to the file
-        javaxt.io.Directory dir = file.getDirectory();
+  //**************************************************************************
+  //** getIndex
+  //**************************************************************************
+  /** Returns an html snippet with links to all the content files found under
+   *  the given directory (recursively). The optional "exclude" file (e.g. the
+   *  index file itself) is omitted from the listing. When an "exclude" file is
+   *  given, the listing is treated as a full index page and the top-most
+   *  directory of each branch is rendered as an "h2" heading. Otherwise (e.g.
+   *  the "not found" subtree, called with a null exclude) every directory is
+   *  rendered as a plain list item.
+   */
+    protected Content getIndex(javaxt.io.Directory dir, javaxt.io.File exclude){
+
+
+      //Render "h2" headers only for full index pages, which are identified by
+      //having an index file to exclude; bare subtrees use plain list items.
+        boolean useHeaders = exclude!=null;
+
+
+      //Get relative path to the directory
         String path = dir.toString();
         path = path.substring(web.toString().length());
         path = path.replace("\\", "/");
@@ -905,9 +925,9 @@ public abstract class WebSite extends HttpServlet {
       //Generate list of files and dates
         List<javaxt.io.File> files = new LinkedList<>();
         TreeSet<Long> dates = new TreeSet<>();
-        dates.add(file.getDate().getTime());
+        dates.add((exclude!=null ? exclude.getDate() : dir.getDate()).getTime());
         for (javaxt.io.File f : dir.getFiles(fileExtensions, true)){
-            if (!f.equals(file)){
+            if (exclude==null || !f.equals(exclude)){
                 files.add(f);
                 dates.add(f.getDate().getTime());
             }
@@ -951,7 +971,7 @@ public abstract class WebSite extends HttpServlet {
           //header for each level (an "h2" for the top-most level)
             for (int i=common; i<currDirs.length; i++){
                 String dirName = currDirs[i];
-                String tag = (i==0) ? "h2" : null;
+                String tag = (useHeaders && i==0) ? "h2" : null;
 
                 toc.append("<li>");
                 if (tag!=null) toc.append("<" + tag + ">");
@@ -988,6 +1008,74 @@ public abstract class WebSite extends HttpServlet {
 
 
         return new Content(toc.toString(), lastModified);
+    }
+
+
+  //**************************************************************************
+  //** getPartialIndex
+  //**************************************************************************
+  /** Called when a requested url does not map to a content file. If the
+   *  requested path is valid (e.g. an existing directory), returns an index
+   *  of that directory &mdash; a subtree at that node &mdash; so the visitor
+   *  can navigate to a related page. Returns null if the path does not
+   *  resolve to a directory (e.g. a typo or bogus path). Classes that
+   *  extend this class can override this method to customize the response.
+   */
+    protected Content getPartialIndex(HttpServletRequest request){
+
+      //Get the requested path relative to the servlet, minus the trailing slash
+        String path = getPath(request.getURL());
+        if (path.endsWith("/")) path = path.substring(0, path.length()-1);
+        if (path.length()==0) return null;
+
+
+      //Only render a tree when the requested path is itself an existing
+      //directory; a typo or otherwise invalid path yields null (a plain 404).
+        javaxt.io.Directory dir = getContentDirectory(path);
+        if (dir==null) return null;
+
+
+      //Build a subtree index for that directory. Passing a null "exclude"
+      //renders the tree as plain list items (no "h2" headers).
+        Content index = getIndex(dir, null);
+
+
+      //Assemble the "not found" response. A tree was found to render, so the
+      //response is a 200 rather than a 404.
+        StringBuilder html = new StringBuilder();
+        html.append("<title>Page Not Found</title>\r\n");
+        html.append("<h1>Page Not Found</h1>\r\n");
+        html.append("<p>No entry exists for this link. Here are a few related ");
+        html.append("articles in this directory:</p>\r\n");
+        html.append(index.getHTML());
+
+        return new Content(html.toString(), index.getDate());
+    }
+
+
+  //**************************************************************************
+  //** getContentDirectory
+  //**************************************************************************
+  /** Returns the directory that exactly matches the given url path, checking
+   *  the web root and each known content folder (e.g. "wiki"). Returns null
+   *  if the path does not resolve to an existing directory. Note that this
+   *  does not walk up the path &mdash; only an exact directory match yields
+   *  a result, so an invalid path (e.g. a typo) returns null.
+   */
+    private javaxt.io.Directory getContentDirectory(String path){
+        if (path==null || path.length()==0) return null;
+
+      //Check the web root
+        javaxt.io.Directory dir = new javaxt.io.Directory(web + path);
+        if (dir.exists()) return dir;
+
+      //Check under each content folder (e.g. "wiki", "documentation")
+        for (String folder : contentFolders){
+            dir = new javaxt.io.Directory(web + folder + "/" + path);
+            if (dir.exists()) return dir;
+        }
+
+        return null;
     }
 
 
@@ -1104,6 +1192,36 @@ public abstract class WebSite extends HttpServlet {
    */
     protected String getSidebar(HttpServletRequest request){
         return "";
+    }
+
+
+  //**************************************************************************
+  //** getPageNotFound
+  //**************************************************************************
+  /** Returns Content for a bad link and a 404 error.
+   */
+    protected Content getPageNotFound(HttpServletRequest request){
+
+        StringBuilder html = new StringBuilder();
+        html.append("<title>Page Not Found</title>\r\n");
+        html.append("<h1>Page Not Found</h1>\r\n");
+        html.append("<p>No entry exists for this link.</p>\r\n");
+
+        LinkedHashMap<String, String> items = tabs.getItems();
+        html.append("<ul>");
+        for (String key : items.keySet()){
+            console.log(key, items.get(key));
+            html.append("<li>");
+            html.append("<a href=\"" + items.get(key) + "\">");
+            html.append(key);
+            html.append("</a>");
+            html.append("</li>");
+        }
+        html.append("</ul>");
+
+        Content content = new Content(html.toString(), new Date());
+        content.setStatusCode(404);
+        return content;
     }
 
 
