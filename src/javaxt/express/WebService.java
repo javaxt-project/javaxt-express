@@ -621,8 +621,10 @@ public abstract class WebService {
                   //Append count as needed
                     if (request.getCount()){
                         rs.close();
-                        Record r = conn.getRecord("select count(id) from " +
-                        tableName + (where==null ? "" : " where " + where));
+                        javaxt.sql.Record r = conn.getRecord(
+                            "select count(id) from " + tableName +
+                            (where==null ? "" : " where " + where)
+                        );
                         if (r!=null){
                             json.append(",\"count\":");
                             json.append(r.get(0).toLong());
