@@ -433,29 +433,28 @@ public abstract class WebService {
             sql.append(where);
         }
 
-        Long offset = request.getOffset();
-        if (offset==null || offset<1){
-            sql.append(request.getOrderByStatement());
-        }
-        else{
-          //Add ID (unique primary key) to the order by statement as needed.
-          //This is important when paginating sorting on non-distinct columns (esp on H2)
-            Sort sort = request.getSort();
-            if (!sort.isEmpty()){
-                sql.append(" order by ");
-                boolean addID = true;
-                java.util.Iterator<String> it = sort.getKeySet().iterator();
-                while (it.hasNext()){
-                    String colName = it.next();
-                    String direction = sort.get(colName);
-                    sql.append(colName);
-                    sql.append(" ");
-                    sql.append(direction);
-                    if (it.hasNext()) sql.append(", ");
-                    if (colName.equalsIgnoreCase("id")) addID = false;
-                }
-                if (addID) sql.append(", id");
+
+      //Add order by statement
+        Sort sort = request.getSort();
+        if (!sort.isEmpty()){
+            sql.append(" order by ");
+            boolean addID = true;
+            java.util.Iterator<String> it = sort.getKeySet().iterator();
+            while (it.hasNext()){
+                String colName = it.next();
+                String direction = sort.get(colName);
+                sql.append(colName);
+                sql.append(" ");
+                sql.append(direction);
+                if (it.hasNext()) sql.append(", ");
+                if (colName.equalsIgnoreCase("id")) addID = false;
             }
+
+          //Add ID (unique primary key) to the order by statement as needed.
+          //This is important when paginating sorting on non-distinct columns,
+          //especially on H2.
+            if (addID) sql.append(", id");
+            
         }
         sql.append(request.getOffsetLimitStatement(database.getDriver()));
         //console.log(sql);
