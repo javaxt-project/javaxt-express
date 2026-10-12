@@ -35,4 +35,8 @@ public class Content {
     public String getHTML(){
         return html;
     }
+
+    public void setHTML(String html){
+        this.html = html;
+    }
 }
