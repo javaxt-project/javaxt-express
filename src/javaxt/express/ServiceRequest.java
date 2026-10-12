@@ -635,9 +635,32 @@ public class ServiceRequest {
   //**************************************************************************
   //** getClientIP
   //**************************************************************************
-  /** Returns the client IP address from the request
+  /** Returns the client IP address from the request (the direct socket
+   *  address). Equivalent to getClientIP(false).
    */
     public String getClientIP() {
+        return getClientIP(false);
+    }
+
+
+  //**************************************************************************
+  //** getClientIP
+  //**************************************************************************
+  /** Returns the client IP address from the request.
+   *  @param trustProxy When true, and an "X-Forwarded-For" header is present,
+   *  the first (client) entry of that header is returned instead of the socket
+   *  address. Only enable this when the server sits behind a trusted reverse
+   *  proxy/CDN that sets the header; otherwise clients could spoof their IP.
+   */
+    public String getClientIP(boolean trustProxy) {
+        if (trustProxy) {
+            String xff = request.getHeader("X-Forwarded-For");
+            if (xff != null && !xff.isEmpty()) {
+                int comma = xff.indexOf(",");
+                String forwarded = (comma > 0 ? xff.substring(0, comma) : xff).trim();
+                if (!forwarded.isEmpty()) return forwarded;
+            }
+        }
         String ip = request.getRemoteAddr();
         if (ip != null && ip.startsWith("/") && ip.length() > 1) {
             ip = ip.substring(1);
@@ -645,7 +668,7 @@ public class ServiceRequest {
         return ip;
     }
 
-    
+
   //**************************************************************************
   //** getRequest
   //**************************************************************************
