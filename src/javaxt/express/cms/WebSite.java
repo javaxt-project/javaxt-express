@@ -498,8 +498,6 @@ public abstract class WebSite extends HttpServlet {
         }
 
 
-
-
       //Calculate last modified date and estimated file fize
         TreeSet<Long> dates = new TreeSet<>();
         if (file!=null) dates.add(file.getDate().getTime());
@@ -509,17 +507,14 @@ public abstract class WebSite extends HttpServlet {
         }
 
 
-
-
       //Get content
         Content content = getContent(request, file);
-        if (content==null) content = getPartialIndex(request);
-        if (content==null) content = getPageNotFound(request);
-
-
+        if (content==null) content = getPageNotFound();
         dates.add(content.getDate().getTime());
-        String html = content.getHTML();
 
+
+      //Get HTML
+        String html = content.getHTML();
 
 
 
@@ -601,7 +596,7 @@ public abstract class WebSite extends HttpServlet {
             html = html.replace("<%=description%>", description);
             html = html.replace("<%=keywords%>", keywords);
             html = html.replace("<%=author%>", author==null ? "" : author);
-
+            html = html.replace("<%=canonicalURL%>", getCanonicalURL(url, file));
             html = html.replace("<%=companyName%>", companyName==null ? "": companyName);
             html = html.replace("<%=year%>", getYear()+"");
             html = html.replace("<%=copyright%>", getCopyright());
@@ -618,6 +613,7 @@ public abstract class WebSite extends HttpServlet {
         else{
 
             html = html.replace("<%=Path%>", servletPath);
+            html = html.replace("<%=breadcrumbs%>", getBreadcrumbs(request));
             html = updateLinks(html, dates, file);
             //console.log("updateLinks", System.currentTimeMillis()-t0);
         }
@@ -751,19 +747,21 @@ public abstract class WebSite extends HttpServlet {
   //**************************************************************************
   //** getContent
   //**************************************************************************
-  /** Returns an html snippet found in the given file. This method can be
-   *  overridden to generate dynamic content or to support custom tags.
+  /** Returns Content to render for given file. This method can be overridden
+   *  to generate dynamic content or to support custom tags.
    */
     protected Content getContent(HttpServletRequest request, javaxt.io.File file){
+
+        Content content;
         if (file==null || !file.exists()){
-            return null;
+            content = null;
         }
         else{
             String txt = file.getText("UTF-8");
             String ext = file.getExtension();
             java.util.Date date = file.getDate();
 
-            Content content;
+
             if (ext.equalsIgnoreCase("md")){
                 String key = file.toString().replace(web.toString(), "");
                 synchronized(mdCache){
@@ -782,9 +780,11 @@ public abstract class WebSite extends HttpServlet {
             else{
                 content = new Content(txt, date);
             }
-
-            return content;
         }
+
+
+        if (content==null) content = getPageNotFound(request);
+        return content;
     }
 
 
@@ -1173,11 +1173,6 @@ public abstract class WebSite extends HttpServlet {
                     str.append("</div>");
                     str.append("</a>");
                 }
-                else{
-                    str.append("<div>");
-                    str.append(text);
-                    str.append("</div>");
-                }
             }
         }
 
@@ -1196,11 +1191,76 @@ public abstract class WebSite extends HttpServlet {
 
 
   //**************************************************************************
+  //** getCanonicalURL
+  //**************************************************************************
+  /** Returns the "canonical" URL for a requested URL and file. The canonical
+   *  URL is the preferred version of a webpage's URL that search engines
+   *  index. Stops search engines from getting confused by multiple versions
+   *  of the same page (e.g. "http" vs "https", "www" vs non-www, or tracking
+   *  parameters like "?ref=instagram").
+   */
+    protected String getCanonicalURL(java.net.URL url, javaxt.io.File file){
+
+
+      //Get scheme. Use https if we can, without the port number of the
+      //original request since it won't apply.
+        String scheme = url.getProtocol().toLowerCase();
+        int port = url.getPort();
+        if (this.supportsHttps() && !scheme.equals("https")){
+            scheme = "https";
+            port = -1;
+        }
+        if (port==url.getDefaultPort()) port = -1;
+
+
+      //Get path, without the query string or fragment
+        String path = url.getPath();
+        if (path==null || path.isEmpty()) path = "/";
+
+
+      //Normalize the last segment of the path using the rendered file
+        if (file!=null){
+            int idx = path.lastIndexOf("/");
+            String dir = path.substring(0, idx+1);
+            String lastSegment = path.substring(idx+1);
+
+            String fileName = file.getName(false);
+            if (lastSegment.equalsIgnoreCase(file.getName())){
+                lastSegment = fileName;
+            }
+
+            for (String defaultFileName : defaultFileNames){
+                if (defaultFileName.equalsIgnoreCase(fileName) &&
+                    lastSegment.equalsIgnoreCase(fileName)){
+                    lastSegment = "";
+                    break;
+                }
+            }
+
+            path = dir + lastSegment;
+        }
+
+
+        return scheme + "://" + url.getHost() + (port>-1 ? ":" + port : "") + path;
+    }
+
+
+  //**************************************************************************
   //** getPageNotFound
   //**************************************************************************
-  /** Returns Content for a bad link and a 404 error.
+  /** Returns Content to render when a requested url does not map to a content
+   *  file. This method can be overridden to generate custom 404 pages or
+   *  custom content (e.g. partial indexes for wiki pages).
    */
     protected Content getPageNotFound(HttpServletRequest request){
+        return getPageNotFound();
+    }
+
+
+  //**************************************************************************
+  //** getPageNotFound
+  //**************************************************************************
+    private Content getPageNotFound(){
 
         StringBuilder html = new StringBuilder();
         html.append("<title>Page Not Found</title>\r\n");
@@ -1210,7 +1270,6 @@ public abstract class WebSite extends HttpServlet {
         LinkedHashMap<String, String> items = tabs.getItems();
         html.append("<ul>");
         for (String key : items.keySet()){
-            console.log(key, items.get(key));
             html.append("<li>");
             html.append("<a href=\"" + items.get(key) + "\">");
             html.append(key);
