@@ -48,6 +48,9 @@ public class EmailService {
         properties.setProperty("mail.smtp.ssl.enable", "true");
         properties.setProperty("mail.smtp.socketFactory.class", "javax.net.ssl.SSLSocketFactory");
         //properties.setProperty("mail.debug", "true");
+        properties.setProperty("mail.smtp.connectiontimeout", "15000");
+        properties.setProperty("mail.smtp.timeout", "30000");
+        properties.setProperty("mail.smtp.writetimeout", "30000");
     }
 
 
