@@ -15,9 +15,8 @@ import static javaxt.express.email.EmailUtils.*;
  *   Utility class used to help support email validation/verification workflows.
  *   Generates 6-digit verification codes, sends them via an HTML email
  *   template, and manages pending/verified sessions with configurable expiry.
- *   Includes IP-based rate limiting (3 requests per 10 minutes) and brute-
- *   force protection (5 failed verification attempts before lockout). Expired
- *   sessions and stale rate-limit entries are cleaned up automatically every
+ *   Includes brute-force protection (5 failed verification attempts before a
+ *   new code is needed). Expired sessions are cleaned up automatically every
  *   5 minutes.
  *
  ******************************************************************************/
@@ -26,6 +25,7 @@ public class EmailVerification {
 
 
     private EmailService emailService;
+    private EmailTemplate emailTemplate;
     private SecureRandom random = new SecureRandom();
 
 
@@ -37,19 +37,13 @@ public class EmailVerification {
     // Key: sessionToken, Value: RegistrationSession (with code=null)
     private ConcurrentHashMap<String, RegistrationSession> verifiedSessions = new ConcurrentHashMap<>();
 
-    // Session expiration times (milliseconds)
-    private static final long PENDING_SESSION_EXPIRY = 10 * 60 * 1000;  // 10 minutes
-    private static final long VERIFIED_SESSION_EXPIRY = 24 * 60 * 60 * 1000;  // 24 hours
-
-    // Rate limiting: max registration starts per IP within the window
-    private static final int MAX_STARTS_PER_IP = 3;
-    private static final long RATE_LIMIT_WINDOW = 10 * 60 * 1000;  // 10 minutes
+    // Session expiration times (milliseconds). Defaults shown; override via
+    // the setters below.
+    private long pendingSessionExpiry = 10 * 60 * 1000L;      // 10 minutes
+    private long verifiedSessionExpiry = 24 * 60 * 60 * 1000L;  // 24 hours
 
     // Brute-force protection: max failed verification attempts before lockout
-    private static final int MAX_VERIFY_ATTEMPTS = 5;
-
-    // Rate limiting: track timestamps of /start calls per IP
-    private ConcurrentHashMap<String, List<Long>> startRateByIP = new ConcurrentHashMap<>();
+    private int maxVerifyAttempts = 5;
 
     // Brute-force protection: track failed verification attempts per email
     private ConcurrentHashMap<String, Integer> failedVerifyAttempts = new ConcurrentHashMap<>();
@@ -61,63 +55,139 @@ public class EmailVerification {
     private Runnable cleanupCallback;
 
 
-    private javaxt.io.File templateFile;
-    private long templateDate;
-    private String htmlTemplate; //don't use directly! call getTemplate()
-    private String emailSubject;
-    private String companyName;
-    private Map<String, String> fieldMap;
-    private Map<String, javaxt.io.File> inlineImages;
-
 
   //**************************************************************************
   //** Constructor
   //**************************************************************************
   /** Creates a new instance of this class.
    *  @param emailService Used to create and send verification emails
-   *  @param templateFile HTML email template file. The template is hot-
-   *  reloaded when the file changes on disk. Company name is extracted from
-   *  a &lt;meta name="author"&gt; tag and the email subject from &lt;title&gt;.
-   *  @param fieldMap Maps logical field names to placeholder strings in the
-   *  template. Must contain "name" and "code" keys. Example:
-      <pre>
-        Map.ofEntries(
-            Map.entry("name", "{{name}}"),
-            Map.entry("code", "{{code}}")
-        )
-      </pre>
+   *  @param emailTemplate Used to create the emails: subject, sender, and the
+   *  body with the code (see EmailTemplate).
    */
-    public EmailVerification(EmailService emailService, javaxt.io.File templateFile, Map<String, String> fieldMap) {
-        if (emailService==null || templateFile==null) throw new IllegalArgumentException();
+    public EmailVerification(EmailService emailService, EmailTemplate emailTemplate) {
+        if (emailService==null || emailTemplate==null) throw new IllegalArgumentException();
 
 
       //Set class variables
         this.emailService = emailService;
-        this.templateFile = templateFile;
-        this.templateDate = -1;
-        this.fieldMap = fieldMap;
-        this.inlineImages = new HashMap<>();
-
-
-      //Parse template
-        getTemplate();
+        this.emailTemplate = emailTemplate;
 
 
       //Start cleanup task to remove expired sessions
-        cleanupScheduler = Executors.newSingleThreadScheduledExecutor();
-        cleanupScheduler.scheduleAtFixedRate(this::cleanupExpiredSessions, 5, 5, TimeUnit.MINUTES);
+        startCleanup();
     }
 
 
   //**************************************************************************
-  //** setCleanupCallback
+  //** setPendingSessionExpiry
   //**************************************************************************
-  /** Sets a callback that is invoked during each periodic cleanup cycle.
-   *  Callers can use this to perform their own cleanup tasks (e.g. removing
-   *  expired form sessions).
+  /** Sets how long an unverified (pending) code is valid, in milliseconds.
+   *  Default is 10 minutes.
    */
-    public void setCleanupCallback(Runnable callback) {
-        this.cleanupCallback = callback;
+    public void setPendingSessionExpiry(long milliseconds) {
+        this.pendingSessionExpiry = milliseconds;
+    }
+
+
+  //**************************************************************************
+  //** setVerifiedSessionExpiry
+  //**************************************************************************
+  /** Sets how long a verified session token is valid, in milliseconds.
+   *  Default is 24 hours.
+   */
+    public void setVerifiedSessionExpiry(long milliseconds) {
+        this.verifiedSessionExpiry = milliseconds;
+    }
+
+
+  //**************************************************************************
+  //** setMaxVerifyAttempts
+  //**************************************************************************
+  /** Sets the number of failed verification attempts allowed before an email
+   *  is locked out and must request a new code. Default is 5.
+   */
+    public void setMaxVerifyAttempts(int attempts) {
+        this.maxVerifyAttempts = attempts;
+    }
+
+
+
+  //**************************************************************************
+  //** getSession
+  //**************************************************************************
+  /** Returns a JSONObject with session details including email, token, and
+   *  an info JSONObject that was used when calling sendVerificationEmail()
+   */
+    public JSONObject getSession(String email, String sessionToken){
+
+        if (sessionToken == null || sessionToken.trim().isEmpty()) {
+            return null;
+        }
+
+        if (email == null || email.trim().isEmpty()) {
+            return null;
+        }
+
+        RegistrationSession session = verifiedSessions.get(sessionToken);
+        if (session == null || session.isExpired()) {
+            if (session != null) {
+                verifiedSessions.remove(sessionToken);
+            }
+            return null;
+        }
+
+        // Verify email matches the session
+        if (!email.equalsIgnoreCase(session.email)) return null;
+
+        return getSession(session, sessionToken);
+    }
+
+
+  //**************************************************************************
+  //** getSession
+  //**************************************************************************
+  /** Returns a JSONObject with session details (email, token, info) for the
+   *  given token, or null if the token is unknown or expired. Unlike the
+   *  two-argument overload, this looks the session up by token alone -- useful
+   *  when the caller authenticates with a bearer token and doesn't already know
+   *  the associated email.
+   */
+    public JSONObject getSession(String sessionToken){
+        if (sessionToken == null || sessionToken.trim().isEmpty()) return null;
+        RegistrationSession session = verifiedSessions.get(sessionToken);
+        if (session == null || session.isExpired()) {
+            if (session != null) verifiedSessions.remove(sessionToken);
+            return null;
+        }
+        return getSession(session, sessionToken);
+    }
+
+
+  //**************************************************************************
+  //** getSession
+  //**************************************************************************
+    private JSONObject getSession(RegistrationSession session, String sessionToken){
+        JSONObject json = new JSONObject();
+        json.set("token", sessionToken);
+        json.set("email", session.email);
+        json.set("info", session.info);
+        return json;
+    }
+
+
+  //**************************************************************************
+  //** generateSessionToken
+  //**************************************************************************
+  /** Generates a strong random 256-bit session token (64 hex chars).
+   */
+    public String generateSessionToken() {
+        byte[] bytes = new byte[32];
+        random.nextBytes(bytes);
+        StringBuilder sb = new StringBuilder();
+        for (byte b : bytes) {
+            sb.append(String.format("%02x", b));
+        }
+        return sb.toString();
     }
 
 
@@ -128,55 +198,25 @@ public class EmailVerification {
    *  the given email address.
    */
     public boolean isValidSession(String email, String sessionToken) {
-        if (sessionToken == null || sessionToken.trim().isEmpty()) {
+        JSONObject session = getSession(email, sessionToken);
+        if (session == null || session.isEmpty()) {
             return false;
         }
-        if (email == null || email.trim().isEmpty()) {
-            return false;
+        else{
+            return true;
         }
-
-        RegistrationSession session = verifiedSessions.get(sessionToken);
-
-        if (session == null || session.isExpired()) {
-            if (session != null) {
-                verifiedSessions.remove(sessionToken);
-            }
-            return false;
-        }
-
-        // Verify email matches the session
-        return email.equalsIgnoreCase(session.email);
     }
 
 
   //**************************************************************************
-  //** RegistrationSession
+  //** invalidateSession
   //**************************************************************************
-  /** Holds registration data. When code is non-null, session is pending
-   *  verification (10 min expiry). When code is null, session is verified
-   *  (24 hour expiry).
+  /** Invalidates a verified session token (e.g. on logout). Returns true if a
+   *  session was removed.
    */
-    private static class RegistrationSession {
-        String code;  // null after verification
-        String email;
-        JSONObject info;
-        long timestamp;
-
-        RegistrationSession(String code, String email, JSONObject info) {
-            this.code = code;
-            this.email = email;
-            this.info = info;
-            this.timestamp = System.currentTimeMillis();
-        }
-
-        boolean isVerified() {
-            return code == null;
-        }
-
-        boolean isExpired() {
-            long expiry = isVerified() ? VERIFIED_SESSION_EXPIRY : PENDING_SESSION_EXPIRY;
-            return System.currentTimeMillis() - timestamp > expiry;
-        }
+    public boolean invalidateSession(String sessionToken){
+        if (sessionToken == null) return false;
+        return verifiedSessions.remove(sessionToken) != null;
     }
 
 
@@ -189,7 +229,8 @@ public class EmailVerification {
    *
    *  @param email The email address to send the verification code to
    *  @param name The name to use in the email greeting
-   *  @param info Caller-provided data returned after successful verify
+   *  @param info Caller-provided metadata/information that gets stored with
+   *  a registration session.
    */
     public void sendVerificationEmail(String email, String name, JSONObject info) throws Exception {
 
@@ -216,35 +257,25 @@ public class EmailVerification {
 
 
       //Store pending session and reset failed attempts for this email
-        RegistrationSession session = new RegistrationSession(code, email, info);
+        RegistrationSession session = new RegistrationSession(code, email, info, pendingSessionExpiry);
         pendingSessions.put(email, session);
         failedVerifyAttempts.remove(email);
 
 
-      //Compile email
-        String htmlBody = getTemplate();
-        if (fieldMap!=null){
-            htmlBody = htmlBody.replace(fieldMap.get("name"), escapeHtml(name));
-            htmlBody = htmlBody.replace(fieldMap.get("code"), code);
-        }
+      //Create a map of values (HashMap allows a null name)
+        Map<String, String> values = new HashMap<>();
+        values.put("name", name);
+        values.put("code", code);
 
 
       //Send email
         try {
-            EmailMessage msg = emailService.createEmail();
-            msg.setFrom(emailService.getUserName(), companyName);
-            msg.addRecipient(email);
-            msg.setSubject(emailSubject);
-            msg.setContent(htmlBody, "text/html");
-            for (String cid : inlineImages.keySet()){
-                javaxt.io.File file = inlineImages.get(cid);
-                msg.addInlineImage(cid, file);
-            }
+            EmailMessage msg = emailTemplate.createEmail(email, values, emailService);
             msg.send();
         }
         catch (Exception e) {
-            e.printStackTrace();
-            System.out.println("Failed to send verification email to " + email + " with code " + code);
+            pendingSessions.remove(email);
+            throw e;
         }
     }
 
@@ -257,6 +288,54 @@ public class EmailVerification {
    *  and IllegalAccessException for 429 response codes.
    */
     public JSONObject verify(String email, String code) throws Exception {
+
+      //Check the code
+        RegistrationSession session = checkCode(email, code);
+
+
+      //Code is valid - create verified session (code=null indicates verified)
+        String sessionToken = generateSessionToken();
+        RegistrationSession verifiedSession = new RegistrationSession(null, session.email, session.info, verifiedSessionExpiry);
+        verifiedSessions.put(sessionToken, verifiedSession);
+
+
+      //Return session data as JSON
+        return getSession(verifiedSession, sessionToken);
+    }
+
+
+  //**************************************************************************
+  //** verifyCode
+  //**************************************************************************
+  /** Checks a security code, like verify(), without creating a session. For
+   *  apps that only need the code checked (e.g. a second login factor, see
+   *  javaxt.express.Authenticator.enableTfa). Throws an
+   *  IllegalArgumentException if the code is wrong or expired (400), or an
+   *  IllegalAccessException after too many wrong codes (429).
+   */
+    public void verifyCode(String email, String code) throws Exception {
+        checkCode(email, code);
+    }
+
+
+  //**************************************************************************
+  //** generateCode
+  //**************************************************************************
+  /** Generates a 6-digit verification code
+   */
+    public String generateCode() {
+        int code = 100000 + random.nextInt(900000);
+        return String.valueOf(code);
+    }
+
+
+  //**************************************************************************
+  //** checkCode
+  //**************************************************************************
+  /** Checks a code and returns its pending session, which is removed (a
+   *  code can only be used once). See verify().
+   */
+    private RegistrationSession checkCode(String email, String code) throws Exception {
 
 
       //Validate required fields
@@ -275,7 +354,7 @@ public class EmailVerification {
 
       //Check if this email is locked out from too many failed attempts
         Integer attempts = failedVerifyAttempts.get(email);
-        if (attempts != null && attempts >= MAX_VERIFY_ATTEMPTS) {
+        if (attempts != null && attempts >= maxVerifyAttempts) {
             pendingSessions.remove(email);
             failedVerifyAttempts.remove(email);
             throw new IllegalAccessException("Too many failed attempts. Please request a new code.");
@@ -299,7 +378,7 @@ public class EmailVerification {
       //Verify code
         if (!session.code.equals(code)) {
             failedVerifyAttempts.merge(email, 1, Integer::sum);
-            int remaining = MAX_VERIFY_ATTEMPTS - failedVerifyAttempts.get(email);
+            int remaining = maxVerifyAttempts - failedVerifyAttempts.get(email);
             if (remaining <= 0) {
                 pendingSessions.remove(email);
                 failedVerifyAttempts.remove(email);
@@ -309,146 +388,40 @@ public class EmailVerification {
         }
 
 
-      //Code is valid - create verified session (code=null indicates verified)
-        String sessionToken = generateSessionToken();
-        RegistrationSession verifiedSession = new RegistrationSession(null, session.email, session.info);
-        verifiedSessions.put(sessionToken, verifiedSession);
-
-
-      //Remove from pending and clear failed attempts
+      //Code is valid. Remove from pending and clear failed attempts.
         pendingSessions.remove(email);
         failedVerifyAttempts.remove(email);
-
-
-      //Return session data as JSON
-        JSONObject json = new JSONObject();
-        json.set("token", sessionToken);
-        json.set("email", verifiedSession.email);
-        json.set("info", verifiedSession.info);
-        return json;
+        return session;
     }
 
 
-  //**************************************************************************
-  //** checkIPRateLimit
-  //**************************************************************************
-  /** Returns true if the IP has not exceeded the rate limit for /start calls.
-   *  Allows MAX_STARTS_PER_IP requests per RATE_LIMIT_WINDOW.
-   */
-    public boolean checkIPRateLimit(String ip) {
-        if (ip == null) return true;
-        long now = System.currentTimeMillis();
-        long cutoff = now - RATE_LIMIT_WINDOW;
 
-        List<Long> timestamps = startRateByIP.computeIfAbsent(ip, k -> Collections.synchronizedList(new ArrayList<>()));
-        synchronized(timestamps){
-            timestamps.removeIf(t -> t < cutoff);
-            if (timestamps.size() >= MAX_STARTS_PER_IP) {
-                return false;
-            }
-            timestamps.add(now);
-        }
-        return true;
+  //**************************************************************************
+  //** setCleanupCallback
+  //**************************************************************************
+  /** Sets a callback that is invoked during each periodic cleanup cycle.
+   *  Callers can use this to perform their own cleanup tasks (e.g. removing
+   *  expired form sessions).
+   */
+    public void setCleanupCallback(Runnable callback) {
+        this.cleanupCallback = callback;
     }
 
 
+
   //**************************************************************************
-  //** generateCode
+  //** startCleanup
   //**************************************************************************
-  /** Generates a 6-digit verification code
+  /** Starts the cleanup task, on a daemon thread (so it doesn't keep the JVM
+   *  from exiting).
    */
-    private String generateCode() {
-        int code = 100000 + random.nextInt(900000);
-        return String.valueOf(code);
-    }
-
-
-  //**************************************************************************
-  //** generateSessionToken
-  //**************************************************************************
-  /** Generates a secure session token
-   */
-    private String generateSessionToken() {
-        byte[] bytes = new byte[32];
-        random.nextBytes(bytes);
-        StringBuilder sb = new StringBuilder();
-        for (byte b : bytes) {
-            sb.append(String.format("%02x", b));
-        }
-        return sb.toString();
-    }
-
-
-  //**************************************************************************
-  //** getTemplate
-  //**************************************************************************
-  /** Used to parse and return an html email template. Ensures that the
-   *  template is always fresh.
-   */
-    private synchronized String getTemplate(){
-        long t = templateFile.exists() ? templateFile.getDate().getTime() : 0;
-        if (t>templateDate){
-            htmlTemplate = templateFile.getText();
-
-          //Extract companyName from <meta name="author" content="...">
-            companyName = "JavaXT";
-            javaxt.html.Parser parser = new javaxt.html.Parser(htmlTemplate);
-            javaxt.html.Element meta = parser.getElementByAttributes("meta", "name", "author");
-            if (meta != null) {
-                String content = meta.getAttribute("content");
-                if (content != null && !content.trim().isEmpty()) {
-                    companyName = content.trim();
-                }
-            }
-
-
-          //Extract emailSubject from <title>...</title>
-            emailSubject = "Registration Verification Code";
-            javaxt.html.Element title = parser.getElementByTagName("title");
-            if (title != null) {
-                String text = title.getInnerText();
-                if (text != null && !text.trim().isEmpty()) {
-                    emailSubject = text.trim();
-                }
-            }
-
-
-          //Extract images
-            for (javaxt.html.Element element : parser.getElementsByTagName("img")){
-                try{
-                    String src = element.getAttribute("src");
-                    String path = templateFile.MapPath(src);
-                    javaxt.io.File file = new javaxt.io.File(path);
-                    if (file.exists()){
-                        String cid = file.getName(false);
-                        inlineImages.put(cid, file);
-                        htmlTemplate = htmlTemplate.replace(" src=\"" + src + "\"", " src=\"cid:"+cid+"\"");
-                    }
-                }
-                catch(Exception e){
-                    //e.printStackTrace();
-                }
-            }
-
-
-            templateDate = t;
-        }
-        return htmlTemplate;
-    }
-
-
-  //**************************************************************************
-  //** escapeHtml
-  //**************************************************************************
-  /** Escapes HTML special characters
-   */
-    private String escapeHtml(String text) {
-        if (text == null) return "";
-        return text.replace("&", "&amp;")
-                   .replace("<", "&lt;")
-                   .replace(">", "&gt;")
-                   .replace("\"", "&quot;")
-                   .replace("'", "&#39;");
+    private void startCleanup(){
+        cleanupScheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "EmailVerification-cleanup");
+            t.setDaemon(true);
+            return t;
+        });
+        cleanupScheduler.scheduleAtFixedRate(this::cleanupExpiredSessions, 5, 5, TimeUnit.MINUTES);
     }
 
 
@@ -465,16 +438,6 @@ public class EmailVerification {
         // Clean verified sessions
         verifiedSessions.entrySet().removeIf(entry -> entry.getValue().isExpired());
 
-        // Clean rate limit entries with no recent timestamps
-        long cutoff = System.currentTimeMillis() - RATE_LIMIT_WINDOW;
-        startRateByIP.entrySet().removeIf(entry -> {
-            List<Long> timestamps = entry.getValue();
-            synchronized(timestamps){
-                timestamps.removeIf(t -> t < cutoff);
-                return timestamps.isEmpty();
-            }
-        });
-
         // Clean failed attempt counters for emails with no pending session
         failedVerifyAttempts.entrySet().removeIf(entry -> !pendingSessions.containsKey(entry.getKey()));
 
@@ -488,4 +451,35 @@ public class EmailVerification {
         }
     }
 
+
+  //**************************************************************************
+  //** RegistrationSession
+  //**************************************************************************
+  /** Holds registration data. When code is non-null, session is pending
+   *  verification (10 min expiry). When code is null, session is verified
+   *  (24 hour expiry).
+   */
+    private static class RegistrationSession {
+        String code;  // null after verification
+        String email;
+        JSONObject info;
+        long timestamp;
+        long expiry;   // milliseconds this session is valid for
+
+        RegistrationSession(String code, String email, JSONObject info, long expiry) {
+            this.code = code;
+            this.email = email;
+            this.info = info;
+            this.timestamp = System.currentTimeMillis();
+            this.expiry = expiry;
+        }
+
+        boolean isVerified() {
+            return code == null;
+        }
+
+        boolean isExpired() {
+            return System.currentTimeMillis() - timestamp > expiry;
+        }
+    }
 }
