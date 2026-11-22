@@ -7,12 +7,8 @@ import java.util.*;
 //**  EmailTemplate
 //******************************************************************************
 /**
- *   An HTML email template, used to send security codes (see EmailVerification
- *   and javaxt.express.Authenticator.enableTfa). The &lt;title&gt; is the email
- *   subject, and &lt;meta name="author" content="..."&gt; the sender's name.
- *   A field map gives the placeholders for the code (required) and the
- *   user's name (optional), e.g. "{{code}}" and "{{name}}". Images in a
- *   template file are embedded in the email.
+ *   Used to represent an email template and generate email messages with
+ *   security codes.
  *
  ******************************************************************************/
 
@@ -30,11 +26,9 @@ public class EmailTemplate {
   //**************************************************************************
   //** Constructor
   //**************************************************************************
-  /** Creates a new instance of this class with a template file.
-   *  @param templateFile HTML email template file. The template is hot-
-   *  reloaded when the file changes on disk. Company name is extracted from
-   *  a &lt;meta name="author"&gt; tag and the email subject from &lt;title&gt;.
-   *  Images (&lt;img src="..."&gt;) are embedded in the email.
+  /** Creates a new instance of this class with a template file. Checks for
+   *  file updates so changes/updates are always live.
+   *  @param templateFile HTML email template file.
    *  @param fieldMap Maps logical field names to placeholder strings in the
    *  template: "code" (required) and "name" (optional). Example:
       <pre>
@@ -42,7 +36,6 @@ public class EmailTemplate {
         fieldMap.put("name", "{{name}}");
         fieldMap.put("code", "{{code}}");
       </pre>
-   *  @throws IllegalArgumentException If the field map has no "code".
    */
     public EmailTemplate(javaxt.io.File templateFile, Map<String, String> fieldMap){
         checkFieldMap(fieldMap);
@@ -57,9 +50,8 @@ public class EmailTemplate {
   //**************************************************************************
   //** Constructor
   //**************************************************************************
-  /** Creates a new instance of this class with a template held in memory
-   *  (e.g. a file in a jar). Same as the other constructor, except that the
-   *  template isn't reloaded and images aren't embedded.
+  /** Creates a new instance of this class with a template (string). Unlike
+   *  a file template, this template is static.
    */
     public EmailTemplate(String htmlTemplate, Map<String, String> fieldMap) {
         if (htmlTemplate==null) throw new IllegalArgumentException();
@@ -94,7 +86,7 @@ public class EmailTemplate {
             if (code!=null) htmlBody = htmlBody.replace(fieldMap.get("code"), code);
         }
 
-        
+
       //Create email message
         EmailMessage msg = emailService.createEmail();
         msg.setFrom(emailService.getUserName(), companyName);
@@ -181,9 +173,12 @@ public class EmailTemplate {
     }
 
 
-  /** Throws an IllegalArgumentException unless the field map has a "code"
-   *  placeholder (otherwise emails would go out without the code). "name" is
-   *  optional.
+  //**************************************************************************
+  //** checkFieldMap
+  //**************************************************************************
+  /** Used to validate a given fieldMap. Throws an IllegalArgumentException if
+   *  the map is missing a "code" placeholder. Otherwise emails would go out
+   *  without the code.
    */
     private static void checkFieldMap(Map<String, String> fieldMap){
         if (fieldMap==null || fieldMap.get("code")==null || fieldMap.get("code").isEmpty()){

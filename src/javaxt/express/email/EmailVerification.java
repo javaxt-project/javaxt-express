@@ -307,11 +307,9 @@ public class EmailVerification {
   //**************************************************************************
   //** verifyCode
   //**************************************************************************
-  /** Checks a security code, like verify(), without creating a session. For
-   *  apps that only need the code checked (e.g. a second login factor, see
-   *  javaxt.express.Authenticator.enableTfa). Throws an
-   *  IllegalArgumentException if the code is wrong or expired (400), or an
-   *  IllegalAccessException after too many wrong codes (429).
+  /** Checks a security code, like verify(), without creating a session.
+   *  Throws an IllegalArgumentException if the code is wrong or expired (400)
+   *  or an IllegalAccessException after too many wrong codes (429).
    */
     public void verifyCode(String email, String code) throws Exception {
         checkCode(email, code);
