@@ -32,7 +32,6 @@ public class ServiceRequest {
     private String service;
     private String method = "";
     private String[] path;
-    private java.security.Principal user;
     private javaxt.utils.URL url;
     private byte[] payload;
     private JSONObject json;
@@ -45,26 +44,30 @@ public class ServiceRequest {
     private Long id;
     private boolean readOnly = false;
     private boolean parseJson = false;
+    protected static final String[] LOCALHOST = {
+        "127.0.0.1", "0:0:0:0:0:0:0:1", "::1"
+    };
     private static String[] approvedFunctions = new String[]{
         "min", "max", "count", "avg", "sum"
     };
 
 
-    private Map<String, String> keywords = Map.ofEntries(
-        Map.entry("fields", "fields"),
-        Map.entry("orderby", "orderby"),
-        Map.entry("limit", "limit"),
-        Map.entry("offset", "offset"),
+    private Map<String, String> keywords = new HashMap<>();
+    {
+        keywords.put("fields", "fields");
+        keywords.put("orderby", "orderby");
+        keywords.put("limit", "limit");
+        keywords.put("offset", "offset");
 
       //Used by the list method in the WebService class
-        Map.entry("format", "format"),
-        Map.entry("count", "count"),
+        keywords.put("format", "format");
+        keywords.put("count", "count");
 
       //Legacy - may be removed in the future
-        Map.entry("filter", "filter"),
-        Map.entry("where", "where"),
-        Map.entry("page", "page")
-    );
+        keywords.put("filter", "filter");
+        keywords.put("where", "where");
+        keywords.put("page", "page");
+    }
 
 
   //**************************************************************************
@@ -647,24 +650,66 @@ public class ServiceRequest {
   //** getClientIP
   //**************************************************************************
   /** Returns the client IP address from the request.
-   *  @param trustProxy When true, and an "X-Forwarded-For" header is present,
-   *  the first (client) entry of that header is returned instead of the socket
-   *  address. Only enable this when the server sits behind a trusted reverse
-   *  proxy/CDN that sets the header; otherwise clients could spoof their IP.
+   *  @param trustProxy When true, and the request came from a proxy on this
+   *  machine (localhost), the address is taken from the "X-Forwarded-For"
+   *  header (see getClientIP(request, trustedProxies)). For other proxies,
+   *  use getClientIP(request, trustedProxies). When false, returns the socket
+   *  address.
    */
     public String getClientIP(boolean trustProxy) {
-        if (trustProxy) {
-            String xff = request.getHeader("X-Forwarded-For");
-            if (xff != null && !xff.isEmpty()) {
-                int comma = xff.indexOf(",");
-                String forwarded = (comma > 0 ? xff.substring(0, comma) : xff).trim();
-                if (!forwarded.isEmpty()) return forwarded;
+        return getClientIP(request, trustProxy ? LOCALHOST : null);
+    }
+
+
+  //**************************************************************************
+  //** getClientIP
+  //**************************************************************************
+  /** Returns the client IP address for a request. If the request came from a
+   *  trusted proxy, the address is taken from the "X-Forwarded-For" header:
+   *  the right-most entry that isn't a trusted proxy. Entries further left
+   *  are set by the client and can't be trusted. If the request didn't come
+   *  from a trusted proxy, the header is ignored and the address of the
+   *  remote socket is returned. Used by the Authenticator for lockouts (see
+   *  Authenticator.setTrustedProxies).
+   *  @param trustedProxies Addresses of reverse proxies whose
+   *  "X-Forwarded-For" header can be trusted. None if null or empty.
+   */
+    public static String getClientIP(HttpServletRequest request, String... trustedProxies) {
+        if (request == null) return null;
+        String remote = normalizeIP(request.getRemoteAddr());
+        if (!isTrustedProxy(remote, trustedProxies)) return remote;
+
+        String xff = request.getHeader("X-Forwarded-For");
+        if (xff != null) {
+            String[] arr = xff.split(",");
+            for (int i = arr.length - 1; i > -1; i--) {
+                String ip = normalizeIP(arr[i]);
+                if (ip == null || ip.isEmpty()) continue;
+                if (!isTrustedProxy(ip, trustedProxies)) return ip;
             }
         }
-        String ip = request.getRemoteAddr();
-        if (ip != null && ip.startsWith("/") && ip.length() > 1) {
-            ip = ip.substring(1);
+        return remote; //direct request from a trusted address (e.g. localhost)
+    }
+
+
+    private static boolean isTrustedProxy(String ip, String[] trustedProxies) {
+        if (ip == null || trustedProxies == null) return false;
+        for (String proxy : trustedProxies) {
+            if (ip.equals(normalizeIP(proxy))) return true;
         }
+        return false;
+    }
+
+
+  /** Returns an IP address without a leading "/", IPv6 brackets, or an IPv6
+   *  scope (e.g. "/127.0.0.1" or "[::1%0]").
+   */
+    protected static String normalizeIP(String ip) {
+        if (ip == null) return null;
+        ip = ip.trim();
+        if (ip.startsWith("/")) ip = ip.substring(1);
+        if (ip.startsWith("[") && ip.contains("]")) ip = ip.substring(1, ip.indexOf("]"));
+        if (ip.contains("%")) ip = ip.substring(0, ip.indexOf("%")); //IPv6 scope, e.g. "::1%0"
         return ip;
     }
 
@@ -744,13 +789,17 @@ public class ServiceRequest {
   //**************************************************************************
   //** getUser
   //**************************************************************************
-  /** Returns the user associated with the request
+  /** Returns the user associated with the request, or null if the request
+   *  isn't authenticated
    */
     public java.security.Principal getUser(){
-        if (user==null){
-            user = request.getUserPrincipal();
+        try{
+            request.authenticate();
+            return request.getUserPrincipal();
         }
-        return user;
+        catch(Exception e){
+            return null;
+        }
     }
 
 
@@ -1592,7 +1641,7 @@ public class ServiceRequest {
                     }
                     sql.append(StringUtils.camelCaseToUnderScore(field.getColumn()));
                     String alias = field.getAlias();
-                    if (alias!=null && !alias.isBlank()){
+                    if (alias!=null && !alias.trim().isEmpty()){
                         sql.append(" as ");
                         sql.append(alias.trim());
                     }
@@ -1761,7 +1810,7 @@ public class ServiceRequest {
                 }
                 sql.append(StringUtils.camelCaseToUnderScore(field.getColumn()));
                 String alias = field.getAlias();
-                if (alias!=null && !alias.isBlank()){
+                if (alias!=null && !alias.trim().isEmpty()){
                     sql.append(" as ");
                     sql.append(alias.trim());
                 }
