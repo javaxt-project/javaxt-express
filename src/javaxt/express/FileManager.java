@@ -665,7 +665,39 @@ public class FileManager {
                     return web + relPath;
                 }
                 else{
-                    return xmlFile.MapPath(relPath);
+
+                  //Resolve the path relative to the html/xml file. If nothing
+                  //is found, walk up the directory tree towards the web root
+                  //and return the first match.
+                    String path = xmlFile.MapPath(relPath);
+                    if (!exists(path)){
+                        String root = web.toString().replace("\\", "/");
+                        javaxt.io.Directory dir = xmlFile.getDirectory();
+                        while (dir!=null){
+                            String d = dir.toString().replace("\\", "/");
+                            if (d.length()<root.length()) break; //above the web root
+                            String altPath = d + relPath;
+                            if (exists(altPath)){
+                                path = altPath;
+                                break;
+                            }
+                            if (d.equals(root)) break;
+                            dir = dir.getParentDirectory();
+                        }
+                    }
+
+                    return path;
+                }
+            }
+
+            private boolean exists(String path){
+                try{
+                    javaxt.io.File f = new javaxt.io.File(path);
+                    if (path.contains("*")) return f.getDirectory().exists();
+                    else return f.exists();
+                }
+                catch(Exception e){
+                    return false;
                 }
             }
 
