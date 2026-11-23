@@ -21,6 +21,9 @@ public class EmailTemplate {
     private String companyName;
     private Map<String, String> fieldMap;
     private Map<String, javaxt.io.File> inlineImages;
+    private volatile String from;     //see setFrom
+    private volatile String fromName;
+    private volatile String replyTo;  //see setReplyTo
 
 
   //**************************************************************************
@@ -63,6 +66,74 @@ public class EmailTemplate {
 
 
   //**************************************************************************
+  //** setFrom
+  //**************************************************************************
+  /** Sets the sender address of the emails created with this template. By
+   *  default, emails are sent from the EmailService's username, if it's an
+   *  email address. Use this when the  username isn't an email address, or
+   *  to send from another address the account is allowed to use (e.g. a
+   *  "noreply" address). Pass null to go back to the default.
+   */
+    public void setFrom(String emailAddress){
+        setFrom(emailAddress, null);
+    }
+
+
+  //**************************************************************************
+  //** setFrom
+  //**************************************************************************
+  /** Sets the sender address and name of the emails created with this
+   *  template. The name is optional: without one, the name is the template's author (&lt;meta
+   *  name="author"&gt;)
+   */
+    public void setFrom(String emailAddress, String name){
+        this.from = toAddress(emailAddress, "sender");
+        this.fromName = (name==null || name.trim().isEmpty()) ? null : name.trim();
+    }
+
+
+  //**************************************************************************
+  //** getFrom
+  //**************************************************************************
+  /** Returns the sender address set with setFrom(), or null.
+   */
+    public String getFrom(){
+        return from;
+    }
+
+
+  //**************************************************************************
+  //** getFromName
+  //**************************************************************************
+  /** Returns the sender name set with setFrom(), or null.
+   */
+    public String getFromName(){
+        return fromName;
+    }
+
+
+  //**************************************************************************
+  //** setReplyTo
+  //**************************************************************************
+  /** Sets the address replies go to. By default, replies go to the sender.
+   *  Pass null to go back to the default.
+   */
+    public void setReplyTo(String emailAddress){
+        this.replyTo = toAddress(emailAddress, "reply-to");
+    }
+
+
+  //**************************************************************************
+  //** getReplyTo
+  //**************************************************************************
+  /** Returns the reply-to address set with setReplyTo(), or null.
+   */
+    public String getReplyTo(){
+        return replyTo;
+    }
+
+
+  //**************************************************************************
   //** createEmail
   //**************************************************************************
   /** Returns an email for the given address, ready to send: the template
@@ -89,7 +160,13 @@ public class EmailTemplate {
 
       //Create email message
         EmailMessage msg = emailService.createEmail();
-        msg.setFrom(emailService.getUserName(), companyName);
+        String sender = getSender(emailService);
+        if (sender==null) throw new Exception(
+            "No sender address: the SMTP username (\"" + emailService.getUserName() +
+            "\") isn't an email address. Use EmailTemplate.setFrom().");
+        String name = fromName!=null ? fromName : companyName;
+        msg.setFrom(sender, name!=null ? name : "JavaXT");
+        if (replyTo!=null) msg.setReplyTo(replyTo);
         msg.addRecipient(emailAddress);
         msg.setSubject(emailSubject);
         msg.setContent(htmlBody, "text/html");
@@ -100,6 +177,18 @@ public class EmailTemplate {
         return msg;
     }
 
+
+  //**************************************************************************
+  //** getSender
+  //**************************************************************************
+  /** Returns the address emails created with this template are sent from.
+   */
+    private String getSender(EmailService emailService){
+        if (from!=null) return from;
+        String u = emailService==null ? null : emailService.getUserName();
+        if (u!=null) u = u.trim();
+        return EmailUtils.isValidEmail(u) ? u : null;
+    }
 
 
   //**************************************************************************
@@ -199,5 +288,20 @@ public class EmailTemplate {
                    .replace(">", "&gt;")
                    .replace("\"", "&quot;")
                    .replace("'", "&#39;");
+    }
+
+
+  //**************************************************************************
+  //** toAddress
+  //**************************************************************************
+  /** Returns a trimmed email address, or null if it's null or empty.
+   */
+    private static String toAddress(String emailAddress, String what){
+        if (emailAddress==null || emailAddress.trim().isEmpty()) return null;
+        emailAddress = emailAddress.trim();
+        if (!EmailUtils.isValidEmail(emailAddress)){
+            throw new IllegalArgumentException("Invalid " + what + " address: " + emailAddress);
+        }
+        return emailAddress;
     }
 }

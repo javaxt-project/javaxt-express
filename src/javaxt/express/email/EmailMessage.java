@@ -27,6 +27,7 @@ public class EmailMessage {
     private String content = "";
     private String contentType = "text/plain";
     private InternetAddress from;
+    private InternetAddress replyTo;
     private ArrayList<InternetAddress> to;
     private ArrayList<InlineImage> inlineImages;
     private Message message;
@@ -86,6 +87,17 @@ public class EmailMessage {
 
 
   //**************************************************************************
+  //** setReplyTo
+  //**************************************************************************
+  /** Sets the address replies go to (the "Reply-To" header). By default,
+   *  replies go to the sender. Pass null to remove it.
+   */
+    public void setReplyTo(String emailAddress) throws Exception {
+        replyTo = emailAddress==null ? null : new InternetAddress(emailAddress);
+    }
+
+
+  //**************************************************************************
   //** addRecipient
   //**************************************************************************
   /** Adds a TO recipient to the email.
@@ -136,6 +148,7 @@ public class EmailMessage {
    */
     public void send() throws Exception {
         message.addFrom(new InternetAddress[]{from});
+        if (replyTo!=null) message.setReplyTo(new InternetAddress[]{replyTo});
         for (InternetAddress recipient : to){
             message.addRecipient(RecipientType.TO, recipient);
         }
